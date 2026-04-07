@@ -1,0 +1,248 @@
+# Meridian Vehicle Definition — Unmanned Surface Vehicle (Differential Thrust)
+#
+# Comprehensive parameter set for dual-thruster boats.
+# Designed for patrol, survey, environmental monitoring, and cargo delivery.
+
+[vehicle]
+name = "USV-Differential"
+class = "boat"
+frame = "differential"  # Two motors, one port, one starboard
+description = "Differential thrust USV for autonomous water operations"
+
+# ═══════════════════════════════════════════════════════════════
+# HULL & PHYSICS
+# ═══════════════════════════════════════════════════════════════
+
+[physics]
+mass_kg = 25.0               # Dry mass including payload
+hull_length_m = 1.5           # Waterline length
+hull_beam_m = 0.6             # Width at waterline
+draft_m = 0.15                # Depth below waterline
+max_speed_ms = 4.0            # Maximum hull speed
+max_thrust_n = 40.0           # Combined max thrust from both motors
+drag_coefficient = 12.0       # Hydrodynamic drag (much higher than air)
+yaw_drag_coefficient = 6.0    # Rotational drag in water
+added_mass_fraction = 0.15    # Added mass effect (water dragged with hull)
+
+# ═══════════════════════════════════════════════════════════════
+# SPEED CONTROL
+# ═══════════════════════════════════════════════════════════════
+
+[speed_control]
+# PID for longitudinal speed (throttle output)
+p = 0.40
+i = 0.15
+d = 0.02
+imax = 0.5                    # I-term limit (fraction of max throttle)
+filt_hz = 2.0                 # D-term filter frequency
+ff = 0.0                      # Feed-forward (set by autotune if used)
+
+cruise_speed_ms = 2.0         # Default cruise speed for missions
+cruise_throttle = 0.35        # Approximate throttle for cruise speed
+
+max_accel_ms2 = 0.5           # Max longitudinal acceleration
+max_decel_ms2 = 1.0           # Max braking deceleration (water drag helps)
+
+# Speed measurement source
+speed_source = "gps"          # "gps" or "water_speed" (paddlewheel/doppler)
+speed_filter_hz = 1.0         # Low-pass on speed measurement
+
+# ═══════════════════════════════════════════════════════════════
+# HEADING / TURN CONTROL
+# ═══════════════════════════════════════════════════════════════
+
+[heading_control]
+# PID for heading (steering output — differential thrust bias)
+p = 1.20
+i = 0.20
+d = 0.08
+imax = 0.5
+filt_hz = 2.0
+ff = 0.0
+
+max_turn_rate_degs = 60.0     # Max yaw rate (degrees/second)
+max_turn_accel_degs2 = 30.0   # Max yaw acceleration
+
+# Heading source
+heading_source = "compass"    # "compass", "gps_course", or "dual_gps"
+heading_filter_hz = 2.0
+
+# ═══════════════════════════════════════════════════════════════
+# STATION KEEPING
+# ═══════════════════════════════════════════════════════════════
+
+[station_keeping]
+# Position hold when in Loiter/Hold mode
+radius_m = 3.0                # Acceptable radius around hold point
+speed_max_ms = 1.5            # Max speed when correcting position
+p = 0.5                       # Position P gain (m/s per meter of error)
+
+# ═══════════════════════════════════════════════════════════════
+# WAYPOINT NAVIGATION
+# ═══════════════════════════════════════════════════════════════
+
+[navigation]
+wp_radius_m = 4.0             # Waypoint acceptance radius
+wp_overshoot_m = 2.0          # Overshoot distance before turn to next WP
+
+# L1 guidance
+l1_period = 12.0              # L1 guidance period (seconds) — higher = smoother turns
+l1_damping = 0.75             # L1 damping ratio
+
+# Track following
+crosstrack_gain = 1.0         # How aggressively to correct crosstrack error
+crosstrack_max_ms = 1.5       # Max crosstrack correction speed
+
+# Turn behavior
+turn_max_g = 0.3              # Max lateral acceleration in turns
+pivot_turn_threshold_deg = 90  # Above this angle, do a pivot turn (spin in place)
+
+# ═══════════════════════════════════════════════════════════════
+# CURRENT ESTIMATION
+# ═══════════════════════════════════════════════════════════════
+
+[current_estimation]
+enabled = true
+# Water current estimated from GPS groundspeed vs commanded thrust vector
+# Same math as wind estimation for aircraft
+filter_tc_s = 10.0            # Time constant for current estimate filter
+min_speed_ms = 0.5            # Minimum speed for valid estimate
+max_current_ms = 2.0          # Sanity limit on estimated current
+use_for_navigation = true     # Feed current estimate into L1 guidance
+
+# ═══════════════════════════════════════════════════════════════
+# MOTORS
+# ═══════════════════════════════════════════════════════════════
+
+[motors]
+type = "brushless"            # "brushless" or "brushed"
+protocol = "dshot300"         # "pwm", "dshot150", "dshot300", "dshot600"
+count = 2
+port_channel = 1              # Left motor output channel
+starboard_channel = 2         # Right motor output channel
+
+# Throttle mapping
+min_throttle = 0.05           # Minimum commanded throttle (prevent stall)
+max_throttle = 1.0
+spin_min = 0.08               # Minimum spinning throttle
+
+# Differential steering
+# steering_command * skid_steering_mix determines how much to bias L/R motors
+skid_steering_mix = 0.5       # 0.0 = no steering, 1.0 = full differential
+
+# Reverse thrust
+allow_reverse = true          # Allow negative throttle for braking/reversing
+reverse_throttle_max = 0.5    # Max reverse throttle fraction
+
+# ═══════════════════════════════════════════════════════════════
+# AUTO-TUNE
+# ═══════════════════════════════════════════════════════════════
+
+[autotune]
+enabled = true
+method = "tyreus_luyben"      # "ziegler_nichols", "tyreus_luyben", "conservative"
+speed_relay_amplitude = 0.20  # Throttle step for speed relay test
+heading_relay_amplitude = 0.30 # Steering step for heading relay test
+min_cycles = 4                # Minimum oscillation cycles
+timeout_s = 90.0              # Max time per test phase
+
+# ═══════════════════════════════════════════════════════════════
+# SENSORS
+# ═══════════════════════════════════════════════════════════════
+
+[sensors.gps]
+type = "ublox"
+min_satellites = 8            # Higher threshold for water (no landmarks for DGPS)
+min_hdop = 2.0
+position_update_hz = 10
+
+[sensors.compass]
+type = "qmc5883l"             # Common waterproof compass
+declination_auto = true       # Use WMM for declination
+motor_compensation = true     # Compensate for motor magnetic field
+
+[sensors.imu]
+type = "icm42688"
+vibration_threshold = 15.0    # Lower threshold — boats have different vibe profile
+
+[sensors.baro]
+type = "bmp388"
+# Baro is less useful on water (no altitude to hold) but still used for weather
+# and as EKF sanity check
+
+# Optional water-specific sensors
+[sensors.water_speed]
+enabled = false               # Paddlewheel or doppler log
+type = "nmea"                 # NMEA VHW sentence from thru-hull sensor
+
+[sensors.water_depth]
+enabled = false               # Echo sounder
+type = "nmea"                 # NMEA DBT/DPT sentence
+min_depth_m = 0.5             # Minimum safe operating depth
+shallow_alarm_m = 1.0         # Warn when depth below this
+
+# ═══════════════════════════════════════════════════════════════
+# FAILSAFE
+# ═══════════════════════════════════════════════════════════════
+
+[failsafe]
+# RC loss
+rc_loss_timeout_ms = 2000
+rc_loss_action = "hold"       # "hold" (station keep), "rtl", "stop" (kill motors)
+
+# GCS loss
+gcs_loss_timeout_ms = 30000   # 30 seconds — longer for boats (they're slower)
+gcs_loss_action = "rtl"
+
+# GPS loss
+gps_loss_timeout_ms = 10000
+gps_loss_action = "hold"      # Hold heading and reduce speed
+
+# Battery
+battery_low_voltage = 21.0    # 6S: 3.5V/cell
+battery_low_action = "rtl"
+battery_critical_voltage = 19.8 # 6S: 3.3V/cell
+battery_critical_action = "hold" # Don't try to RTL on critical — just stop
+
+# EKF
+ekf_fail_action = "hold"      # Reduce speed, hold heading
+
+# Geofence
+fence_breach_action = "rtl"   # Return to launch if outside fence
+
+# Water-specific
+leak_detection = false         # Requires leak sensor on ADC pin
+leak_action = "rtl"
+
+# ═══════════════════════════════════════════════════════════════
+# GEOFENCE
+# ═══════════════════════════════════════════════════════════════
+
+[geofence]
+enabled = true
+type = "circle"               # "circle", "polygon", or "both"
+radius_m = 500.0              # Operating area radius from home
+max_speed_at_fence_ms = 1.0   # Slow down near fence boundary
+fence_margin_m = 20.0         # Start slowing this far from fence
+
+# ═══════════════════════════════════════════════════════════════
+# MISSION
+# ═══════════════════════════════════════════════════════════════
+
+[mission]
+default_speed_ms = 2.0        # Default mission speed
+default_wp_radius_m = 4.0     # Default waypoint acceptance radius
+loiter_radius_m = 8.0         # Radius for loiter/circle commands
+max_mission_distance_m = 5000 # Sanity check on mission total distance
+
+# ═══════════════════════════════════════════════════════════════
+# LOGGING
+# ═══════════════════════════════════════════════════════════════
+
+[logging]
+rate_attitude_hz = 10
+rate_position_hz = 5
+rate_gps_hz = 5
+rate_motors_hz = 10
+rate_battery_hz = 2
+log_current_estimate = true   # Log water current estimation data

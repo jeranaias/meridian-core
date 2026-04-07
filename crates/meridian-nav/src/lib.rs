@@ -13,3 +13,6 @@ pub use l1::L1Controller;
 pub use smartrtl::SmartRTL;
 pub use rally::{RallyPoint, RallyManager};
 pub use scurve::{SCurveSegment, SplineSegment};
+
+pub mod current_estimator;
+pub use current_estimator::{CurrentEstimator, CurrentEstimatorConfig, CurrentEstimate};
