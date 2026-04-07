@@ -19,20 +19,65 @@ window.FlyMap = (function () {
     let initialized = false;
 
     // SVG vehicle icon (drone shape pointing up)
-    const vehicleSvg = `<svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
-        <g fill="none" stroke="#0891b2" stroke-width="1.8" stroke-linecap="round">
-            <line x1="18" y1="4" x2="18" y2="14"/>
-            <line x1="18" y1="22" x2="18" y2="32"/>
-            <line x1="4" y1="18" x2="14" y2="18"/>
-            <line x1="22" y1="18" x2="32" y2="18"/>
-            <circle cx="18" cy="18" r="4" fill="rgba(0,229,255,0.2)"/>
-            <circle cx="7" cy="7" r="3" stroke-opacity="0.4"/>
-            <circle cx="29" cy="7" r="3" stroke-opacity="0.4"/>
-            <circle cx="7" cy="29" r="3" stroke-opacity="0.4"/>
-            <circle cx="29" cy="29" r="3" stroke-opacity="0.4"/>
-        </g>
-        <polygon points="18,6 15,12 21,12" fill="#0891b2" opacity="0.8"/>
-    </svg>`;
+    // Vehicle icons by type
+    const VEHICLE_SVGS = {
+        quad: `<svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+            <g fill="none" stroke="#0891b2" stroke-width="1.8" stroke-linecap="round">
+                <line x1="18" y1="4" x2="18" y2="14"/><line x1="18" y1="22" x2="18" y2="32"/>
+                <line x1="4" y1="18" x2="14" y2="18"/><line x1="22" y1="18" x2="32" y2="18"/>
+                <circle cx="18" cy="18" r="4" fill="rgba(0,229,255,0.2)"/>
+                <circle cx="7" cy="7" r="3" stroke-opacity="0.4"/><circle cx="29" cy="7" r="3" stroke-opacity="0.4"/>
+                <circle cx="7" cy="29" r="3" stroke-opacity="0.4"/><circle cx="29" cy="29" r="3" stroke-opacity="0.4"/>
+            </g>
+            <polygon points="18,6 15,12 21,12" fill="#0891b2" opacity="0.8"/>
+        </svg>`,
+        boat: `<svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+            <g fill="none" stroke="#0891b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8,24 L6,20 L18,8 L30,20 L28,24 Z" fill="rgba(0,229,255,0.15)"/>
+                <line x1="18" y1="8" x2="18" y2="18" stroke-width="1.5"/>
+                <path d="M6,27 Q12,30 18,27 Q24,24 30,27" stroke-opacity="0.4"/>
+            </g>
+            <polygon points="18,6 16,10 20,10" fill="#0891b2" opacity="0.9"/>
+        </svg>`,
+        plane: `<svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+            <g fill="none" stroke="#0891b2" stroke-width="1.8" stroke-linecap="round">
+                <line x1="18" y1="4" x2="18" y2="32"/>
+                <line x1="6" y1="16" x2="30" y2="16"/>
+                <line x1="12" y1="28" x2="24" y2="28"/>
+            </g>
+            <polygon points="18,4 15,10 21,10" fill="#0891b2" opacity="0.8"/>
+        </svg>`,
+        rover: `<svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+            <g fill="none" stroke="#0891b2" stroke-width="2" stroke-linecap="round">
+                <rect x="10" y="10" width="16" height="20" rx="3" fill="rgba(0,229,255,0.15)"/>
+                <circle cx="12" cy="12" r="2.5"/><circle cx="24" cy="12" r="2.5"/>
+                <circle cx="12" cy="28" r="2.5"/><circle cx="24" cy="28" r="2.5"/>
+            </g>
+            <polygon points="18,6 16,10 20,10" fill="#0891b2" opacity="0.8"/>
+        </svg>`,
+    };
+
+    let currentVehicleType = 'quad';
+
+    function getVehicleSvg() {
+        return VEHICLE_SVGS[currentVehicleType] || VEHICLE_SVGS.quad;
+    }
+
+    function setVehicleType(type) {
+        if (VEHICLE_SVGS[type] && type !== currentVehicleType) {
+            currentVehicleType = type;
+            if (vehicleMarker && map) {
+                var newIcon = L.divIcon({
+                    className: 'vehicle-icon',
+                    html: getVehicleSvg(),
+                    iconSize: [36, 36],
+                });
+                vehicleMarker.setIcon(newIcon);
+            }
+        }
+    }
+
+    const vehicleSvg = VEHICLE_SVGS.quad; // default
 
     // SVG home icon
     const homeSvg = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -679,7 +724,8 @@ window.FlyMap = (function () {
     return {
         init, toggleFollow, centerOnVehicle, getMap,
         enablePlanMode, updateMissionMarkers, clearMissionMarkers, fitMission,
-        updateSecondaryVehicles, updateGeofence, updateAdsbTraffic
+        updateSecondaryVehicles, updateGeofence, updateAdsbTraffic,
+        setVehicleType
     };
 
 })();

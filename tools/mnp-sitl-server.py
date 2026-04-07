@@ -95,9 +95,13 @@ def cobs_decode(data: bytes) -> bytes:
 # ── MNP Message Builders ─────────────────────────────────────
 # Each must match the parser in gcs/js/mnp.js exactly.
 
-def mnp_heartbeat(armed: bool, mode_idx: int, status: int = 4) -> bytes:
+# Vehicle class in top 4 bits of status byte:
+# 0=copter, 1=plane, 2=rover, 3=boat, 4=sub
+VCLASS_BOAT = 3 << 4
+
+def mnp_heartbeat(armed: bool, mode_idx: int, status: int = 4, vehicle_class: int = VCLASS_BOAT) -> bytes:
     payload = struct.pack("<BBB", MSG_HEARTBEAT, 1 if armed else 0, mode_idx)
-    payload += struct.pack("<B", status)
+    payload += struct.pack("<B", (vehicle_class & 0xF0) | (status & 0x0F))
     return cobs_encode(payload)
 
 def mnp_attitude(roll: float, pitch: float, yaw: float,
@@ -244,10 +248,8 @@ class SitlServer:
     def __init__(self):
         # Botany Bay, Sydney — nice open water
         self.boat = JetBoat(-33.9850, 151.2100, 45.0)
-        self.boat.waypoints = [
-            (-33.9830, 151.2130),  # WP A — 300m northeast
-            (-33.9810, 151.2160),  # WP B — 600m northeast
-        ]
+        # No hardcoded waypoints — user places them via GCS Plan tab
+        self.boat.waypoints = []
         self.clients = set()
         self.tick = 0
 
@@ -285,6 +287,22 @@ class SitlServer:
                         self.boat.wp_idx = 0
                         self.boat.loiter_center = None
                         log.info(f"Mission: {len(self.boat.waypoints)} waypoints")
+            elif cmd == 0x8A:  # CMD_MISSION_COUNT
+                if len(payload) >= 3:
+                    count = struct.unpack("<H", payload[1:3])[0]
+                    self.boat.waypoints = [None] * count
+                    log.info(f"Mission upload: expecting {count} waypoints")
+            elif cmd == 0x89:  # CMD_MISSION_ITEM
+                if len(payload) >= 13:
+                    seq = struct.unpack("<H", payload[1:3])[0]
+                    lat = struct.unpack("<i", payload[3:7])[0] / 1e7
+                    lon = struct.unpack("<i", payload[7:11])[0] / 1e7
+                    if seq < len(self.boat.waypoints):
+                        self.boat.waypoints[seq] = (lat, lon)
+                        log.info(f"  WP {seq+1}: ({lat:.6f}, {lon:.6f})")
+                    # Check if mission is complete
+                    if all(wp is not None for wp in self.boat.waypoints):
+                        log.info(f"Mission upload complete: {len(self.boat.waypoints)} waypoints")
         except Exception as e:
             log.debug(f"cmd parse error: {e}")
 

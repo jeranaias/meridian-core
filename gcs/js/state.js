@@ -48,6 +48,7 @@
             armed: false,
             modeNum: 0,
             modeName: 'UNKNOWN',
+            vehicleClass: 'copter', // 'copter', 'plane', 'boat', 'rover', 'sub'
             systemStatus: 0,
 
             // Attitude (radians)
@@ -267,6 +268,16 @@
                 v.modeName = msg.mode || 'UNKNOWN';
                 v.systemStatus = msg.system_status || 0;
                 v.lastHeartbeat = now;
+
+                // Vehicle class detection (boat, copter, plane, rover, sub)
+                if (msg.vehicle_class && v.vehicleClass !== msg.vehicle_class) {
+                    v.vehicleClass = msg.vehicle_class;
+                    events.emit('vehicle_class', v.vehicleClass);
+                    // Update map icon
+                    if (window.FlyMap && FlyMap.setVehicleType) {
+                        FlyMap.setVehicleType(v.vehicleClass);
+                    }
+                }
                 if (msg.armed && !v.flightStartTime) v.flightStartTime = now;
                 if (!msg.armed) v.flightStartTime = null;
 

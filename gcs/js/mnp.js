@@ -145,12 +145,21 @@ window.MNP = (function () {
 
     // ---- Parsers (FC → GCS) ----
 
+    // Vehicle class IDs
+    var VEHICLE_CLASSES = ['copter', 'plane', 'rover', 'boat', 'sub'];
+
     function parseHeartbeat(r) {
+        var armed = r.u8() !== 0;
+        var modeIdx = r.u8();
+        var status = r.u8();
+        // Vehicle class: encoded in top 4 bits of status byte
+        var vehicleClass = VEHICLE_CLASSES[(status >> 4) & 0x0F] || 'copter';
         return {
             type: 'heartbeat',
-            armed: r.u8() !== 0,
-            mode: MODES[r.u8()] || 'UNKNOWN',
-            system_status: r.u8(),
+            armed: armed,
+            mode: MODES[modeIdx] || 'UNKNOWN',
+            system_status: status & 0x0F,
+            vehicle_class: vehicleClass,
         };
     }
 

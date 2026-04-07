@@ -81,12 +81,18 @@
         return btn;
     }
 
+    // Boat modes (subset that makes sense for surface vehicles)
+    const BOAT_MODES = { 0: 'MANUAL', 2: 'LOITER', 3: 'RTL', 4: 'AUTO', 6: 'GUIDED' };
+    const BOAT_COMMON = [0, 2, 4, 3]; // MANUAL, LOITER, AUTO, RTL
+
     function buildModeButtons() {
         const row = document.getElementById('mode-row');
         if (!row) return;
 
-        const MODES = meridian.COPTER_MODES;
-        const common = meridian.settings.commonModes;
+        var v = meridian.v;
+        var isBoat = v && (v.vehicleClass === 'boat' || v.vehicleClass === 'rover');
+        const MODES = isBoat ? BOAT_MODES : meridian.COPTER_MODES;
+        const common = isBoat ? BOAT_COMMON : meridian.settings.commonModes;
 
         row.innerHTML = '';
         common.forEach(num => {
@@ -247,6 +253,29 @@
     if (window.i18n) i18n.init();
     // T2-13: Onboarding tutorial
     if (window.Onboarding) Onboarding.init();
+    // Vehicle class adaptation — hide/show controls based on vehicle type
+    meridian.events.on('vehicle_class', function (cls) {
+        var takeoffBtn = document.getElementById('btn-takeoff');
+        var altInput = document.getElementById('takeoff-alt');
+        var pauseBtn = document.getElementById('btn-pause');
+
+        if (cls === 'boat' || cls === 'rover') {
+            // Hide takeoff/altitude for surface vehicles
+            if (takeoffBtn) takeoffBtn.style.display = 'none';
+            if (altInput) altInput.style.display = 'none';
+            // Rename HOLD to STATION KEEP
+            if (pauseBtn) pauseBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><circle cx="5" cy="5" r="4"/></svg> HOLD';
+        } else {
+            if (takeoffBtn) takeoffBtn.style.display = '';
+            if (altInput) altInput.style.display = '';
+            if (pauseBtn) pauseBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect x="1" y="1" width="3" height="8"/><rect x="6" y="1" width="3" height="8"/></svg> HOLD';
+        }
+
+        // Rebuild mode buttons with appropriate modes for this vehicle
+        buildModeButtons();
+        meridian.log('Vehicle type: ' + cls, 'info');
+    });
+
     // T3-4: AIS vessel tracker
     if (window.VesselTracker) VesselTracker.init();
     // T3-5: Wind estimation overlay
