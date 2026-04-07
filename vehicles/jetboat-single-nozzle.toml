@@ -1,0 +1,203 @@
+# Meridian Vehicle Definition — Jet Boat (Single Engine, Steering Nozzle)
+#
+# Single jet engine with a deflecting nozzle for left/right steering.
+# One axis of directional control (yaw). Speed is throttle.
+# No roll, no pitch, no altitude control — the hull handles all of that.
+
+[vehicle]
+name = "JetBoat-SingleNozzle"
+class = "boat"
+frame = "jet_single"
+description = "Single-engine jet boat with steering nozzle. Simplest possible USV."
+
+# ═══════════════════════════════════════════════════════════════
+# HULL & PHYSICS
+# ═══════════════════════════════════════════════════════════════
+
+[physics]
+mass_kg = 30.0
+hull_length_m = 1.5
+hull_beam_m = 0.5
+draft_m = 0.12
+max_speed_ms = 5.0               # Jet boats can be fast
+max_thrust_n = 50.0              # Peak jet pump thrust
+drag_longitudinal = 15.0         # Hydrodynamic drag
+drag_lateral = 40.0              # Hull resists sideways motion strongly
+drag_yaw = 8.0                   # Rotational drag
+yaw_inertia = 3.0               # kg·m² about vertical axis
+hull_speed_factor = 1.8          # Semi-planing hull
+
+# ═══════════════════════════════════════════════════════════════
+# JET ENGINE
+# ═══════════════════════════════════════════════════════════════
+
+[jet_engine]
+max_thrust_n = 50.0
+spool_time_constant_s = 0.8      # Jet takes ~1s to spool up/down
+idle_thrust_fraction = 0.05      # 5% thrust at idle
+fuel_consumption_ml_per_s = 15.0 # For endurance calculation
+
+# ═══════════════════════════════════════════════════════════════
+# STEERING NOZZLE
+# ═══════════════════════════════════════════════════════════════
+
+[nozzle]
+max_deflection_deg = 25.0        # ±25° nozzle travel
+moment_arm_m = 0.6               # Distance from CoM to nozzle
+actuator_rate_deg_s = 115.0      # Nozzle slew rate
+servo_channel = 1                # Which output channel drives the nozzle servo
+neutral_pwm = 1500               # Center position
+min_pwm = 1100                   # Full left
+max_pwm = 1900                   # Full right
+
+# ═══════════════════════════════════════════════════════════════
+# SPEED CONTROL
+# ═══════════════════════════════════════════════════════════════
+
+[speed_control]
+p = 0.35
+i = 0.10
+d = 0.02
+imax = 0.4
+filt_hz = 2.0
+cruise_speed_ms = 2.5
+cruise_throttle = 0.40
+max_accel_ms2 = 0.8
+max_decel_ms2 = 1.5              # Water drag helps decelerate
+
+# ═══════════════════════════════════════════════════════════════
+# HEADING CONTROL
+# ═══════════════════════════════════════════════════════════════
+
+[heading_control]
+p = 1.50                          # Higher P for jet boats — nozzle response is crisp
+i = 0.15
+d = 0.10
+imax = 0.5
+filt_hz = 3.0
+max_turn_rate_degs = 90.0        # Jets can turn fast
+max_turn_accel_degs2 = 45.0
+
+# IMPORTANT: at low speed, nozzle steering is weak because
+# yaw_torque = thrust * sin(angle) * arm. Low throttle = low thrust = weak steering.
+# The controller should maintain minimum throttle during turns.
+min_speed_for_steering_ms = 0.5  # Below this, steering authority is marginal
+
+# ═══════════════════════════════════════════════════════════════
+# STATION KEEPING
+# ═══════════════════════════════════════════════════════════════
+
+[station_keeping]
+radius_m = 4.0                   # Jet boats are less precise at low speed
+speed_max_ms = 1.5
+p = 0.4
+
+# ═══════════════════════════════════════════════════════════════
+# NAVIGATION
+# ═══════════════════════════════════════════════════════════════
+
+[navigation]
+wp_radius_m = 5.0                # Larger radius — jets overshoot more
+wp_overshoot_m = 3.0
+l1_period = 10.0                 # Shorter L1 — jets respond faster than prop boats
+l1_damping = 0.75
+crosstrack_gain = 1.2
+crosstrack_max_ms = 2.0
+turn_max_g = 0.5                 # Jets can sustain higher lateral g
+pivot_turn_threshold_deg = 120   # Higher threshold — jets CAN'T pivot in place (no reverse thrust vector)
+
+# ═══════════════════════════════════════════════════════════════
+# CURRENT ESTIMATION
+# ═══════════════════════════════════════════════════════════════
+
+[current_estimation]
+enabled = true
+filter_tc_s = 8.0                # Slightly faster filter — jet's thrust model is cleaner
+min_speed_ms = 0.8
+max_current_ms = 2.5
+use_for_navigation = true
+
+# ═══════════════════════════════════════════════════════════════
+# AUTO-TUNE
+# ═══════════════════════════════════════════════════════════════
+
+[autotune]
+enabled = true
+method = "tyreus_luyben"
+speed_relay_amplitude = 0.25
+heading_relay_amplitude = 0.35
+min_cycles = 4
+timeout_s = 90.0
+
+# ═══════════════════════════════════════════════════════════════
+# MOTORS / OUTPUT
+# ═══════════════════════════════════════════════════════════════
+
+[motors]
+type = "jet"
+count = 1                        # Single jet pump
+throttle_channel = 3             # ESC/throttle on channel 3
+protocol = "pwm"                 # Jet pump ESC is standard PWM
+min_pwm = 1000
+max_pwm = 2000
+allow_reverse = false            # Jet nozzle cannot reverse — no bucket
+
+# ═══════════════════════════════════════════════════════════════
+# SENSORS
+# ═══════════════════════════════════════════════════════════════
+
+[sensors.gps]
+type = "ublox"
+min_satellites = 8
+min_hdop = 2.0
+position_update_hz = 10
+
+[sensors.compass]
+type = "qmc5883l"
+declination_auto = true
+motor_compensation = true
+
+[sensors.imu]
+type = "icm42688"
+# Jet boats vibrate differently from prop boats — jet whine is high frequency
+vibration_threshold = 20.0
+
+# ═══════════════════════════════════════════════════════════════
+# FAILSAFE
+# ═══════════════════════════════════════════════════════════════
+
+[failsafe]
+rc_loss_timeout_ms = 2000
+rc_loss_action = "hold"          # Cut throttle, hold heading
+gcs_loss_timeout_ms = 30000
+gcs_loss_action = "rtl"
+gps_loss_timeout_ms = 10000
+gps_loss_action = "hold"
+battery_low_voltage = 21.0
+battery_low_action = "rtl"
+battery_critical_voltage = 19.8
+battery_critical_action = "hold"
+fence_breach_action = "rtl"
+
+# ═══════════════════════════════════════════════════════════════
+# GEOFENCE
+# ═══════════════════════════════════════════════════════════════
+
+[geofence]
+enabled = true
+type = "circle"
+radius_m = 500.0
+max_speed_at_fence_ms = 1.0
+fence_margin_m = 30.0
+
+# ═══════════════════════════════════════════════════════════════
+# LOGGING
+# ═══════════════════════════════════════════════════════════════
+
+[logging]
+rate_attitude_hz = 10
+rate_position_hz = 5
+rate_motors_hz = 10
+rate_battery_hz = 2
+log_current_estimate = true
+log_nozzle_angle = true          # USV-specific: log nozzle deflection

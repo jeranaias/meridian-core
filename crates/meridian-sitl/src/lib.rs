@@ -7,6 +7,7 @@ pub mod physics;
 pub mod physics_fixedwing;
 pub mod physics_rover;
 pub mod physics_sub;
+pub mod physics_jetboat;
 pub mod sensors;
 pub mod scheduler;
 pub mod hover_test;
