@@ -1,366 +1,344 @@
 #!/usr/bin/env python3
 """
-mnp-sitl-server.py — SITL jet boat simulator with MNP WebSocket server.
+mnp-sitl-server.py — Jet boat SITL with MNP over WebSocket.
 
-Runs a simplified jet boat physics simulation and serves MNP telemetry
-over WebSocket so the Meridian GCS can connect and fly a mission.
-
-This is the full end-to-end demo:
-    [Meridian GCS] ←MNP/WebSocket→ [This SITL] ←physics→ [Simulated Jet Boat]
+Runs jet boat physics and sends MNP telemetry that the Meridian GCS
+understands natively. No MAVLink. Pure MNP.
 
 Usage:
+    pip install websockets
     python tools/mnp-sitl-server.py
-    # Then open GCS at http://localhost:8080, connect to ws://localhost:5760
-
-The SITL simulates:
-    - Jet boat at a fixed starting position
-    - GPS, compass, IMU telemetry
-    - Two-waypoint A→B mission
-    - Water current from the southwest
-    - MNP framing (COBS-encoded messages over WebSocket)
+    # GCS: http://localhost:8080 → connect ws://localhost:5760 (protocol: mnp)
 """
 
 import asyncio
-import json
 import math
 import struct
-import time
 import logging
 
 try:
     import websockets
 except ImportError:
-    print("ERROR: websockets required. Install with: pip install websockets")
+    print("pip install websockets")
     exit(1)
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-log = logging.getLogger("mnp-sitl")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+log = logging.getLogger("sitl")
 
-# ─── COBS Encoding ──────────────────────────────────────────
+# ── MNP Message IDs (must match gcs/js/mnp.js MSG enum) ──────
+
+MSG_HEARTBEAT   = 0x01
+MSG_ATTITUDE    = 0x02
+MSG_POSITION    = 0x03
+MSG_BATTERY     = 0x04
+MSG_GPS_RAW     = 0x05
+MSG_VFR_HUD     = 0x06
+MSG_EKF_STATUS  = 0x07
+
+# Commands from GCS
+CMD_ARM         = 0x80
+CMD_DISARM      = 0x81
+CMD_SET_MODE    = 0x85
+
+# Modes (index must match mnp.js MODES array)
+MODE_STABILIZE = 0  # Manual
+MODE_ALT_HOLD  = 1
+MODE_LOITER    = 2
+MODE_RTL       = 3
+MODE_AUTO      = 4
+MODE_LAND      = 5
+MODE_GUIDED    = 6
+
+# ── COBS ──────────────────────────────────────────────────────
 
 def cobs_encode(data: bytes) -> bytes:
-    """COBS encode a byte sequence (no zero bytes in output)."""
-    output = bytearray()
+    out = bytearray()
+    out.append(0)
     code_idx = 0
-    output.append(0)  # placeholder for first code byte
     code = 1
-
-    for byte in data:
-        if byte == 0:
-            output[code_idx] = code
-            code_idx = len(output)
-            output.append(0)
+    for b in data:
+        if b == 0:
+            out[code_idx] = code
+            code_idx = len(out)
+            out.append(0)
             code = 1
         else:
-            output.append(byte)
+            out.append(b)
             code += 1
             if code == 0xFF:
-                output[code_idx] = code
-                code_idx = len(output)
-                output.append(0)
+                out[code_idx] = code
+                code_idx = len(out)
+                out.append(0)
                 code = 1
-
-    output[code_idx] = code
-    output.append(0)  # frame delimiter
-    return bytes(output)
-
+    out[code_idx] = code
+    out.append(0)  # delimiter
+    return bytes(out)
 
 def cobs_decode(data: bytes) -> bytes:
-    """COBS decode a byte sequence."""
-    output = bytearray()
-    idx = 0
-    while idx < len(data):
-        code = data[idx]
+    out = bytearray()
+    i = 0
+    while i < len(data):
+        code = data[i]
         if code == 0:
             break
-        idx += 1
+        i += 1
         for _ in range(code - 1):
-            if idx < len(data):
-                output.append(data[idx])
-                idx += 1
-        if code < 0xFF and idx < len(data):
-            output.append(0)
-    if output and output[-1] == 0:
-        output = output[:-1]
-    return bytes(output)
+            if i < len(data):
+                out.append(data[i])
+                i += 1
+        if code < 0xFF and i < len(data):
+            out.append(0)
+    if out and out[-1] == 0:
+        out = out[:-1]
+    return bytes(out)
 
+# ── MNP Message Builders ─────────────────────────────────────
+# Each must match the parser in gcs/js/mnp.js exactly.
 
-# ─── Jet Boat Physics ───────────────────────────────────────
-
-class JetBoatSim:
-    def __init__(self, lat, lon, heading_deg):
-        # Position
-        self.lat = lat
-        self.lon = lon
-        # Velocity
-        self.speed = 0.0           # forward speed m/s
-        self.heading = math.radians(heading_deg)
-        self.yaw_rate = 0.0        # rad/s
-        # Engine
-        self.thrust = 0.0          # actual thrust (spooled)
-        self.nozzle_angle = 0.0    # current nozzle deflection rad
-        # Params
-        self.mass = 30.0
-        self.max_thrust = 50.0
-        self.max_nozzle = math.radians(25)
-        self.nozzle_arm = 0.6
-        self.drag = 15.0
-        self.yaw_drag = 8.0
-        self.yaw_inertia = 3.0
-        self.spool_tc = 0.8
-        # Current
-        self.current_n = 0.3       # 0.3 m/s from southwest
-        self.current_e = 0.3
-        # Telemetry
-        self.armed = False
-        self.mode = "MANUAL"
-        self.battery_pct = 85.0
-        self.voltage = 24.2
-        self.satellites = 14
-        self.hdop = 0.9
-        # Mission
-        self.waypoints = []
-        self.current_wp = 0
-        self.mission_active = False
-
-    def step(self, throttle_cmd, steering_cmd, dt):
-        # Spool up
-        target_thrust = max(0, min(1, throttle_cmd)) * self.max_thrust
-        alpha = dt / (self.spool_tc + dt)
-        self.thrust += alpha * (target_thrust - self.thrust)
-
-        # Nozzle
-        target_nozzle = max(-1, min(1, steering_cmd)) * self.max_nozzle
-        nozzle_rate = 2.0 * dt
-        delta = target_nozzle - self.nozzle_angle
-        if abs(delta) > nozzle_rate:
-            self.nozzle_angle += nozzle_rate if delta > 0 else -nozzle_rate
-        else:
-            self.nozzle_angle = target_nozzle
-
-        # Forces
-        thrust_fwd = self.thrust * math.cos(self.nozzle_angle)
-        thrust_lat = self.thrust * math.sin(self.nozzle_angle)
-        drag_fwd = -self.drag * self.speed * abs(self.speed)
-        yaw_torque = thrust_lat * self.nozzle_arm
-        yaw_drag_t = -self.yaw_drag * self.yaw_rate * abs(self.yaw_rate)
-
-        # Integration
-        accel = (thrust_fwd + drag_fwd) / self.mass
-        self.speed += accel * dt
-        self.yaw_rate += (yaw_torque + yaw_drag_t) / self.yaw_inertia * dt
-        self.heading += self.yaw_rate * dt
-        self.heading = self.heading % (2 * math.pi)
-
-        # Position (including current)
-        vn = self.speed * math.cos(self.heading) + self.current_n
-        ve = self.speed * math.sin(self.heading) + self.current_e
-        self.lat += (vn * dt) / 6371000.0 * (180.0 / math.pi)
-        self.lon += (ve * dt) / (6371000.0 * math.cos(math.radians(self.lat))) * (180.0 / math.pi)
-
-        # Battery drain
-        self.battery_pct = max(0, self.battery_pct - 0.0005 * dt * (throttle_cmd + 0.1))
-        self.voltage = 22.0 + self.battery_pct / 100.0 * 3.0
-
-    def run_autopilot(self, dt):
-        """Simple autopilot: navigate to current waypoint."""
-        if not self.mission_active or self.current_wp >= len(self.waypoints):
-            return 0.0, 0.0
-
-        wp = self.waypoints[self.current_wp]
-        # Distance and bearing to waypoint
-        dlat = wp[0] - self.lat
-        dlon = wp[1] - self.lon
-        dist = math.sqrt((dlat * 111320)**2 + (dlon * 111320 * math.cos(math.radians(self.lat)))**2)
-        bearing = math.atan2(dlon * math.cos(math.radians(self.lat)), dlat)
-
-        # Check waypoint reached
-        if dist < 5.0:  # 5m acceptance radius
-            self.current_wp += 1
-            if self.current_wp >= len(self.waypoints):
-                self.mission_active = False
-                log.info("Mission complete!")
-                return 0.0, 0.0
-            log.info(f"Waypoint {self.current_wp} reached, navigating to WP {self.current_wp + 1}")
-            return 0.0, 0.0
-
-        # Heading error
-        heading_error = bearing - self.heading
-        while heading_error > math.pi: heading_error -= 2 * math.pi
-        while heading_error < -math.pi: heading_error += 2 * math.pi
-
-        # P controller for heading
-        steering = max(-1, min(1, heading_error * 1.5))
-        # Throttle based on distance
-        throttle = min(0.6, dist * 0.05)
-
-        return throttle, steering
-
-    def heading_deg(self):
-        return (math.degrees(self.heading) % 360 + 360) % 360
-
-    def ground_speed(self):
-        vn = self.speed * math.cos(self.heading) + self.current_n
-        ve = self.speed * math.sin(self.heading) + self.current_e
-        return math.sqrt(vn**2 + ve**2)
-
-
-# ─── MNP Message Builder ────────────────────────────────────
-
-def build_heartbeat(boat):
-    """Build an MNP heartbeat-like telemetry message."""
-    # Message type 1: Telemetry bundle
-    # Format: type(1) + lat(f64) + lon(f64) + alt(f32) + heading(f32) + speed(f32) +
-    #         yaw_rate(f32) + battery_pct(f32) + voltage(f32) + mode(u8) + armed(u8) +
-    #         satellites(u8) + hdop(f32) + nozzle_angle(f32) + thrust(f32)
-    mode_id = {"MANUAL": 0, "HOLD": 1, "AUTO": 3, "RTL": 6, "LOITER": 5}.get(boat.mode, 0)
-    payload = struct.pack("<B dd ffff ff BB B ff",
-        1,  # message type: telemetry
-        boat.lat, boat.lon,
-        0.0,  # alt (surface vehicle)
-        boat.heading_deg(), boat.ground_speed(),
-        boat.yaw_rate, boat.battery_pct,
-        boat.voltage, mode_id, 1 if boat.armed else 0,
-        boat.satellites, boat.hdop,
-        math.degrees(boat.nozzle_angle), boat.thrust,
-    )
+def mnp_heartbeat(armed: bool, mode_idx: int, status: int = 4) -> bytes:
+    payload = struct.pack("<BBB", MSG_HEARTBEAT, 1 if armed else 0, mode_idx)
+    payload += struct.pack("<B", status)
     return cobs_encode(payload)
 
+def mnp_attitude(roll: float, pitch: float, yaw: float,
+                 roll_spd: float = 0, pitch_spd: float = 0, yaw_spd: float = 0) -> bytes:
+    payload = struct.pack("<B ffffff", MSG_ATTITUDE, roll, pitch, yaw, roll_spd, pitch_spd, yaw_spd)
+    return cobs_encode(payload)
 
-# ─── WebSocket Server ────────────────────────────────────────
+def mnp_position(lat: float, lon: float, alt: float, rel_alt: float,
+                 vx: float, vy: float, vz: float, hdg: float) -> bytes:
+    # lat/lon in degE7, alt in mm, vel in cm/s, hdg in cdeg
+    payload = struct.pack("<B iiii hhh H", MSG_POSITION,
+        int(lat * 1e7), int(lon * 1e7), int(alt * 1000), int(rel_alt * 1000),
+        int(vx * 100), int(vy * 100), int(vz * 100), int(hdg * 100))
+    return cobs_encode(payload)
 
-class MnpSitlServer:
+def mnp_battery(voltage: float, current: float, remaining: int) -> bytes:
+    # voltage in mV, current in cA, remaining in %
+    payload = struct.pack("<B hh B", MSG_BATTERY,
+        int(voltage * 1000), int(current * 100), max(0, min(100, remaining)))
+    return cobs_encode(payload)
+
+def mnp_gps_raw(fix: int, lat: float, lon: float, alt: float,
+                hdop: int, vdop: int, sats: int) -> bytes:
+    payload = struct.pack("<B B iii HH B", MSG_GPS_RAW,
+        fix, int(lat * 1e7), int(lon * 1e7), int(alt * 1000),
+        hdop, vdop, sats)
+    return cobs_encode(payload)
+
+def mnp_vfr_hud(airspeed: float, groundspeed: float, heading: int,
+                throttle: int, alt: float, climb: float) -> bytes:
+    payload = struct.pack("<B ff h H ff", MSG_VFR_HUD,
+        airspeed, groundspeed, heading, throttle, alt, climb)
+    return cobs_encode(payload)
+
+def mnp_ekf(vel_var: float, pos_var: float, hgt_var: float,
+            mag_var: float, terr_var: float, flags: int) -> bytes:
+    payload = struct.pack("<B fffff H", MSG_EKF_STATUS,
+        vel_var, pos_var, hgt_var, mag_var, terr_var, flags)
+    return cobs_encode(payload)
+
+# ── Jet Boat Physics ─────────────────────────────────────────
+
+class JetBoat:
+    def __init__(self, lat, lon, heading_deg):
+        self.lat = lat
+        self.lon = lon
+        self.speed = 0.0
+        self.heading = math.radians(heading_deg)
+        self.yaw_rate = 0.0
+        self.thrust = 0.0
+        self.nozzle = 0.0
+        self.armed = False
+        self.mode = MODE_STABILIZE
+        self.battery = 92.0
+        self.voltage = 25.1
+        self.current_n = 0.2  # mild current
+        self.current_e = 0.15
+        self.waypoints = []
+        self.wp_idx = 0
+        self.loiter_center = None
+
+    def step(self, throttle, steering, dt):
+        if not self.armed:
+            self.speed *= 0.95
+            self.yaw_rate *= 0.9
+            return
+
+        # Spool
+        target = max(0, min(1, throttle)) * 50.0
+        self.thrust += (dt / 0.8) * (target - self.thrust)
+        # Nozzle
+        target_n = max(-1, min(1, steering)) * math.radians(25)
+        rate = 2.0 * dt
+        d = target_n - self.nozzle
+        self.nozzle += max(-rate, min(rate, d))
+        # Forces
+        fwd = self.thrust * math.cos(self.nozzle) - 15.0 * self.speed * abs(self.speed)
+        torque = self.thrust * math.sin(self.nozzle) * 0.6 - 8.0 * self.yaw_rate * abs(self.yaw_rate)
+        self.speed += fwd / 30.0 * dt
+        self.yaw_rate += torque / 3.0 * dt
+        self.heading += self.yaw_rate * dt
+        self.heading %= 2 * math.pi
+        # Position
+        vn = self.speed * math.cos(self.heading) + self.current_n
+        ve = self.speed * math.sin(self.heading) + self.current_e
+        self.lat += vn * dt / 6371000.0 * (180 / math.pi)
+        self.lon += ve * dt / (6371000.0 * math.cos(math.radians(self.lat))) * (180 / math.pi)
+        # Battery
+        self.battery = max(0, self.battery - 0.0003 * dt * (throttle + 0.1))
+        self.voltage = 22.0 + self.battery / 100.0 * 3.2
+
+    def autopilot(self, dt):
+        if self.mode == MODE_AUTO and self.wp_idx < len(self.waypoints):
+            wp = self.waypoints[self.wp_idx]
+            dlat = wp[0] - self.lat
+            dlon = wp[1] - self.lon
+            dist = math.sqrt((dlat * 111320)**2 + (dlon * 111320 * math.cos(math.radians(self.lat)))**2)
+            bearing = math.atan2(dlon * math.cos(math.radians(self.lat)), dlat)
+            if dist < 5.0:
+                self.wp_idx += 1
+                if self.wp_idx >= len(self.waypoints):
+                    # Mission done — loiter at last WP
+                    self.loiter_center = (self.lat, self.lon)
+                    self.mode = MODE_LOITER
+                    log.info("Mission complete — loitering")
+                    return 0.1, 0.0
+                log.info(f"WP {self.wp_idx} reached → WP {self.wp_idx + 1}")
+            err = bearing - self.heading
+            while err > math.pi: err -= 2 * math.pi
+            while err < -math.pi: err += 2 * math.pi
+            return min(0.6, dist * 0.04), max(-1, min(1, err * 1.5))
+
+        elif self.mode == MODE_LOITER and self.loiter_center:
+            cx, cy = self.loiter_center
+            dlat = cx - self.lat
+            dlon = cy - self.lon
+            dist = math.sqrt((dlat * 111320)**2 + (dlon * 111320 * math.cos(math.radians(self.lat)))**2)
+            if dist < 3.0:
+                return 0.05, 0.0
+            bearing = math.atan2(dlon * math.cos(math.radians(self.lat)), dlat)
+            err = bearing - self.heading
+            while err > math.pi: err -= 2 * math.pi
+            while err < -math.pi: err += 2 * math.pi
+            return min(0.35, dist * 0.06), max(-1, min(1, err * 1.2))
+
+        return 0.0, 0.0
+
+    def hdg_deg(self):
+        return (math.degrees(self.heading) % 360 + 360) % 360
+
+    def gnd_speed(self):
+        vn = self.speed * math.cos(self.heading) + self.current_n
+        ve = self.speed * math.sin(self.heading) + self.current_e
+        return math.sqrt(vn * vn + ve * ve)
+
+    def vel_ned(self):
+        vn = self.speed * math.cos(self.heading) + self.current_n
+        ve = self.speed * math.sin(self.heading) + self.current_e
+        return vn, ve
+
+# ── Server ────────────────────────────────────────────────────
+
+class SitlServer:
     def __init__(self):
-        # Start position: Sydney Harbour
-        self.boat = JetBoatSim(-33.8568, 151.2153, 45.0)
+        # Botany Bay, Sydney — nice open water
+        self.boat = JetBoat(-33.9850, 151.2100, 45.0)
+        self.boat.waypoints = [
+            (-33.9830, 151.2130),  # WP A — 300m northeast
+            (-33.9810, 151.2160),  # WP B — 600m northeast
+        ]
         self.clients = set()
         self.tick = 0
 
-        # Set up A→B mission
-        self.boat.waypoints = [
-            (-33.8555, 151.2170),  # Point A: ~200m northeast
-            (-33.8540, 151.2190),  # Point B: ~400m northeast
-        ]
-
-    async def handle_client(self, websocket):
-        self.clients.add(websocket)
-        remote = websocket.remote_address
-        log.info(f"GCS connected: {remote[0]}:{remote[1]}")
-
+    async def handle_client(self, ws):
+        self.clients.add(ws)
+        log.info(f"GCS connected ({len(self.clients)} clients)")
         try:
-            async for message in websocket:
-                if isinstance(message, bytes):
-                    self.handle_command(message)
-                elif isinstance(message, str):
-                    self.handle_text_command(message)
+            async for msg in ws:
+                if isinstance(msg, bytes):
+                    self.handle_cmd(msg)
         except websockets.exceptions.ConnectionClosed:
             pass
         finally:
-            self.clients.discard(websocket)
-            log.info(f"GCS disconnected")
+            self.clients.discard(ws)
+            log.info(f"GCS disconnected ({len(self.clients)} clients)")
 
-    def handle_command(self, data):
-        """Handle incoming MNP command from GCS."""
+    def handle_cmd(self, data):
         try:
-            decoded = cobs_decode(data)
-            if len(decoded) < 1:
+            payload = cobs_decode(data)
+            if len(payload) < 1:
                 return
-            msg_type = decoded[0]
-            if msg_type == 10:  # Arm command
+            cmd = payload[0]
+            if cmd == CMD_ARM:
                 self.boat.armed = True
-                log.info("Vehicle ARMED")
-            elif msg_type == 11:  # Disarm command
+                log.info("ARMED")
+            elif cmd == CMD_DISARM:
                 self.boat.armed = False
-                self.boat.mission_active = False
-                log.info("Vehicle DISARMED")
-            elif msg_type == 20:  # Start mission
-                self.boat.mission_active = True
-                self.boat.current_wp = 0
-                self.boat.mode = "AUTO"
-                log.info(f"Mission started: {len(self.boat.waypoints)} waypoints")
-            elif msg_type == 21:  # Set mode
-                if len(decoded) > 1:
-                    modes = {0: "MANUAL", 1: "HOLD", 3: "AUTO", 5: "LOITER", 6: "RTL"}
-                    self.boat.mode = modes.get(decoded[1], "MANUAL")
-                    log.info(f"Mode: {self.boat.mode}")
+                log.info("DISARMED")
+            elif cmd == CMD_SET_MODE:
+                if len(payload) > 1:
+                    self.boat.mode = payload[1]
+                    names = {0: 'MANUAL', 2: 'LOITER', 3: 'RTL', 4: 'AUTO'}
+                    log.info(f"Mode → {names.get(self.boat.mode, self.boat.mode)}")
+                    if self.boat.mode == MODE_AUTO:
+                        self.boat.wp_idx = 0
+                        self.boat.loiter_center = None
+                        log.info(f"Mission: {len(self.boat.waypoints)} waypoints")
         except Exception as e:
-            log.debug(f"Command parse error: {e}")
+            log.debug(f"cmd parse error: {e}")
 
-    def handle_text_command(self, text):
-        """Handle text commands (for easy GCS testing)."""
-        text = text.strip().lower()
-        if text == "arm":
-            self.boat.armed = True
-            log.info("Armed via text command")
-        elif text == "disarm":
-            self.boat.armed = False
-            log.info("Disarmed via text command")
-        elif text == "auto":
-            self.boat.mission_active = True
-            self.boat.current_wp = 0
-            self.boat.mode = "AUTO"
-            log.info("Auto mode via text command")
-        elif text == "hold":
-            self.boat.mode = "HOLD"
-            self.boat.mission_active = False
-            log.info("Hold mode via text command")
+    async def broadcast(self, data):
+        if self.clients:
+            await asyncio.gather(
+                *[ws.send(data) for ws in self.clients],
+                return_exceptions=True
+            )
 
     async def sim_loop(self):
-        """Main simulation loop at 50Hz."""
         dt = 0.02  # 50Hz
         while True:
-            # Run autopilot if in AUTO mode
-            if self.boat.armed and self.boat.mission_active:
-                throttle, steering = self.boat.run_autopilot(dt)
-                self.boat.step(throttle, steering, dt)
-            elif self.boat.armed:
-                self.boat.step(0.0, 0.0, dt)
-            # else: stationary
-
+            b = self.boat
+            thr, steer = b.autopilot(dt)
+            b.step(thr, steer, dt)
             self.tick += 1
 
-            # Send telemetry at 10Hz (every 5th tick)
+            # 10Hz telemetry
             if self.tick % 5 == 0 and self.clients:
-                msg = build_heartbeat(self.boat)
-                await asyncio.gather(
-                    *[ws.send(msg) for ws in self.clients],
-                    return_exceptions=True
-                )
+                vn, ve = b.vel_ned()
+                mode_names = {0: 'STABILIZE', 2: 'LOITER', 3: 'RTL', 4: 'AUTO', 5: 'LAND', 6: 'GUIDED'}
 
-            # Log status every 5 seconds
+                await self.broadcast(mnp_heartbeat(b.armed, b.mode))
+                await self.broadcast(mnp_attitude(0.0, 0.0, b.heading, 0.0, 0.0, b.yaw_rate))
+                await self.broadcast(mnp_position(b.lat, b.lon, 0.0, 0.0, vn, ve, 0.0, b.hdg_deg()))
+                await self.broadcast(mnp_battery(b.voltage, 18.0 if b.armed else 0.2, int(b.battery)))
+                await self.broadcast(mnp_gps_raw(3, b.lat, b.lon, 0.0, 90, 120, 14))
+                await self.broadcast(mnp_vfr_hud(b.gnd_speed(), b.gnd_speed(), int(b.hdg_deg()), int(thr * 100), 0.0, 0.0))
+                await self.broadcast(mnp_ekf(0.05, 0.08, 0.03, 0.02, 0.01, 0x1FF))
+
+            # Status every 5s
             if self.tick % 250 == 0:
-                b = self.boat
-                wp_str = f"WP {b.current_wp + 1}/{len(b.waypoints)}" if b.mission_active else "idle"
-                log.info(
-                    f"[{b.mode}] hdg={b.heading_deg():.0f}° spd={b.ground_speed():.1f}m/s "
-                    f"batt={b.battery_pct:.0f}% nozzle={math.degrees(b.nozzle_angle):.1f}° "
-                    f"thrust={b.thrust:.0f}N {wp_str} "
-                    f"pos=({b.lat:.6f}, {b.lon:.6f})"
-                )
+                wp_str = f"WP {b.wp_idx+1}/{len(b.waypoints)}" if b.mode == MODE_AUTO else ("LOITER" if b.mode == MODE_LOITER else "idle")
+                log.info(f"{'ARM' if b.armed else 'DSRM'} hdg={b.hdg_deg():.0f}° spd={b.gnd_speed():.1f}m/s batt={b.battery:.0f}% {wp_str} ({b.lat:.6f},{b.lon:.6f})")
 
             await asyncio.sleep(dt)
 
-    async def run(self, host="0.0.0.0", port=5760):
-        log.info(f"MNP SITL Jet Boat Server")
-        log.info(f"Position: Sydney Harbour ({self.boat.lat:.4f}, {self.boat.lon:.4f})")
-        log.info(f"Mission: {len(self.boat.waypoints)} waypoints (A → B)")
-        log.info(f"Current: 0.42 m/s from SW")
-        log.info(f"WebSocket: ws://{host}:{port}")
-        log.info(f"")
-        log.info(f"Commands: 'arm', 'disarm', 'auto', 'hold' (send as text over WS)")
-        log.info(f"Or connect Meridian GCS → Settings → Connection → ws://localhost:{port}")
+    async def run(self, port=5760):
+        log.info("═══════════════════════════════════════════")
+        log.info("  Meridian SITL — Jet Boat (MNP)")
+        log.info(f"  Position: Botany Bay, Sydney")
+        log.info(f"  Mission: A → B then loiter")
+        log.info(f"  WebSocket: ws://0.0.0.0:{port}")
+        log.info("═══════════════════════════════════════════")
+        log.info("Connect GCS → Settings → Connection → ws://localhost:5760")
+        log.info("Then: arm → set mode AUTO → watch it go")
+        log.info("")
 
-        async with websockets.serve(self.handle_client, host, port):
+        async with websockets.serve(self.handle_client, "0.0.0.0", port):
             await self.sim_loop()
 
-
-def main():
-    server = MnpSitlServer()
-    try:
-        asyncio.run(server.run())
-    except KeyboardInterrupt:
-        log.info("Server stopped.")
-
-
 if __name__ == "__main__":
-    main()
+    try:
+        asyncio.run(SitlServer().run())
+    except KeyboardInterrupt:
+        log.info("Stopped.")
