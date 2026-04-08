@@ -592,8 +592,15 @@ window.Connection = (function () {
                 trackCommand(176, 'SET_MODE');
                 return send(MAVLink.encodeSetMode(mode));
             }
-            const idx = MNP.MODES.indexOf(mode.toUpperCase());
-            return send(MNP.encodeSetMode(idx >= 0 ? idx : 0));
+            // mode can be a number (mode index) or string (mode name)
+            var idx;
+            if (typeof mode === 'number') {
+                idx = mode;
+            } else {
+                idx = MNP.MODES.indexOf(String(mode).toUpperCase());
+                if (idx < 0) idx = 0;
+            }
+            return send(MNP.encodeSetMode(idx));
         },
         sendGoto(lat, lon, alt) {
             if (protocol === 'mavlink') return send(MAVLink.encodeSetPositionTargetGlobalInt(lat, lon, alt));
