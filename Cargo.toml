@@ -34,6 +34,7 @@ members = [
     "crates/meridian-camera",
     "crates/meridian-precland",
     "crates/meridian-autotune",
+    "crates/meridian-drl-tune",
     "crates/meridian-fft",
     "crates/meridian-opendroneid",
     "crates/meridian-proximity",

@@ -1,0 +1,11 @@
+[package]
+name = "meridian-drl-tune"
+version.workspace = true
+edition = "2021"
+description = "Deep Reinforcement Learning adaptive PID tuning for USVs"
+
+[dependencies]
+libm = "0.2"
+
+[lints]
+workspace = true
