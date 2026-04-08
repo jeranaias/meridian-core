@@ -169,21 +169,21 @@ class JetBoat:
             self.yaw_rate *= 0.9
             return
 
-        # Spool — jet pump takes ~0.6s to respond
-        target = max(0, min(1, throttle)) * 65.0  # 65N max thrust (SL40 class)
-        self.thrust += (dt / 0.6) * (target - self.thrust)
-        # Nozzle
-        target_n = max(-1, min(1, steering)) * math.radians(25)
-        rate = 2.5 * dt
+        # Spool — 5m Vanguard USV jet pump
+        target = max(0, min(1, throttle)) * 450.0  # ~450N jet thrust on 5m hull
+        self.thrust += (dt / 1.0) * (target - self.thrust)  # bigger engine, slower spool
+        # Nozzle — hydraulic actuator on larger vessel
+        target_n = max(-1, min(1, steering)) * math.radians(20)  # ±20° on larger nozzle
+        rate = 1.5 * dt  # slower actuator
         d = target_n - self.nozzle
         self.nozzle += max(-rate, min(rate, d))
-        # Forces — tuned for ~4 m/s max, ~3 m/s cruise
-        # Drag coeff 10: equilibrium speed = sqrt(thrust/drag) = sqrt(65/10) ≈ 2.5 raw
-        # With spool and time, reaches ~3.5-4 m/s
-        fwd = self.thrust * math.cos(self.nozzle) - 10.0 * self.speed * abs(self.speed)
-        torque = self.thrust * math.sin(self.nozzle) * 0.6 - 6.0 * self.yaw_rate * abs(self.yaw_rate)
-        self.speed += fwd / 25.0 * dt  # 25kg mass
-        self.yaw_rate += torque / 3.0 * dt
+        # Forces — 5m hull, ~180kg, CRUISE_SPEED=3 m/s at 50% throttle
+        # Drag 50: at 50% throttle (225N), speed = sqrt(225/50) ≈ 2.1, spool → ~3 m/s
+        # Full throttle: sqrt(450/50) ≈ 3.0, spool → ~4.5 m/s
+        fwd = self.thrust * math.cos(self.nozzle) - 50.0 * self.speed * abs(self.speed)
+        torque = self.thrust * math.sin(self.nozzle) * 1.5 - 25.0 * self.yaw_rate * abs(self.yaw_rate)
+        self.speed += fwd / 180.0 * dt  # 180kg vessel
+        self.yaw_rate += torque / 40.0 * dt  # larger moment of inertia
         self.heading += self.yaw_rate * dt
         self.heading %= 2 * math.pi
         # Position

@@ -14,11 +14,50 @@ window.Tuning = (function () {
     var chartData = { commanded: [], actual: [] };
     var animFrame = null;
 
-    var AXES = {
+    // Copter tuning axes
+    var COPTER_AXES = {
         roll:  { label: 'Rate Roll',  prefix: 'ATC_RAT_RLL_', pRange: [0, 0.5], iRange: [0, 0.5], dRange: [0, 0.02] },
         pitch: { label: 'Rate Pitch', prefix: 'ATC_RAT_PIT_', pRange: [0, 0.5], iRange: [0, 0.5], dRange: [0, 0.02] },
         yaw:   { label: 'Rate Yaw',   prefix: 'ATC_RAT_YAW_', pRange: [0, 0.5], iRange: [0, 0.05], dRange: [0, 0.02] },
     };
+
+    // Boat/USV tuning axes
+    var BOAT_AXES = {
+        steering: { label: 'Steering Rate', prefix: 'ATC_STR_RAT_', pRange: [0, 2.0], iRange: [0, 1.0], dRange: [0, 0.1],
+                    extras: [
+                        { param: 'ATC_STR_RAT_FF', label: 'Feed-Forward', range: [0, 1.0], step: 0.01 },
+                        { param: 'ATC_STR_RAT_MAX', label: 'Max Rate (deg/s)', range: [0, 360], step: 1 },
+                        { param: 'ATC_STR_ANG_P', label: 'Angle P', range: [0, 5.0], step: 0.1 },
+                        { param: 'ATC_STR_ACC_MAX', label: 'Max Accel (deg/s²)', range: [0, 360], step: 1 },
+                    ]},
+        speed:    { label: 'Speed', prefix: 'ATC_SPEED_', pRange: [0, 2.0], iRange: [0, 1.0], dRange: [0, 0.1],
+                    extras: [
+                        { param: 'ATC_SPEED_FF', label: 'Feed-Forward', range: [0, 1.0], step: 0.01 },
+                        { param: 'CRUISE_SPEED', label: 'Cruise Speed (m/s)', range: [0, 10], step: 0.1 },
+                        { param: 'CRUISE_THROTTLE', label: 'Cruise Throttle (%)', range: [0, 100], step: 1 },
+                        { param: 'ATC_TURN_MAX_G', label: 'Turn Max G', range: [0, 2.0], step: 0.05 },
+                    ]},
+        waypoint: { label: 'Navigation', prefix: 'WP_', pRange: [0, 1], iRange: [0, 1], dRange: [0, 1],
+                    noSliders: true, // no PID sliders — just the extras
+                    extras: [
+                        { param: 'WP_SPEED', label: 'WP Speed (m/s)', range: [0, 10], step: 0.1 },
+                        { param: 'WP_RADIUS', label: 'WP Radius (m)', range: [1, 20], step: 0.5 },
+                        { param: 'WP_PIVOT_ANGLE', label: 'Pivot Angle (deg)', range: [0, 180], step: 5 },
+                        { param: 'WP_PIVOT_RATE', label: 'Pivot Rate (deg/s)', range: [0, 180], step: 5 },
+                        { param: 'LOIT_RADIUS', label: 'Loiter Radius (m)', range: [1, 20], step: 0.5 },
+                        { param: 'ATC_BRAKE', label: 'Brake Enable', range: [0, 1], step: 1 },
+                    ]},
+    };
+
+    function getAxes() {
+        var v = meridian.v;
+        if (v && (v.vehicleClass === 'boat' || v.vehicleClass === 'rover')) {
+            return BOAT_AXES;
+        }
+        return COPTER_AXES;
+    }
+
+    var AXES = COPTER_AXES; // default, updated on render
 
     function getAxisParams(axis) {
         var v = meridian.v;
@@ -32,6 +71,9 @@ window.Tuning = (function () {
     }
 
     function render(container) {
+        AXES = getAxes();
+        var axisKeys = Object.keys(AXES);
+        if (axisKeys.indexOf(activeAxis) < 0) activeAxis = axisKeys[0];
         var cfg = AXES[activeAxis];
         var vals = getAxisParams(activeAxis);
 
@@ -39,19 +81,33 @@ window.Tuning = (function () {
 
         // Axis tabs
         html += '<div class="tuning-tabs">';
-        var axisKeys = ['roll', 'pitch', 'yaw'];
         for (var i = 0; i < axisKeys.length; i++) {
             var ak = axisKeys[i];
             html += '<button class="tuning-tab' + (ak === activeAxis ? ' active' : '') + '" data-axis="' + ak + '">' + AXES[ak].label + '</button>';
         }
         html += '</div>';
 
-        // Sliders
-        html += '<div class="tuning-sliders">';
-        html += renderSlider('P', vals.P, cfg.pRange[0], cfg.pRange[1], 0.001);
-        html += renderSlider('I', vals.I, cfg.iRange[0], cfg.iRange[1], 0.001);
-        html += renderSlider('D', vals.D, cfg.dRange[0], cfg.dRange[1], 0.0001);
-        html += '</div>';
+        // PID Sliders (unless noSliders flag)
+        if (!cfg.noSliders) {
+            html += '<div class="tuning-sliders">';
+            html += renderSlider('P', vals.P, cfg.pRange[0], cfg.pRange[1], 0.001);
+            html += renderSlider('I', vals.I, cfg.iRange[0], cfg.iRange[1], 0.001);
+            html += renderSlider('D', vals.D, cfg.dRange[0], cfg.dRange[1], 0.0001);
+            html += '</div>';
+        }
+
+        // Extra params (boat-specific: FF, cruise speed, WP radius, etc)
+        if (cfg.extras && cfg.extras.length > 0) {
+            html += '<div class="tuning-sliders">';
+            var v = meridian.v;
+            var params = v ? v.params : {};
+            for (var e = 0; e < cfg.extras.length; e++) {
+                var ex = cfg.extras[e];
+                var val = params[ex.param] !== undefined ? params[ex.param] : 0;
+                html += renderSlider(ex.label, val, ex.range[0], ex.range[1], ex.step, ex.param);
+            }
+            html += '</div>';
+        }
 
         // Response chart
         html += '<div class="tuning-chart-section">';
@@ -127,30 +183,54 @@ window.Tuning = (function () {
         }
     }
 
-    function renderSlider(gain, value, min, max, step) {
+    function renderSlider(gain, value, min, max, step, paramName) {
+        var id = paramName || gain;
+        var decimals = step < 0.01 ? 4 : (step < 0.1 ? 3 : (step < 1 ? 1 : 0));
         var html = '<div class="tuning-slider-row">';
-        html += '<span class="tuning-gain-label">' + gain + ':</span>';
-        html += '<input type="range" class="tuning-slider" id="tuning-slider-' + gain + '" ';
-        html += 'min="' + min + '" max="' + max + '" step="' + step + '" value="' + value + '">';
-        html += '<span class="tuning-val" id="tuning-val-' + gain + '">' + value.toFixed(gain === 'D' ? 4 : 3) + '</span>';
+        html += '<span class="tuning-gain-label">' + gain + '</span>';
+        html += '<input type="range" class="tuning-slider" id="tuning-slider-' + id + '" ';
+        html += 'min="' + min + '" max="' + max + '" step="' + step + '" value="' + value + '"';
+        if (paramName) html += ' data-param="' + paramName + '"';
+        html += '>';
+        html += '<span class="tuning-val" id="tuning-val-' + id + '">' + (typeof value === 'number' ? value.toFixed(decimals) : value) + '</span>';
         html += '</div>';
         return html;
     }
 
     function writePID(container) {
-        var prefix = AXES[activeAxis].prefix;
+        var cfg = AXES[activeAxis];
+        var prefix = cfg.prefix;
         var v = meridian.v;
         if (!v) return;
+        var written = 0;
 
-        ['P', 'I', 'D'].forEach(function (gain) {
-            var slider = document.getElementById('tuning-slider-' + gain);
-            if (slider) {
-                var val = parseFloat(slider.value);
-                v.params[prefix + gain] = val;
-                meridian.events.emit('param', { name: prefix + gain, value: val });
-            }
-        });
-        meridian.log('PID values written for ' + AXES[activeAxis].label, 'info');
+        // Write PID gains
+        if (!cfg.noSliders) {
+            ['P', 'I', 'D'].forEach(function (gain) {
+                var slider = document.getElementById('tuning-slider-' + gain);
+                if (slider) {
+                    var val = parseFloat(slider.value);
+                    v.params[prefix + gain] = val;
+                    Connection.sendParamSet(prefix + gain, val);
+                    written++;
+                }
+            });
+        }
+
+        // Write extra params
+        if (cfg.extras) {
+            cfg.extras.forEach(function (ex) {
+                var slider = document.getElementById('tuning-slider-' + ex.param);
+                if (slider) {
+                    var val = parseFloat(slider.value);
+                    v.params[ex.param] = val;
+                    Connection.sendParamSet(ex.param, val);
+                    written++;
+                }
+            });
+        }
+
+        meridian.log('Wrote ' + written + ' params for ' + cfg.label, 'info');
     }
 
     function startChartAnimation() {

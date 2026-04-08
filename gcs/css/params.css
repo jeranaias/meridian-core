@@ -156,8 +156,9 @@
     display: flex; align-items: center; gap: 8px;
 }
 .tuning-gain-label {
-    font-family: var(--f-display); font-size: 14px; font-weight: 700;
-    color: var(--c-text); width: 20px; text-align: right;
+    font-family: var(--f-display); font-size: 12px; font-weight: 700;
+    color: var(--c-text); min-width: 20px; max-width: 110px; text-align: right;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .tuning-slider {
     flex: 1; accent-color: var(--c-primary);
