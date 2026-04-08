@@ -14,6 +14,8 @@ Usage:
 import asyncio
 import math
 import struct
+import sys
+import os
 import logging
 
 try:
@@ -21,6 +23,10 @@ try:
 except ImportError:
     print("pip install websockets")
     exit(1)
+
+# Add tools/ to path for terrain module
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from terrain import TerrainDB
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 log = logging.getLogger("sitl")
@@ -145,7 +151,7 @@ def mnp_ekf(vel_var: float, pos_var: float, hgt_var: float,
 # ── Jet Boat Physics ─────────────────────────────────────────
 
 class JetBoat:
-    def __init__(self, lat, lon, heading_deg):
+    def __init__(self, lat, lon, heading_deg, terrain=None):
         self.lat = lat
         self.lon = lon
         self.speed = 0.0
@@ -159,9 +165,13 @@ class JetBoat:
         self.voltage = 25.1
         self.current_n = 0.2  # mild current
         self.current_e = 0.15
+        self.terrain = terrain
+        self.depth = None       # current depth (negative = water)
+        self.grounded = False   # true if run aground
         self.waypoints = []
         self.wp_idx = 0
         self.loiter_center = None
+        self.home = None
 
     def step(self, throttle, steering, dt):
         if not self.armed:
@@ -181,7 +191,9 @@ class JetBoat:
         # Drag 50: at 50% throttle (225N), speed = sqrt(225/50) ≈ 2.1, spool → ~3 m/s
         # Full throttle: sqrt(450/50) ≈ 3.0, spool → ~4.5 m/s
         fwd = self.thrust * math.cos(self.nozzle) - 50.0 * self.speed * abs(self.speed)
-        torque = self.thrust * math.sin(self.nozzle) * 1.5 - 25.0 * self.yaw_rate * abs(self.yaw_rate)
+        # Jet nozzle steering authority scales with water flow — no speed, no steering
+        steer_authority = min(1.0, abs(self.speed) / 1.5)
+        torque = self.thrust * math.sin(self.nozzle) * 1.5 * steer_authority - 25.0 * self.yaw_rate * abs(self.yaw_rate)
         self.speed += fwd / 180.0 * dt  # 180kg vessel
         self.yaw_rate += torque / 40.0 * dt  # larger moment of inertia
         self.heading += self.yaw_rate * dt
@@ -189,13 +201,68 @@ class JetBoat:
         # Position
         vn = self.speed * math.cos(self.heading) + self.current_n
         ve = self.speed * math.sin(self.heading) + self.current_e
-        self.lat += vn * dt / 6371000.0 * (180 / math.pi)
-        self.lon += ve * dt / (6371000.0 * math.cos(math.radians(self.lat))) * (180 / math.pi)
+        new_lat = self.lat + vn * dt / 6371000.0 * (180 / math.pi)
+        new_lon = self.lon + ve * dt / (6371000.0 * math.cos(math.radians(self.lat))) * (180 / math.pi)
+        # Terrain check — grounding
+        if self.terrain:
+            self.depth = self.terrain.get_depth(new_lat, new_lon)
+            if self.depth is not None and self.depth > -0.5:
+                # Too shallow or on land — grounded
+                if not self.grounded:
+                    log.warning(f"GROUNDED at ({new_lat:.6f},{new_lon:.6f}), depth={self.depth:.1f}m")
+                    self.grounded = True
+                self.speed *= 0.5  # rapid deceleration
+                self.yaw_rate *= 0.5
+                # Don't update position — stuck
+            else:
+                self.grounded = False
+                self.lat = new_lat
+                self.lon = new_lon
+        else:
+            self.lat = new_lat
+            self.lon = new_lon
         # Battery
         self.battery = max(0, self.battery - 0.0003 * dt * (throttle + 0.1))
         self.voltage = 22.0 + self.battery / 100.0 * 3.2
 
+    def _shore_avoidance(self, steer, throttle):
+        """Look ahead along current heading; steer away from shallow water."""
+        if not self.terrain or self.speed < 0.3:
+            return steer, throttle
+        # Probe 50m, 100m, 200m ahead
+        for probe_dist in [50, 100, 200]:
+            probe_lat = self.lat + probe_dist * math.cos(self.heading) / 111320
+            probe_lon = self.lon + probe_dist * math.sin(self.heading) / (111320 * math.cos(math.radians(self.lat)))
+            d = self.terrain.get_depth(probe_lat, probe_lon)
+            if d is not None and d > -2.0:
+                # Shallow or land ahead — check which side is deeper
+                left_hdg = self.heading + math.radians(45)
+                right_hdg = self.heading - math.radians(45)
+                left_lat = self.lat + 80 * math.cos(left_hdg) / 111320
+                left_lon = self.lon + 80 * math.sin(left_hdg) / (111320 * math.cos(math.radians(self.lat)))
+                right_lat = self.lat + 80 * math.cos(right_hdg) / 111320
+                right_lon = self.lon + 80 * math.sin(right_hdg) / (111320 * math.cos(math.radians(self.lat)))
+                d_left = self.terrain.get_depth(left_lat, left_lon) or 0
+                d_right = self.terrain.get_depth(right_lat, right_lon) or 0
+                # Steer toward deeper water, strength inversely proportional to probe distance
+                urgency = 1.0 - (probe_dist - 50) / 200.0  # 1.0 at 50m, 0.25 at 200m
+                if d_left < d_right:
+                    steer = max(-1, min(1, steer + 0.8 * urgency))
+                else:
+                    steer = max(-1, min(1, steer - 0.8 * urgency))
+                # Slow down if close
+                if probe_dist <= 100:
+                    throttle *= 0.5
+                log.debug(f"Shore avoid: depth {d:.1f}m at {probe_dist}m ahead, "
+                          f"left={d_left:.1f} right={d_right:.1f}")
+                break
+        return steer, throttle
+
     def autopilot(self, dt):
+        if self.grounded:
+            # Try to back off — reverse slowly
+            return -0.15, 0.0
+
         if self.mode == MODE_AUTO and self.wp_idx < len(self.waypoints):
             wp = self.waypoints[self.wp_idx]
             dlat = wp[0] - self.lat
@@ -221,8 +288,33 @@ class JetBoat:
                 throttle = 0.45  # approaching
             else:
                 throttle = max(0.25, dist * 0.04)  # final approach, slow to WP
-            # Steering gain 0.2 P (from ATC_STR_RAT_P) — boats steer lazily
-            return throttle, max(-1, min(1, err * 0.8))
+            # PD steering: P tracks bearing, D damps yaw rate (matches ATC_STR_RAT_P/D)
+            steer = err * 0.6 - self.yaw_rate * 0.35
+            steer, throttle = self._shore_avoidance(max(-1, min(1, steer)), throttle)
+            return throttle, max(-1, min(1, steer))
+
+        elif self.mode == MODE_RTL and self.home:
+            dlat = self.home[0] - self.lat
+            dlon = self.home[1] - self.lon
+            dist = math.sqrt((dlat * 111320)**2 + (dlon * 111320 * math.cos(math.radians(self.lat)))**2)
+            if dist < 3.0:
+                self.loiter_center = self.home
+                self.mode = MODE_LOITER
+                log.info("RTL complete — loitering at home")
+                return 0.05, 0.0
+            bearing = math.atan2(dlon * math.cos(math.radians(self.lat)), dlat)
+            err = bearing - self.heading
+            while err > math.pi: err -= 2 * math.pi
+            while err < -math.pi: err += 2 * math.pi
+            if dist > 20:
+                throttle = 0.55
+            elif dist > 8:
+                throttle = 0.45
+            else:
+                throttle = max(0.25, dist * 0.04)
+            steer = err * 0.6 - self.yaw_rate * 0.35
+            steer, throttle = self._shore_avoidance(max(-1, min(1, steer)), throttle)
+            return throttle, max(-1, min(1, steer))
 
         elif self.mode == MODE_LOITER and self.loiter_center:
             cx, cy = self.loiter_center
@@ -235,7 +327,8 @@ class JetBoat:
             err = bearing - self.heading
             while err > math.pi: err -= 2 * math.pi
             while err < -math.pi: err += 2 * math.pi
-            return min(0.35, dist * 0.06), max(-1, min(1, err * 1.2))
+            steer = err * 0.8 - self.yaw_rate * 0.3
+            return min(0.35, dist * 0.06), max(-1, min(1, steer))
 
         return 0.0, 0.0
 
@@ -256,9 +349,15 @@ class JetBoat:
 
 class SitlServer:
     def __init__(self):
+        # Load terrain/bathymetry
+        cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "..", "data", "terrain")
+        self.terrain = TerrainDB(cache_dir)
+        # Ensure we have data for the operating area
+        self.terrain.ensure_region(-34.02, 151.15, -33.93, 151.25)
+
         # Middle of Botany Bay, Sydney — actually in the water
-        self.boat = JetBoat(-33.9700, 151.2000, 45.0)
-        # No hardcoded waypoints — user places them via GCS Plan tab
+        self.boat = JetBoat(-33.9700, 151.2000, 45.0, terrain=self.terrain)
         self.boat.waypoints = []
         self.clients = set()
         self.tick = 0
@@ -284,6 +383,9 @@ class SitlServer:
             cmd = payload[0]
             if cmd == CMD_ARM:
                 self.boat.armed = True
+                if self.boat.home is None:
+                    self.boat.home = (self.boat.lat, self.boat.lon)
+                    log.info(f"Home set: ({self.boat.lat:.6f}, {self.boat.lon:.6f})")
                 log.info("ARMED")
             elif cmd == CMD_DISARM:
                 self.boat.armed = False
@@ -303,16 +405,33 @@ class SitlServer:
                     self.boat.waypoints = [None] * count
                     log.info(f"Mission upload: expecting {count} waypoints")
             elif cmd == 0x89:  # CMD_MISSION_ITEM
-                if len(payload) >= 13:
+                if len(payload) >= 11:
                     seq = struct.unpack("<H", payload[1:3])[0]
                     lat = struct.unpack("<i", payload[3:7])[0] / 1e7
                     lon = struct.unpack("<i", payload[7:11])[0] / 1e7
-                    if seq < len(self.boat.waypoints):
-                        self.boat.waypoints[seq] = (lat, lon)
-                        log.info(f"  WP {seq+1}: ({lat:.6f}, {lon:.6f})")
+                    # Validate waypoint against terrain
+                    depth = self.terrain.get_depth(lat, lon)
+                    if depth is not None and depth > -1.0:
+                        log.warning(f"  WP {seq+1}: REJECTED — {'LAND' if depth >= 0 else 'TOO SHALLOW'} "
+                                    f"({lat:.6f}, {lon:.6f}), depth={depth:.1f}m")
+                    else:
+                        if seq < len(self.boat.waypoints):
+                            self.boat.waypoints[seq] = (lat, lon)
+                            depth_str = f", depth={depth:.1f}m" if depth is not None else ""
+                            log.info(f"  WP {seq+1}: ({lat:.6f}, {lon:.6f}){depth_str}")
                     # Check if mission is complete
                     if all(wp is not None for wp in self.boat.waypoints):
                         log.info(f"Mission upload complete: {len(self.boat.waypoints)} waypoints")
+                        # Validate path between waypoints
+                        wps = self.boat.waypoints
+                        prev = (self.boat.lat, self.boat.lon)
+                        for i, wp in enumerate(wps):
+                            ok, blat, blon, bdepth = self.terrain.check_path(
+                                prev[0], prev[1], wp[0], wp[1], step_m=100)
+                            if not ok:
+                                log.warning(f"  Path {i}→{i+1}: crosses land/shallow at "
+                                            f"({blat:.6f},{blon:.6f}), depth={bdepth:.1f}m")
+                            prev = wp
         except Exception as e:
             log.debug(f"cmd parse error: {e}")
 
@@ -347,7 +466,9 @@ class SitlServer:
             # Status every 5s
             if self.tick % 250 == 0:
                 wp_str = f"WP {b.wp_idx+1}/{len(b.waypoints)}" if b.mode == MODE_AUTO else ("LOITER" if b.mode == MODE_LOITER else "idle")
-                log.info(f"{'ARM' if b.armed else 'DSRM'} hdg={b.hdg_deg():.0f}° spd={b.gnd_speed():.1f}m/s batt={b.battery:.0f}% {wp_str} ({b.lat:.6f},{b.lon:.6f})")
+                depth_str = f" depth={b.depth:.1f}m" if b.depth is not None else ""
+                ground_str = " GROUNDED" if b.grounded else ""
+                log.info(f"{'ARM' if b.armed else 'DSRM'} hdg={b.hdg_deg():.0f}° spd={b.gnd_speed():.1f}m/s batt={b.battery:.0f}%{depth_str}{ground_str} {wp_str} ({b.lat:.6f},{b.lon:.6f})")
 
             await asyncio.sleep(dt)
 

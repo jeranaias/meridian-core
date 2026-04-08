@@ -327,19 +327,19 @@
             state.armed = p[1] !== 0;
             state.mode = MODES[p[2]] || 'UNKNOWN';
             updateArmUI();
-        } else if (id === 0x03 && p.length >= 18) { // position
+        } else if (id === 0x03 && p.length >= 25) { // position
             state.lat = v.getInt32(1, true) / 1e7;
             state.lon = v.getInt32(5, true) / 1e7;
-            state.hdg = v.getUint16(17, true) / 100;
+            state.hdg = v.getUint16(23, true) / 100;
             updateVehicle();
         } else if (id === 0x04 && p.length >= 6) { // battery
             state.volt = v.getInt16(1, true) / 1000;
             state.batt = p[5];
-        } else if (id === 0x05 && p.length >= 12) { // gps
+        } else if (id === 0x05 && p.length >= 19) { // gps
             state.gps_fix = p[1];
-            state.sats = p[10];
-        } else if (id === 0x06 && p.length >= 14) { // vfr hud
-            state.spd = v.getFloat32(1, true);
+            state.sats = p[18];
+        } else if (id === 0x06 && p.length >= 9) { // vfr hud
+            state.spd = v.getFloat32(5, true); // groundspeed (offset 5, after airspeed)
         }
         updateStatus();
     }
@@ -363,14 +363,15 @@
         dv.setUint8(0, 0x8A);
         dv.setUint16(1, wps.length, true);
         ws.send(cobsEncode(new Uint8Array(buf)));
-        // Items
+        // Items (15 bytes each: id + seq_u16 + lat_i32 + lon_i32 + alt_f32)
         wps.forEach(function(wp, i) {
-            var b = new ArrayBuffer(11);
+            var b = new ArrayBuffer(15);
             var d = new DataView(b);
             d.setUint8(0, 0x89);
             d.setUint16(1, i, true);
             d.setInt32(3, Math.round(wp[0] * 1e7), true);
             d.setInt32(7, Math.round(wp[1] * 1e7), true);
+            d.setFloat32(11, 0.0, true); // altitude (0 for surface vessel)
             ws.send(cobsEncode(new Uint8Array(b)));
         });
     }
