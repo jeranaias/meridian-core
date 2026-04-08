@@ -202,7 +202,7 @@ class JetBoat:
             dlon = wp[1] - self.lon
             dist = math.sqrt((dlat * 111320)**2 + (dlon * 111320 * math.cos(math.radians(self.lat)))**2)
             bearing = math.atan2(dlon * math.cos(math.radians(self.lat)), dlat)
-            if dist < 5.0:
+            if dist < 2.0:  # WP_RADIUS=2m (Vanguard param file)
                 self.wp_idx += 1
                 if self.wp_idx >= len(self.waypoints):
                     self.loiter_center = (self.lat, self.lon)
@@ -213,15 +213,16 @@ class JetBoat:
             err = bearing - self.heading
             while err > math.pi: err -= 2 * math.pi
             while err < -math.pi: err += 2 * math.pi
-            # Realistic throttle: cruise at 80% until close, then taper
-            # This gives ~3-4 m/s transit, slowing near WP
-            if dist > 30:
-                throttle = 0.85  # full transit speed (~3.5 m/s)
-            elif dist > 10:
-                throttle = 0.70  # approaching (~2.5 m/s)
+            # Throttle profile matched to Vanguard USV:
+            # CRUISE_SPEED=3, CRUISE_THROTTLE=50%, WP_SPEED=3
+            if dist > 20:
+                throttle = 0.55  # cruise transit (~3 m/s, matching CRUISE_THROTTLE=50)
+            elif dist > 8:
+                throttle = 0.45  # approaching
             else:
-                throttle = max(0.3, dist * 0.05)  # final approach
-            return throttle, max(-1, min(1, err * 1.8))
+                throttle = max(0.25, dist * 0.04)  # final approach, slow to WP
+            # Steering gain 0.2 P (from ATC_STR_RAT_P) — boats steer lazily
+            return throttle, max(-1, min(1, err * 0.8))
 
         elif self.mode == MODE_LOITER and self.loiter_center:
             cx, cy = self.loiter_center
