@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+    <meta name="theme-color" content="#0a0e17">
+    <title>Meridian — Mission</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='24' font-size='24'>🚤</text></svg>">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #0a0e17;
+            --bg-raised: #0e1218;
+            --border: #1e2a38;
+            --text: #d8e0ea;
+            --dim: #6a7a90;
+            --primary: #00e5ff;
+            --safe: #00e676;
+            --warning: #ffa726;
+            --emergency: #ff1744;
+            --armed: #ff6d00;
+        }
+        html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Barlow', sans-serif; overflow: hidden; }
+        #map { width: 100%; height: 100%; }
+
+        /* ── Status Bar ── */
+        #status-bar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 2000;
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 16px; height: 56px;
+            background: rgba(10, 14, 23, 0.92); backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+        }
+        .status-brand { font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 700; color: var(--primary); letter-spacing: 0.06em; }
+        .status-item { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+        .status-val { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; color: var(--text); }
+        .status-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); }
+        .status-item.ok .status-val { color: var(--safe); }
+        .status-item.warn .status-val { color: var(--warning); }
+        .status-item.bad .status-val { color: var(--emergency); }
+        .status-spacer { flex: 1; }
+        .status-mode {
+            font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 700;
+            padding: 4px 12px; border-radius: 4px;
+            text-transform: uppercase; letter-spacing: 0.04em;
+        }
+        .status-mode.armed { background: rgba(255, 109, 0, 0.15); color: var(--armed); border: 1px solid var(--armed); }
+        .status-mode.disarmed { background: rgba(100, 116, 139, 0.1); color: var(--dim); border: 1px solid var(--border); }
+        .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--emergency); }
+        .conn-dot.connected { background: var(--safe); }
+
+        /* ── Action Panel ── */
+        #action-panel {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 2000;
+            padding: 16px; display: flex; flex-direction: column; gap: 12px;
+            background: rgba(10, 14, 23, 0.95); backdrop-filter: blur(12px);
+            border-top: 1px solid var(--border);
+        }
+        .action-row { display: flex; gap: 10px; }
+        .action-btn {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 4px; padding: 16px 8px; min-height: 72px;
+            border: 2px solid var(--border); border-radius: 12px;
+            background: var(--bg-raised); color: var(--text);
+            font-family: 'Rajdhani', sans-serif; font-size: 13px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.04em;
+            cursor: pointer; transition: all 0.15s; -webkit-tap-highlight-color: transparent;
+        }
+        .action-btn:active { transform: scale(0.96); }
+        .action-btn .icon { font-size: 24px; }
+        .action-btn.arm { border-color: var(--safe); color: var(--safe); }
+        .action-btn.arm:active { background: rgba(0, 230, 118, 0.1); }
+        .action-btn.arm.armed { border-color: var(--armed); color: var(--armed); }
+        .action-btn.go { border-color: var(--primary); color: var(--primary); }
+        .action-btn.go:active { background: rgba(0, 229, 255, 0.1); }
+        .action-btn.go:disabled { opacity: 0.3; pointer-events: none; }
+        .action-btn.home { border-color: var(--warning); color: var(--warning); }
+        .action-btn.home:active { background: rgba(255, 167, 38, 0.1); }
+        .action-btn.stop { border-color: var(--emergency); color: var(--emergency); }
+        .action-btn.stop:active { background: rgba(255, 23, 68, 0.1); }
+
+        /* ── Mission Info ── */
+        #mission-info {
+            display: none; text-align: center;
+            font-family: 'DM Mono', monospace; font-size: 13px; color: var(--dim);
+            padding: 4px 0;
+        }
+        #mission-info.active { display: block; }
+        #mission-info .dist { color: var(--primary); font-weight: 500; }
+        #mission-info .eta { color: var(--text); }
+
+        /* ── Destination Marker ── */
+        .dest-marker {
+            width: 20px; height: 20px; border-radius: 50%;
+            background: var(--primary); border: 3px solid white;
+            box-shadow: 0 0 12px rgba(0, 229, 255, 0.5);
+        }
+
+        /* ── Leaflet overrides ── */
+        .leaflet-container { background: var(--bg) !important; }
+        .leaflet-control-attribution { display: none !important; }
+        .leaflet-control-zoom { display: none !important; }
+
+        /* ── Toast ── */
+        #toast {
+            position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+            padding: 10px 20px; border-radius: 8px; z-index: 3000;
+            font-size: 14px; font-weight: 600; display: none;
+            background: var(--bg-raised); border: 1px solid var(--border);
+            color: var(--text); box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        #toast.show { display: block; animation: fadeIn 0.2s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+        @media (min-width: 768px) {
+            #action-panel { flex-direction: row; padding: 12px 24px; }
+            .action-row { flex: 1; }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=DM+Mono:wght@400;500&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Status Bar -->
+    <div id="status-bar">
+        <span class="status-brand">MERIDIAN</span>
+        <span class="conn-dot" id="conn-dot"></span>
+        <div class="status-item" id="si-gps"><span class="status-val">--</span><span class="status-label">GPS</span></div>
+        <div class="status-item" id="si-spd"><span class="status-val">--</span><span class="status-label">Speed</span></div>
+        <div class="status-item" id="si-batt"><span class="status-val">--</span><span class="status-label">Batt</span></div>
+        <div class="status-item" id="si-hdg"><span class="status-val">--</span><span class="status-label">Hdg</span></div>
+        <span class="status-spacer"></span>
+        <span class="status-mode disarmed" id="status-mode">DISARMED</span>
+    </div>
+
+    <!-- Map -->
+    <div id="map"></div>
+
+    <!-- Toast -->
+    <div id="toast"></div>
+
+    <!-- Mission Info -->
+    <div id="mission-info">
+        <span class="dist" id="mi-dist">--</span> &middot;
+        ETA <span class="eta" id="mi-eta">--</span>
+    </div>
+
+    <!-- Action Panel -->
+    <div id="action-panel">
+        <div class="action-row">
+            <button class="action-btn arm" id="btn-arm" onclick="toggleArm()">
+                <span class="icon">⚡</span> ARM
+            </button>
+            <button class="action-btn go" id="btn-go" disabled onclick="startMission()">
+                <span class="icon">🚀</span> GO
+            </button>
+        </div>
+        <div class="action-row">
+            <button class="action-btn home" id="btn-home" onclick="goHome()">
+                <span class="icon">🏠</span> HOME
+            </button>
+            <button class="action-btn stop" id="btn-stop" onclick="emergencyStop()">
+                <span class="icon">🛑</span> STOP
+            </button>
+        </div>
+    </div>
+
+    <script>
+    'use strict';
+
+    // ── State ──
+    var state = {
+        connected: false, armed: false, lat: 0, lon: 0, hdg: 0, spd: 0, batt: 0, volt: 0,
+        mode: 'MANUAL', gps_fix: 0, sats: 0, destination: null, home: null
+    };
+
+    // ── Map ──
+    var map = L.map('map', { center: [-33.97, 151.20], zoom: 16, zoomControl: false, attributionControl: false });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 19 }).addTo(map);
+
+    var vehicleMarker = L.marker([0, 0], {
+        icon: L.divIcon({
+            className: '',
+            html: '<svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg" style="width:36px;height:36px"><g fill="none" stroke="#00e5ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8,24 L6,20 L18,8 L30,20 L28,24 Z" fill="rgba(0,229,255,0.15)"/><line x1="18" y1="8" x2="18" y2="18" stroke-width="1.5"/><path d="M6,27 Q12,30 18,27 Q24,24 30,27" stroke-opacity="0.4"/></g><polygon points="18,6 16,10 20,10" fill="#00e5ff" opacity="0.9"/></svg>',
+            iconSize: [36, 36], iconAnchor: [18, 18]
+        }),
+        zIndexOffset: 1000
+    }).addTo(map);
+    vehicleMarker.setOpacity(0);
+
+    var trailLine = L.polyline([], { color: '#00e5ff', weight: 2, opacity: 0.4 }).addTo(map);
+    var destMarker = null;
+    var trail = [];
+
+    // ── Map click: set destination ──
+    map.on('click', function (e) {
+        if (!state.armed) { toast('Arm the vehicle first'); return; }
+        state.destination = [e.latlng.lat, e.latlng.lng];
+        if (destMarker) map.removeLayer(destMarker);
+        destMarker = L.circleMarker(e.latlng, {
+            radius: 10, color: '#00e5ff', fillColor: '#00e5ff', fillOpacity: 0.3,
+            weight: 2
+        }).addTo(map);
+        // Distance
+        var dist = haversine(state.lat, state.lon, e.latlng.lat, e.latlng.lng);
+        document.getElementById('mi-dist').textContent = dist.toFixed(0) + 'm';
+        var eta = dist / Math.max(state.spd, 2.5); // estimate at 2.5 m/s min
+        var m = Math.floor(eta / 60), s = Math.floor(eta % 60);
+        document.getElementById('mi-eta').textContent = m + ':' + String(s).padStart(2, '0');
+        document.getElementById('mission-info').className = 'active';
+        document.getElementById('btn-go').disabled = false;
+        toast('Destination set — ' + dist.toFixed(0) + 'm');
+    });
+
+    // ── Actions ──
+    function toggleArm() {
+        if (state.armed) {
+            sendCmd(0x81); // disarm
+            toast('Disarming...');
+        } else {
+            sendCmd(0x80); // arm
+            toast('Arming...');
+        }
+    }
+
+    function startMission() {
+        if (!state.destination) { toast('Tap the map to set destination'); return; }
+        if (!state.armed) { toast('Arm first'); return; }
+        // Send mission: count=1, then the waypoint
+        var d = state.destination;
+        sendMission([d]);
+        // Set AUTO mode
+        sendMode(4); // AUTO
+        toast('Mission started');
+        document.getElementById('btn-go').disabled = true;
+    }
+
+    function goHome() {
+        sendMode(3); // RTL
+        toast('Returning home');
+    }
+
+    function emergencyStop() {
+        sendCmd(0x81); // disarm
+        toast('EMERGENCY STOP');
+    }
+
+    // ── WebSocket (MNP) ──
+    var ws = null;
+    var wsUrl = 'ws://localhost:5760';
+    var reconnectTimer = null;
+
+    function connect() {
+        try {
+            ws = new WebSocket(wsUrl);
+            ws.binaryType = 'arraybuffer';
+        } catch(e) { return; }
+
+        ws.onopen = function() {
+            state.connected = true;
+            document.getElementById('conn-dot').className = 'conn-dot connected';
+            toast('Connected');
+        };
+        ws.onclose = function() {
+            state.connected = false;
+            document.getElementById('conn-dot').className = 'conn-dot';
+            clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(connect, 3000);
+        };
+        ws.onerror = function() { ws.close(); };
+        ws.onmessage = function(evt) {
+            if (!(evt.data instanceof ArrayBuffer)) return;
+            handleMnp(new Uint8Array(evt.data));
+        };
+    }
+
+    // ── COBS decode ──
+    function cobsDecode(data) {
+        var out = [], i = 0;
+        while (i < data.length) {
+            var code = data[i++];
+            if (code === 0) break;
+            for (var j = 1; j < code && i < data.length; j++) out.push(data[i++]);
+            if (code < 0xFF && i < data.length) out.push(0);
+        }
+        return new Uint8Array(out);
+    }
+
+    function cobsEncode(data) {
+        var out = [0], ci = 0, c = 1;
+        for (var i = 0; i < data.length; i++) {
+            if (data[i] === 0) { out[ci] = c; ci = out.length; out.push(0); c = 1; }
+            else { out.push(data[i]); c++; if (c === 0xFF) { out[ci] = c; ci = out.length; out.push(0); c = 1; } }
+        }
+        out[ci] = c; out.push(0);
+        return new Uint8Array(out);
+    }
+
+    // ── MNP parse ──
+    var mnpBuf = new Uint8Array(4096);
+    var mnpLen = 0;
+    var MODES = ['MANUAL','ALT_HOLD','LOITER','RTL','AUTO','LAND','GUIDED'];
+
+    function handleMnp(data) {
+        if (mnpLen + data.length > 4096) { mnpLen = 0; return; }
+        mnpBuf.set(data, mnpLen);
+        mnpLen += data.length;
+        while (true) {
+            var zi = -1;
+            for (var i = 0; i < mnpLen; i++) { if (mnpBuf[i] === 0) { zi = i; break; } }
+            if (zi < 0) break;
+            if (zi > 0) {
+                var frame = mnpBuf.slice(0, zi);
+                var payload = cobsDecode(frame);
+                if (payload.length > 0) parseMsg(payload);
+            }
+            mnpBuf.copyWithin(0, zi + 1, mnpLen);
+            mnpLen -= (zi + 1);
+        }
+    }
+
+    function parseMsg(p) {
+        var v = new DataView(p.buffer, p.byteOffset, p.byteLength);
+        var id = p[0];
+        if (id === 0x01 && p.length >= 4) { // heartbeat
+            state.armed = p[1] !== 0;
+            state.mode = MODES[p[2]] || 'UNKNOWN';
+            updateArmUI();
+        } else if (id === 0x03 && p.length >= 18) { // position
+            state.lat = v.getInt32(1, true) / 1e7;
+            state.lon = v.getInt32(5, true) / 1e7;
+            state.hdg = v.getUint16(17, true) / 100;
+            updateVehicle();
+        } else if (id === 0x04 && p.length >= 6) { // battery
+            state.volt = v.getInt16(1, true) / 1000;
+            state.batt = p[5];
+        } else if (id === 0x05 && p.length >= 12) { // gps
+            state.gps_fix = p[1];
+            state.sats = p[10];
+        } else if (id === 0x06 && p.length >= 14) { // vfr hud
+            state.spd = v.getFloat32(1, true);
+        }
+        updateStatus();
+    }
+
+    // ── Send commands ──
+    function sendCmd(cmd) {
+        if (!ws || ws.readyState !== 1) return;
+        ws.send(cobsEncode(new Uint8Array([cmd])));
+    }
+
+    function sendMode(idx) {
+        if (!ws || ws.readyState !== 1) return;
+        ws.send(cobsEncode(new Uint8Array([0x85, idx])));
+    }
+
+    function sendMission(wps) {
+        if (!ws || ws.readyState !== 1) return;
+        // Count
+        var buf = new ArrayBuffer(3);
+        var dv = new DataView(buf);
+        dv.setUint8(0, 0x8A);
+        dv.setUint16(1, wps.length, true);
+        ws.send(cobsEncode(new Uint8Array(buf)));
+        // Items
+        wps.forEach(function(wp, i) {
+            var b = new ArrayBuffer(11);
+            var d = new DataView(b);
+            d.setUint8(0, 0x89);
+            d.setUint16(1, i, true);
+            d.setInt32(3, Math.round(wp[0] * 1e7), true);
+            d.setInt32(7, Math.round(wp[1] * 1e7), true);
+            ws.send(cobsEncode(new Uint8Array(b)));
+        });
+    }
+
+    // ── UI updates ──
+    function updateVehicle() {
+        if (state.lat === 0 && state.lon === 0) return;
+        vehicleMarker.setLatLng([state.lat, state.lon]);
+        vehicleMarker.setOpacity(1);
+        var el = vehicleMarker.getElement();
+        if (el) {
+            var svg = el.querySelector('svg');
+            if (svg) svg.style.transform = 'rotate(' + state.hdg + 'deg)';
+        }
+        trail.push([state.lat, state.lon]);
+        if (trail.length > 500) trail.shift();
+        trailLine.setLatLngs(trail);
+
+        // Update distance/ETA if destination set
+        if (state.destination) {
+            var dist = haversine(state.lat, state.lon, state.destination[0], state.destination[1]);
+            document.getElementById('mi-dist').textContent = dist.toFixed(0) + 'm';
+            if (state.spd > 0.3) {
+                var eta = dist / state.spd;
+                var m = Math.floor(eta / 60), s = Math.floor(eta % 60);
+                document.getElementById('mi-eta').textContent = m + ':' + String(s).padStart(2, '0');
+            }
+        }
+    }
+
+    function updateStatus() {
+        setText('si-gps', state.sats + 'S', state.gps_fix >= 3 ? 'ok' : 'warn');
+        setText('si-spd', state.spd.toFixed(1) + ' m/s');
+        setText('si-batt', state.batt + '%', state.batt > 30 ? 'ok' : (state.batt > 15 ? 'warn' : 'bad'));
+        setText('si-hdg', Math.round(state.hdg) + '\u00B0');
+    }
+
+    function updateArmUI() {
+        var btn = document.getElementById('btn-arm');
+        var mode = document.getElementById('status-mode');
+        if (state.armed) {
+            btn.className = 'action-btn arm armed';
+            btn.innerHTML = '<span class="icon">⚡</span> DISARM';
+            mode.className = 'status-mode armed';
+            mode.textContent = state.mode;
+        } else {
+            btn.className = 'action-btn arm';
+            btn.innerHTML = '<span class="icon">⚡</span> ARM';
+            mode.className = 'status-mode disarmed';
+            mode.textContent = 'DISARMED';
+            document.getElementById('btn-go').disabled = true;
+        }
+    }
+
+    function setText(id, val, cls) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.querySelector('.status-val').textContent = val;
+            el.className = 'status-item' + (cls ? ' ' + cls : '');
+        }
+    }
+
+    function toast(msg) {
+        var t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = 'show';
+        clearTimeout(t._timer);
+        t._timer = setTimeout(function() { t.className = ''; }, 2500);
+    }
+
+    function haversine(lat1, lon1, lat2, lon2) {
+        var R = 6371000, dLat = (lat2 - lat1) * Math.PI / 180, dLon = (lon2 - lon1) * Math.PI / 180;
+        var a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    // ── Auto-connect on load ──
+    // Check URL params for ws address
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('ws')) wsUrl = params.get('ws');
+    connect();
+
+    // Prompt for connection if not connected after 3s
+    setTimeout(function() {
+        if (!state.connected) {
+            var url = prompt('Connect to vehicle\nWebSocket URL:', wsUrl);
+            if (url) { wsUrl = url; connect(); }
+        }
+    }, 3000);
+    </script>
+</body>
+</html>
