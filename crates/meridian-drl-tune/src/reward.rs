@@ -52,9 +52,9 @@ impl Default for RewardWeights {
 /// `actual_speed`: measured speed (m/s)
 pub fn compute_reward(
     w: &RewardWeights,
-    crosstrack_err: f32,
-    heading_err: f32,
-    speed_err: f32,
+    crosstrack_err_raw: f32,
+    heading_err_raw: f32,
+    speed_err_raw: f32,
     heading_osc: f32,
     speed_osc: f32,
     gain_change_mag: f32,
@@ -62,6 +62,11 @@ pub fn compute_reward(
     target_speed: f32,
     actual_speed: f32,
 ) -> f32 {
+    // NaN guard — return zero reward if any input is NaN
+    let crosstrack_err = if crosstrack_err_raw.is_finite() { crosstrack_err_raw } else { 0.0 };
+    let heading_err = if heading_err_raw.is_finite() { heading_err_raw } else { 0.0 };
+    let speed_err = if speed_err_raw.is_finite() { speed_err_raw } else { 0.0 };
+
     // Tracking error penalties (quadratic — penalizes large errors heavily)
     let r_crosstrack = -w.crosstrack * crosstrack_err * crosstrack_err;
     let r_heading = -w.heading * heading_err * heading_err;

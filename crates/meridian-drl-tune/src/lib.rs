@@ -14,3 +14,6 @@ pub mod agent;
 pub mod reward;
 pub mod safety;
 pub mod experience;
+
+#[cfg(test)]
+mod tests;

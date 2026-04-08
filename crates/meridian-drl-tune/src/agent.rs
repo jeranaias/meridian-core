@@ -200,11 +200,11 @@ impl AdaptiveAgent {
         // Compute action (policy forward pass)
         let raw_action = self.policy_forward(state);
 
-        // Scale to fractional adjustments
+        // Scale to fractional adjustments — guard against NaN
         let mut adjustments = [0.0f32; NUM_GAINS];
         for i in 0..NUM_GAINS {
-            // Tanh squashing to [-max_adjust, +max_adjust]
-            adjustments[i] = tanh(raw_action[i]) * self.config.max_adjust;
+            let a = tanh(raw_action[i]) * self.config.max_adjust;
+            adjustments[i] = if a.is_finite() { a } else { 0.0 };
         }
 
         // Apply adjustments to current gains
