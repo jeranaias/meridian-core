@@ -259,11 +259,29 @@
         var altInput = document.getElementById('takeoff-alt');
         var pauseBtn = document.getElementById('btn-pause');
 
+        // Adapt tab labels
+        var flyTab = document.querySelector('[data-panel="fly"]');
+        if (flyTab) {
+            var kbd = flyTab.querySelector('.kbd');
+            var kbdHtml = kbd ? ' <span class="kbd">' + kbd.textContent + '</span>' : '';
+            if (cls === 'boat') {
+                flyTab.innerHTML = 'Nav' + kbdHtml;
+                flyTab.setAttribute('aria-label', 'Navigate view (F)');
+            } else if (cls === 'rover') {
+                flyTab.innerHTML = 'Drive' + kbdHtml;
+                flyTab.setAttribute('aria-label', 'Drive view (F)');
+            } else if (cls === 'sub') {
+                flyTab.innerHTML = 'Dive' + kbdHtml;
+                flyTab.setAttribute('aria-label', 'Dive view (F)');
+            } else {
+                flyTab.innerHTML = 'Fly' + kbdHtml;
+                flyTab.setAttribute('aria-label', 'Fly view (F)');
+            }
+        }
+
         if (cls === 'boat' || cls === 'rover') {
-            // Hide takeoff/altitude for surface vehicles
             if (takeoffBtn) takeoffBtn.style.display = 'none';
             if (altInput) altInput.style.display = 'none';
-            // Rename HOLD to STATION KEEP
             if (pauseBtn) pauseBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><circle cx="5" cy="5" r="4"/></svg> HOLD';
         } else {
             if (takeoffBtn) takeoffBtn.style.display = '';
@@ -271,7 +289,6 @@
             if (pauseBtn) pauseBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect x="1" y="1" width="3" height="8"/><rect x="6" y="1" width="3" height="8"/></svg> HOLD';
         }
 
-        // Rebuild mode buttons with appropriate modes for this vehicle
         buildModeButtons();
         meridian.log('Vehicle type: ' + cls, 'info');
     });

@@ -246,8 +246,8 @@ class JetBoat:
 
 class SitlServer:
     def __init__(self):
-        # Botany Bay, Sydney — nice open water
-        self.boat = JetBoat(-33.9850, 151.2100, 45.0)
+        # Middle of Botany Bay, Sydney — actually in the water
+        self.boat = JetBoat(-33.9700, 151.2000, 45.0)
         # No hardcoded waypoints — user places them via GCS Plan tab
         self.boat.waypoints = []
         self.clients = set()
@@ -344,7 +344,7 @@ class SitlServer:
     async def run(self, port=5760):
         log.info("═══════════════════════════════════════════")
         log.info("  Meridian SITL — Jet Boat (MNP)")
-        log.info(f"  Position: Botany Bay, Sydney")
+        log.info(f"  Position: Botany Bay, Sydney (in the water)")
         log.info(f"  Mission: A → B then loiter")
         log.info(f"  WebSocket: ws://0.0.0.0:{port}")
         log.info("═══════════════════════════════════════════")
