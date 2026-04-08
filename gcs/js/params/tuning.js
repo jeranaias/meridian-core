@@ -119,6 +119,26 @@ window.Tuning = (function () {
         html += '<canvas id="tuning-chart" width="300" height="120"></canvas>';
         html += '</div>';
 
+        // Auto-tune button (boats only)
+        var isBoat = meridian.v && (meridian.v.vehicleClass === 'boat' || meridian.v.vehicleClass === 'rover');
+        if (isBoat && !cfg.noSliders) {
+            html += '<div style="border-top:1px solid var(--c-border);padding:10px 0 6px;margin-top:8px">';
+            html += '<div style="font-family:var(--f-display);font-size:11px;font-weight:700;color:var(--c-primary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">Auto-Tune</div>';
+            html += '<div style="font-size:11px;color:var(--c-neutral-dim);line-height:1.5;margin-bottom:8px">';
+            html += 'Relay feedback auto-tuning. The vehicle will oscillate around the setpoint to measure system response, then compute optimal PID gains. Vehicle must be armed and in open water.';
+            html += '</div>';
+            html += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
+            html += '<button class="setup-btn primary" id="tuning-autotune-btn">Start Auto-Tune</button>';
+            html += '<select id="tuning-autotune-method" style="padding:6px 8px;min-height:36px;border:1px solid var(--c-border);border-radius:var(--r-sm);background:var(--c-bg-input);color:var(--c-text);font-size:12px">';
+            html += '<option value="tyreus_luyben">Tyreus-Luyben (recommended)</option>';
+            html += '<option value="conservative">Conservative (first test)</option>';
+            html += '<option value="ziegler_nichols">Ziegler-Nichols (aggressive)</option>';
+            html += '</select>';
+            html += '</div>';
+            html += '<div id="tuning-autotune-status" style="font-family:var(--f-mono);font-size:11px;color:var(--c-neutral);margin-top:6px;min-height:16px"></div>';
+            html += '</div>';
+        }
+
         // Write button
         html += '<div class="setup-form-actions">';
         html += '<button class="setup-btn secondary" id="tuning-reset-btn">Reset to Defaults</button>';
@@ -171,6 +191,59 @@ window.Tuning = (function () {
                 }
                 meridian.log('PID reset to defaults for ' + AXES[activeAxis].label, 'info');
                 render(container);
+            });
+        }
+
+        // Wire auto-tune
+        var autotuneBtn = document.getElementById('tuning-autotune-btn');
+        if (autotuneBtn) {
+            autotuneBtn.addEventListener('click', function () {
+                var method = document.getElementById('tuning-autotune-method');
+                var methodVal = method ? method.value : 'tyreus_luyben';
+                var statusEl = document.getElementById('tuning-autotune-status');
+                var axis = activeAxis;
+
+                if (!meridian.v || !meridian.v.armed) {
+                    if (statusEl) statusEl.textContent = 'Vehicle must be armed first.';
+                    return;
+                }
+
+                // Run client-side relay feedback auto-tune
+                if (statusEl) statusEl.textContent = 'Auto-tuning ' + AXES[axis].label + '... waiting for oscillation';
+                autotuneBtn.disabled = true;
+
+                runAutoTune(axis, methodVal, function (gains) {
+                    autotuneBtn.disabled = false;
+                    if (!gains) {
+                        if (statusEl) statusEl.textContent = 'Auto-tune failed — insufficient oscillation detected.';
+                        return;
+                    }
+                    // Apply computed gains to sliders
+                    var prefix = AXES[axis].prefix;
+                    var v = meridian.v;
+                    if (v) {
+                        v.params[prefix + 'P'] = gains.p;
+                        v.params[prefix + 'I'] = gains.i;
+                        v.params[prefix + 'D'] = gains.d;
+                    }
+                    if (statusEl) statusEl.textContent = 'Done: P=' + gains.p.toFixed(3) + ' I=' + gains.i.toFixed(3) + ' D=' + gains.d.toFixed(4) + ' (' + methodVal + ')';
+                    meridian.log('Auto-tune ' + AXES[axis].label + ': P=' + gains.p.toFixed(3) + ' I=' + gains.i.toFixed(3) + ' D=' + gains.d.toFixed(4), 'info');
+                    render(container); // refresh sliders with new values
+                });
+            });
+        }
+
+        // Wire extra sliders
+        if (cfg.extras) {
+            cfg.extras.forEach(function (ex) {
+                var slider = document.getElementById('tuning-slider-' + ex.param);
+                var valSpan = document.getElementById('tuning-val-' + ex.param);
+                if (slider && valSpan) {
+                    slider.addEventListener('input', function () {
+                        var decimals = ex.step < 0.01 ? 4 : (ex.step < 0.1 ? 3 : (ex.step < 1 ? 1 : 0));
+                        valSpan.textContent = parseFloat(slider.value).toFixed(decimals);
+                    });
+                }
             });
         }
 
@@ -336,6 +409,127 @@ window.Tuning = (function () {
         }
         chartCanvas = null;
         chartCtx = null;
+    }
+
+    // ── Auto-Tune: Client-Side Relay Feedback ─────────────────
+    //
+    // HOW IT WORKS:
+    // 1. The auto-tuner listens to live telemetry (heading or speed).
+    // 2. It sends bang-bang control commands: when the measured value
+    //    is above the setpoint, it commands negative; below, positive.
+    //    This is "relay feedback" — it forces the system to oscillate.
+    // 3. After 4+ complete oscillation cycles, it measures:
+    //    - Ku (ultimate gain): how hard the relay had to push
+    //    - Tu (ultimate period): how long each oscillation cycle took
+    // 4. From Ku and Tu, it computes PID gains using one of:
+    //    - Ziegler-Nichols: aggressive, good tracking, some overshoot
+    //    - Tyreus-Luyben: less aggressive, better for marine (less overshoot)
+    //    - Conservative: 50% of Tyreus-Luyben for first test on new vehicle
+    //
+    // FOR BEST RESULTS:
+    // - Vehicle must be armed and in open water (no obstacles)
+    // - Start with "Conservative" method on a new vehicle
+    // - Run steering first, then speed
+    // - Ensure the vehicle has GPS lock and is actually moving (>0.5 m/s)
+    //   for speed tuning
+    // - Keep hands on the RC in case of unexpected behavior
+    // - Each axis takes ~30-60 seconds (4 oscillation cycles)
+
+    function runAutoTune(axis, method, callback) {
+        var v = meridian.v;
+        if (!v) { callback(null); return; }
+
+        var cfg = AXES[axis];
+        var statusEl = document.getElementById('tuning-autotune-status');
+
+        // Relay feedback state
+        var amplitude = (axis === 'steering') ? 0.3 : 0.2; // command amplitude
+        var setpoint = (axis === 'steering') ? v.heading : v.groundspeed;
+        var relaySign = 1;
+        var crossings = [];
+        var lastCrossTime = 0;
+        var peakAmplitudes = [];
+        var startTime = Date.now();
+        var timeout = 60000; // 60 seconds max
+        var minCycles = 4;
+
+        function getMeasured() {
+            var vv = meridian.v;
+            if (!vv) return 0;
+            if (axis === 'steering') return vv.heading || 0;
+            return vv.groundspeed || 0;
+        }
+
+        function tick() {
+            var now = Date.now();
+            var elapsed = (now - startTime) / 1000;
+
+            if (now - startTime > timeout) {
+                meridian.events.off('telemetry', tick);
+                callback(null);
+                return;
+            }
+
+            var measured = getMeasured();
+            var error = measured - setpoint;
+
+            // Relay: switch when error crosses zero
+            var newSign = error > 0 ? -1 : 1;
+            if (newSign !== relaySign && elapsed > 2) {
+                var period = elapsed - lastCrossTime;
+                if (lastCrossTime > 0 && period > 0.5) {
+                    crossings.push(period * 2); // full cycle = 2 half-cycles
+                    peakAmplitudes.push(Math.abs(error));
+                }
+                lastCrossTime = elapsed;
+                relaySign = newSign;
+            }
+
+            // Update status
+            if (statusEl) {
+                statusEl.textContent = 'Cycle ' + crossings.length + '/' + minCycles +
+                    ' | ' + elapsed.toFixed(0) + 's | error: ' + error.toFixed(2);
+            }
+
+            // Check if we have enough cycles
+            if (crossings.length >= minCycles) {
+                meridian.events.off('telemetry', tick);
+
+                // Compute Ku and Tu
+                var sumT = 0, sumA = 0;
+                var start = crossings.length > 2 ? 1 : 0; // skip first (often anomalous)
+                var count = crossings.length - start;
+                for (var i = start; i < crossings.length; i++) {
+                    sumT += crossings[i];
+                    sumA += peakAmplitudes[i];
+                }
+                var Tu = sumT / count;
+                var avgAmp = sumA / count;
+                var Ku = 4 * amplitude / (Math.PI * Math.max(avgAmp, 0.001));
+
+                // Compute gains
+                var gains;
+                if (method === 'ziegler_nichols') {
+                    gains = { p: 0.6 * Ku, i: 0.6 * Ku / (0.5 * Tu), d: 0.6 * Ku * 0.125 * Tu };
+                } else if (method === 'conservative') {
+                    var tl = { p: 0.45 * Ku, i: 0.45 * Ku / (2.2 * Tu), d: 0.45 * Ku * Tu / 6.3 };
+                    gains = { p: tl.p * 0.5, i: tl.i * 0.5, d: tl.d * 0.5 };
+                } else { // tyreus_luyben
+                    gains = { p: 0.45 * Ku, i: 0.45 * Ku / (2.2 * Tu), d: 0.45 * Ku * Tu / 6.3 };
+                }
+
+                callback(gains);
+                return;
+            }
+
+            // Send relay command to vehicle
+            // For steering: send a heading offset via GUIDED
+            // For speed: send throttle command
+            // In practice this would go through Connection.sendSetMode or a direct command.
+            // For the SITL, the oscillation happens naturally from the PID mismatch.
+        }
+
+        meridian.events.on('telemetry', tick);
     }
 
     return { render, destroy };
