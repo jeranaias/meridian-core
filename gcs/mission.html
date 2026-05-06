@@ -381,6 +381,54 @@
             font-size: 12px;
             padding: 4px 0;
         }
+
+        /* ── Mode tray (under action panel) ── */
+        .mode-tray {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            margin-top: 8px;
+        }
+        .mode-tray .mode-btn {
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid var(--border);
+            color: var(--dim);
+            padding: 8px 4px;
+            min-height: 44px;
+            border-radius: 5px;
+            font: 600 11px 'Rajdhani', 'Orbitron', sans-serif;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: background 0.12s, color 0.12s, border-color 0.12s;
+        }
+        .mode-tray .mode-btn:hover {
+            background: rgba(0, 229, 255, 0.10);
+            color: var(--text);
+            border-color: var(--primary);
+        }
+        .mode-tray .mode-btn.active {
+            background: rgba(0, 229, 255, 0.18);
+            color: var(--primary);
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(0, 229, 255, 0.35);
+        }
+        /* When pending/ok-flash/fail-flash are added by trackCommand,
+           override the default mode-btn look to make state visible. */
+        .mode-tray .mode-btn.pending {
+            opacity: 0.55;
+            pointer-events: none;
+        }
+        .mode-tray .mode-btn.ok-flash {
+            background: rgba(0, 230, 118, 0.18) !important;
+            border-color: var(--safe) !important;
+            color: var(--safe) !important;
+        }
+        .mode-tray .mode-btn.fail-flash {
+            background: rgba(255, 23, 68, 0.18) !important;
+            border-color: var(--emergency) !important;
+            color: var(--emergency) !important;
+        }
     </style>
 </head>
 <body>
@@ -803,6 +851,16 @@
                 <span class="icon">🛑</span> STOP
             </button>
         </div>
+        <!-- Mode tray: quick-tap mode switching for the four ArduRover modes
+             we use most. Highlighted = vehicle's current mode. Each button
+             registers a pending command so the operator gets visual ack
+             feedback when the mode actually takes effect. -->
+        <div class="mode-tray" id="mode-tray">
+            <button class="mode-btn" data-mode-idx="0" onclick="sendModeWithFeedback(0,'MANUAL',this)">MANUAL</button>
+            <button class="mode-btn" data-mode-idx="1" onclick="sendModeWithFeedback(1,'HOLD',this)">HOLD</button>
+            <button class="mode-btn" data-mode-idx="2" onclick="sendModeWithFeedback(2,'LOITER',this)">LOITER</button>
+            <button class="mode-btn" data-mode-idx="4" onclick="sendModeWithFeedback(4,'AUTO',this)">AUTO</button>
+        </div>
         <!-- Pre-arm checklist (auto-populated from STATUSTEXT "PreArm: …" messages).
              Hidden when no failures. -->
         <div id="prearm-list" class="prearm-list"></div>
@@ -1210,6 +1268,38 @@
         sendMode(3); // RTL (3 in our internal mapping → ArduRover mode 11)
         if (typeof trackCommand === 'function') trackCommand(176, 'btn-home', 'RTL');
     }
+
+    // Quick mode tray button → sendMode with command-ack visual feedback.
+    // idx is the internal mode index (sendMode maps to the right ArduRover number).
+    function sendModeWithFeedback(idx, label, btnEl) {
+        sendMode(idx);
+        if (typeof trackCommand === 'function' && btnEl && btnEl.id) {
+            trackCommand(176, btnEl.id, label);
+        } else if (typeof trackCommand === 'function' && btnEl) {
+            // Mode-tray buttons don't have ids by default — give one
+            btnEl.id = 'mode-tray-' + idx;
+            trackCommand(176, btnEl.id, label);
+        }
+    }
+
+    // Highlight the mode tray button matching the vehicle's current mode.
+    // Re-render every heartbeat / mode change.
+    function _updateModeTray() {
+        var current = state.mode || '';
+        var tray = document.getElementById('mode-tray');
+        if (!tray) return;
+        var buttons = tray.querySelectorAll('.mode-btn');
+        for (var i = 0; i < buttons.length; i++) {
+            var btn = buttons[i];
+            var label = btn.textContent.trim();
+            if (label === current) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+    }
+    setInterval(_updateModeTray, 600);
 
     function emergencyStop() {
         sendCmd(0x81); // force-disarm
