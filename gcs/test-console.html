@@ -317,11 +317,11 @@ const MAV_CMD = {
 // ---- Send helpers ----
 function sendCmd(cmdId, p1=0, p2=0, p3=0, p4=0, p5=0, p6=0, p7=0) {
     const buf = MAVLink.encodeCommandLong(1, 1, cmdId, p1, p2, p3, p4, p5, p6, p7);
-    if (!Connection.isConnected()) {
+    if (!Connection.state === 2) {
         ack(`MAV_CMD ${cmdId}: NOT CONNECTED`, 'err');
         return false;
     }
-    Connection.sendRaw(buf);
+    Connection.send(buf);
     return true;
 }
 
@@ -358,7 +358,7 @@ document.body.addEventListener('click', (e) => {
         case 'arm-force':      sendCmd(MAV_CMD.COMPONENT_ARM_DISARM, 1, 21196); ack('ARM (force) sent', 'warn'); break;
         case 'disarm':         sendCmd(MAV_CMD.COMPONENT_ARM_DISARM, 0, 0); ack('DISARM sent', 'warn'); break;
         case 'disarm-force':   sendCmd(MAV_CMD.COMPONENT_ARM_DISARM, 0, 21196); ack('DISARM (force) sent', 'warn'); break;
-        case 'mission-list':   if (Connection.isConnected()) Connection.sendRaw(MAVLink.encodeMissionRequestList(1)); ack('MISSION_REQUEST_LIST', 'info'); break;
+        case 'mission-list':   if (Connection.state === 2) Connection.send(MAVLink.encodeMissionRequestList(1)); ack('MISSION_REQUEST_LIST', 'info'); break;
         case 'mission-clear':  sendCmd(414, 0, 0); ack('MISSION_CLEAR_ALL', 'info'); break; // MAV_CMD 414
         case 'mission-upload-test': uploadTestMission(); break;
         case 'mission-start':  sendCmd(MAV_CMD.MISSION_START, 0, 0); ack('MISSION_START', 'info'); break;
@@ -367,7 +367,7 @@ document.body.addEventListener('click', (e) => {
         case 'mission-set-current':
             const seq = parseInt(prompt('Set current WP seq number?', '0') || '0');
             sendCmd(MAV_CMD.DO_SET_MISSION_CURRENT, seq); ack(`SET_MISSION_CURRENT = ${seq}`, 'info'); break;
-        case 'param-list':     if (Connection.isConnected()) Connection.sendRaw(MAVLink.encodeParamRequestList(1)); ack('PARAM_REQUEST_LIST', 'info'); break;
+        case 'param-list':     if (Connection.state === 2) Connection.send(MAVLink.encodeParamRequestList(1)); ack('PARAM_REQUEST_LIST', 'info'); break;
         case 'request-home':   sendCmd(MAV_CMD.REQUEST_MESSAGE, 242); ack('REQUEST_MESSAGE 242 (HOME_POSITION)', 'info'); break;
         case 'set-home-here':  sendCmd(MAV_CMD.DO_SET_HOME, 1, 0, 0, 0, 0, 0, 0); ack('DO_SET_HOME(here)', 'info'); break;
         case 'reboot':         sendCmd(MAV_CMD.PREFLIGHT_REBOOT_SHUTDOWN, 1, 0); ack('REBOOT', 'warn'); break;
@@ -391,14 +391,14 @@ document.body.addEventListener('click', (e) => {
 
 // ---- Test mission upload (3 WPs in Botany Bay) ----
 function uploadTestMission() {
-    if (!Connection.isConnected()) { ack('upload mission: NOT CONNECTED', 'err'); return; }
+    if (!Connection.state === 2) { ack('upload mission: NOT CONNECTED', 'err'); return; }
     // Botany Bay 3-waypoint transit
     const wps = [
         { seq: 0, lat: -33.97000, lon: 151.20000, alt: 0, command: 16 },  // home (NAV_WAYPOINT)
         { seq: 1, lat: -33.96900, lon: 151.20100, alt: 0, command: 16 },
         { seq: 2, lat: -33.96800, lon: 151.20200, alt: 0, command: 16 },
     ];
-    Connection.sendRaw(MAVLink.encodeMissionCount(wps.length, 1));
+    Connection.send(MAVLink.encodeMissionCount(wps.length, 1));
     ack(`MISSION_COUNT = ${wps.length} sent — vehicle should request items`, 'info');
     // The vehicle requests items via MISSION_REQUEST_INT; state.js dispatches that
     // event and we respond.
@@ -407,7 +407,7 @@ function uploadTestMission() {
         const seq = msg.seq;
         const wp = pending.find(w => w.seq === seq);
         if (wp) {
-            Connection.sendRaw(MAVLink.encodeMissionItemIntFull(wp, 1));
+            Connection.send(MAVLink.encodeMissionItemIntFull(wp, 1));
             ack(`MISSION_ITEM_INT seq=${seq}`, 'info');
         }
     };

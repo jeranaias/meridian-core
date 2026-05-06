@@ -1,801 +1,412 @@
-<p align="center">
-  <img src="assets/meridian-logo.svg" width="80" alt="Meridian">
-</p>
+# Vanguard MVP — Hand-Off Repo
 
-<h1 align="center">Meridian</h1>
+Private working repo for getting a complete tablet GCS shipped on the
+**Vanguard USV running ArduRover 4.6.3**, with Meridian firmware
+iteration paused until hardware lets us iterate safely.
 
-<p align="center">
-  <strong>A modern autopilot, written from scratch in Rust.</strong><br>
-  Full ArduPilot-class capability. No legacy code. No technical debt.<br>
-  82,000 lines of Rust. 47 crates. 28,000 lines of browser-based GCS.<br>
-  Open a URL and fly.
-</p>
+This is a living working repo, not a polished product release. Code,
+half-finished experiments, audit notes, and brittle scripts coexist.
+Tour the directories from this README and don't trust the parts of
+the tree we haven't explicitly listed below — they're either shipped
+features or speculative branches that aren't currently in play.
 
-<p align="center">
-  <a href="#why-meridian">Why</a> &middot;
-  <a href="#quick-start">Quick Start</a> &middot;
-  <a href="#architecture">Architecture</a> &middot;
-  <a href="#the-47-crates">Crates</a> &middot;
-  <a href="#ground-control-station">GCS</a> &middot;
-  <a href="#supported-hardware">Hardware</a> &middot;
-  <a href="#supported-vehicles">Vehicles</a> &middot;
-  <a href="#flight-features">Features</a> &middot;
-  <a href="#sensor-drivers">Sensors</a> &middot;
-  <a href="#communication-protocols">Protocols</a> &middot;
-  <a href="#building">Building</a> &middot;
-  <a href="#project-status">Status</a> &middot;
-  <a href="COMMUNITY.md"><strong>Get Involved</strong></a> &middot;
-  <a href="#license">License</a>
-</p>
-
-<p align="center">
-  <a href="COMMUNITY.md">Community Guide</a> &middot;
-  <a href="gcs/README.md">GCS Docs</a> &middot;
-  <a href="gcs/CONTRIBUTING.md">Contributing</a> &middot;
-  <a href="docs/FULL_PARITY_AUDIT.md">Audit Notes</a> &middot;
-  <a href="https://github.com/jeranaias/meridian/issues">Issues</a> &middot;
-  <a href="https://github.com/jeranaias/meridian/pulls">Pull Requests</a>
-</p>
+> **Public OSS Meridian remains at `github.com/jeranaias/meridian`** —
+> this private repo is for Vanguard-specific deployment work. Don't
+> push from here to `origin` (the public remote). Push to `vanguard` only.
 
 ---
 
-## Why Meridian
+## 1. Current state of the world
 
-### Standing on the Shoulders of Giants
+| | |
+|---|---|
+| **Boat firmware** | ArduRover 4.6.3 (`backups/usv-vanguard/firmware/ardurover-4.6.3-CubeOrangePlus.apj`) — live, MAVLink alive on COM4 |
+| **Meridian firmware** | v1.2 baseline proven safe (safety-net fires, USB CDC silent) — **iteration frozen** until USB relay arrives (~2 days) |
+| **Auto-recovery** | `usv-watch-aggressive.py` armed with 4-hour window; any DFU appearance triggers auto-reflash |
+| **GCS** | Built, polished today; production page (`gcs/index.html`) + dense test console (`gcs/test-console.html`) |
+| **Boat hardware** | Cube Orange Plus (STM32H757), Vanguard hull, jet drive, BEC-powered, USB-C to USV laptop |
 
-Meridian exists because of [ArduPilot](https://ardupilot.org). Every flight algorithm in this project was studied, understood, and carefully ported from ArduPilot's remarkable codebase — the result of 15 years of development by thousands of contributors who built the most capable open-source autopilot in the world. ArduPilot flies millions of vehicles across every continent, from hobby quadcopters to industrial inspection platforms to humanitarian aid drones. It is battle-tested software that has saved lives and enabled an entire industry.
+### Why we picked ArduRover for the MVP
 
-[Mission Planner](https://ardupilot.org/planner/) and [QGroundControl](http://qgroundcontrol.com/) are the ground control stations that made all of that flying possible. Mission Planner's information density and feature completeness set the standard for what a GCS should be able to do. QGroundControl's cross-platform approach and touch-first design showed that a GCS doesn't have to be Windows-only.
-
-We owe these projects an enormous debt. Meridian is not a replacement — it's a next chapter, built on the foundation they laid.
-
-### A Fresh Start
-
-As systems mature, they accumulate complexity. ArduPilot's 1.5 million lines of C++ carry the weight of supporting every board, every vehicle, every edge case discovered over 15 years. That breadth is its strength — and also the reason it's increasingly difficult for new contributors to get started, for new ideas to be integrated, and for the codebase to adopt modern tooling.
-
-Meridian asks: **what would you build if you could start fresh today, with the benefit of everything ArduPilot taught us?**
-
-- **Rust** — Memory safety without runtime cost. The compiler catches the classes of bugs that crash vehicles: use-after-free, data races, buffer overflows. No more debugging segfaults in flight.
-- **RTIC** — Deterministic real-time scheduling with compile-time priority analysis. No RTOS overhead, no priority inversion.
-- **Cargo** — Build any of 47 crates with `cargo build`. Run any test with `cargo test`. The toolchain just works.
-- **Board TOML** — Human-readable hardware definitions. Add a board by adding a file.
-- **Native Rust extensions** instead of Lua — Type-safe, sandboxed, compiled to the same binary. No interpreter overhead. No runtime string parsing.
-- **Browser-based GCS** instead of desktop apps — Open a URL. You're flying. Any device, any OS, no install.
-
-Every flight algorithm in Meridian traces directly to ArduPilot source code, verified line-by-line against 17,697 lines of surgical audit notes covering all 154 ArduPilot libraries. This is not a simplified reimplementation. This is a complete, parity-verified autopilot.
+- ArduRover is mature, well-documented, MAVLink-complete
+- Meridian's USB CDC isn't enumerating yet (deferred — see § 6)
+- Meridian's safety net was empirically verified today via `--features nettest` canary
+- The strategy: **ship working product on ArduRover now; iterate Meridian
+  freely once the USB relay enables remote power-cycling.** No more locking
+  ourselves out.
 
 ---
 
-## Quick Start
+## 2. Quick start for Tristan / your Claude Code
 
-### Ground Control Station
-
-The fastest way to see Meridian in action:
+### 2.1 Clone and orient
 
 ```bash
-git clone https://github.com/jeranaias/meridian.git
-cd meridian/gcs
-python -m http.server 8080
+git clone git@github.com:jeranaias/vanguard-mvp.git
+cd vanguard-mvp
 ```
 
-Open [http://localhost:8080](http://localhost:8080) in any modern browser. Go to **Settings > Connection > Start Demo Mode** to explore the interface with simulated flight telemetry.
+Open `VANGUARD-MVP-README.md` (this file). Then:
+- `docs/vanguard/00_deployment_plan.md` for the field plan
+- `docs/flash-sessions/meridian-firmware-version-history.md` for what
+  happened with Meridian firmware (do **not** flash any v1.x without
+  reading this end-to-end)
+- `docs/LAKE_TEST_RUNBOOK.md` for water-test procedure
 
-### Building the Autopilot
+### 2.2 Connect a browser GCS to the live boat
+
+Boat side (USV laptop):
 
 ```bash
-# Build the entire workspace
-cargo build --workspace
-
-# Build and run the SITL (Software-In-The-Loop) simulator
-cargo build --bin meridian-sitl
-cargo run --bin meridian-sitl
-
-# Run the full test suite
-cargo test --workspace
-
-# Build firmware for STM32H743
-cargo build --bin meridian-stm32 --target thumbv7em-none-eabihf --release
+# Stops the auto-flash watcher and starts MAVLink WebSocket bridge.
+# Prints the URL to open + the ws:// to plug in.
+python tools/tristan-gcs-bridge.py
 ```
 
-### Connecting GCS to SITL
-
-1. Start the SITL: `cargo run --bin meridian-sitl`
-2. Open the GCS: `http://localhost:8080`
-3. Click the **DISCONNECTED** indicator in the toolbar
-4. Enter `ws://localhost:5760` and connect
-
-The GCS defaults to Meridian Native Protocol (MNP) over WebSocket. MAVLink v2 is supported for compatibility with legacy autopilots, QGroundControl, and Mission Planner.
-
----
-
-## Architecture
+Tablet/laptop side (anywhere on Tailscale):
 
 ```
-meridian/
-├── Cargo.toml                  # Workspace root — 47 crates
-├── crates/                     # All Rust crates
-│   ├── meridian-hal/           # Hardware abstraction traits
-│   ├── meridian-types/         # Shared types and units
-│   ├── meridian-math/          # Vectors, matrices, quaternions
-│   ├── meridian-sync/          # RTIC-aware synchronization
-│   ├── meridian-bus/           # Lock-free pub/sub message bus
-│   ├── meridian-ekf/           # 24-state Extended Kalman Filter
-│   ├── meridian-ahrs/          # Attitude + heading reference
-│   ├── meridian-control/       # PID controllers, sqrt_controller
-│   ├── meridian-nav/           # Waypoint navigation, spline paths
-│   ├── meridian-mission/       # Mission execution (55 commands)
-│   ├── meridian-modes/         # Flight modes (44 total: copter, plane, rover, boat, sub)
-│   ├── meridian-mixing/        # Motor output mixing
-│   ├── meridian-drivers/       # Sensor drivers
-│   ├── meridian-rc/            # RC input protocols
-│   ├── meridian-mavlink/       # MAVLink v2 bridge
-│   ├── meridian-comms/         # Meridian Native Protocol
-│   ├── meridian-params/        # Parameter system
-│   ├── meridian-log/           # Binary logging
-│   ├── meridian-fence/         # Geofencing
-│   ├── meridian-failsafe/      # Failsafe state machine
-│   ├── meridian-arming/        # Pre-arm checks
-│   └── [26 more crates]        # See full list below
-├── boards/                     # Board definitions (TOML)
-│   ├── CubeOrange.toml
-│   ├── Pixhawk6X.toml
-│   ├── MatekH743.toml
-│   ├── MatekL431.toml
-│   └── SpeedyBeeF405Wing.toml
-├── vehicles/                   # Vehicle type configurations
-│   ├── quad-x.toml
-│   ├── hex-x.toml
-│   ├── fixed-wing.toml
-│   ├── vtol-quadplane.toml
-│   └── [6 more]
-├── bin/                        # Binary targets
-│   ├── meridian-sitl/          # SITL simulator
-│   ├── meridian-linux/         # Linux companion computer
-│   └── meridian-stm32/        # STM32H7 firmware
-├── gcs/                        # Browser-based Ground Control Station
-│   ├── index.html              # Single-file entry point
-│   ├── css/                    # 18 CSS files, 6,000 lines
-│   ├── js/                     # 80 JS files, 20,600 lines
-│   ├── locales/                # i18n translations
-│   └── tests/                  # Unit tests
-├── docs/                       # Audit notes and parity analysis
-└── tools/                      # Build helpers, hwdef converter
+http://<jesse-tailscale-ip>:8765/test-console.html
+   ↳ enter ws://<usv-tailscale-ip>:5760 in the WS URL field
+   ↳ click Connect
 ```
 
-### Design Principles
-
-| Principle | ArduPilot Approach | Meridian Approach |
-|-----------|-------------------|-------------------|
-| **Memory safety** | Manual C++ memory management, runtime checks | Rust ownership — compile-time memory safety, zero-cost abstractions |
-| **Concurrency** | Recursive mutexes, RTOS threads | RTIC interrupt-driven scheduling, priority inversion free |
-| **Hardware abstraction** | AP_HAL class hierarchy with virtual dispatch | Trait-based HAL — static dispatch, no vtable overhead |
-| **Build system** | WAF (Python), hwdef.dat preprocessor | Cargo workspace, board TOML, `build.rs` code generation |
-| **Modularity** | Monolithic `libraries/` directory | 47 independent crates — test any subsystem in isolation |
-| **Configuration** | hwdef.dat with C preprocessor macros | Human-readable TOML with schema validation |
-| **Scripting** | Lua interpreter (runtime overhead) | WASM sandbox (compiled, type-safe) |
-| **GCS protocol** | MAVLink v2 only | Meridian Native Protocol (MNP) primary, MAVLink v2 for compatibility |
-| **GCS application** | Desktop apps (WinForms, Qt) | Browser-based — zero install, any device |
-| **Testing** | Python test harness, SITL only | Rust `#[test]` on every crate + SITL integration |
-
-### The Control Loop
-
-```
-400Hz Main Loop:
-  ┌─────────────┐
-  │  Sensor Read │  IMU DMA → FIFO drain → calibration → rotation → filter
-  └──────┬──────┘
-         │
-  ┌──────▼──────┐
-  │  EKF Update  │  24-state prediction → innovation → Kalman gain → state update
-  └──────┬──────┘
-         │
-  ┌──────▼──────┐
-  │  Mode Logic  │  Position/velocity/attitude targets from active flight mode
-  └──────┬──────┘
-         │
-  ┌──────▼──────┐
-  │  Controller  │  Position → Velocity → Attitude → Rate → Motor output
-  └──────┬──────┘
-         │
-  ┌──────▼──────┐
-  │  Motor Mix   │  Thrust + torque → per-motor PWM/DShot commands
-  └──────┬──────┘
-         │
-  ┌──────▼──────┐
-  │  Output      │  DMA transfer to ESCs, logging, telemetry
-  └─────────────┘
-```
-
----
-
-## The 47 Crates
-
-Meridian is organized into 47 independent crates across 7 architectural layers. Every crate compiles independently, has its own test suite, and declares explicit dependencies.
-
-### Foundation Layer
-
-| Crate | Description |
-|-------|-------------|
-| `meridian-types` | Shared types: `LatLon`, `Attitude`, `VehicleState`, SI units with type-level safety, timestamps, enums for modes/commands/status |
-| `meridian-math` | Quaternions, 3D vectors, rotation matrices, coordinate frame conversions (NED/ENU/body/earth), geodetic math (haversine, vincenty), type-safe angle units |
-| `meridian-sync` | `no_std` synchronization primitives: `RecursiveMutex` (required for ArduPilot algorithm parity), priority-aware locking for RTIC, 9 tests passing |
-
-### Core Infrastructure
-
-| Crate | Description |
-|-------|-------------|
-| `meridian-bus` | Typed publish/subscribe message bus with lock-free ring buffers (`no_std` mode) or crossbeam channels (`std` mode). Decouples producers and consumers across the flight stack |
-| `meridian-hal` | Hardware abstraction traits: `UartDriver`, `SpiDevice`, `I2cDevice`, `Gpio`, `RcOutput`, `RcInput`, `Storage`, `Scheduler`, `AnalogIn`, `Timer`. No implementations — just interfaces |
-| `meridian-boardcfg` | Board configuration system: parses TOML board definitions, generates Rust code via `build.rs`. Replaces ArduPilot's `hwdef.dat` + Python preprocessor |
-
-### State Estimation
-
-| Crate | Description |
-|-------|-------------|
-| `meridian-ekf` | 24-state Extended Kalman Filter (EKF3 port): position, velocity, attitude (quaternion), gyro bias, accel bias, earth magnetic field, body magnetic field, wind velocity. Covariance prediction with 24x24 matrix, sequential measurement fusion, health monitoring |
-| `meridian-ahrs` | AHRS manager: multi-core EKF with lane switching (up to 3 parallel EKF instances), DCM fallback for degraded GPS, compass consistency checking, vibration-based IMU weighting, automatic source selection |
-
-### Sensor Drivers
-
-| Crate | Description |
-|-------|-------------|
-| `meridian-drivers` | Complete sensor driver suite — see [Sensor Drivers](#sensor-drivers) section for full detail. Covers IMU (ICM-42688, BMI270, BMI088, MPU6000), barometer (BMP280, BMP388, DPS310, MS5611), compass (IST8310, QMC5883L, RM3100, LIS3MDL), GPS (uBlox, NMEA), rangefinder, optical flow, airspeed |
-
-### Control Systems
-
-| Crate | Description |
-|-------|-------------|
-| `meridian-control` | Cascaded PID controllers: attitude (angle) → rate → motor output. Includes `sqrt_controller` kinematic shaper (core of all position/velocity tracking in ArduPilot), feed-forward, I-term limiting, derivative filtering. Per-axis tuning with autotune integration |
-| `meridian-mixing` | Motor/actuator mixing: 38 frame presets (Quad X/+/H/V, Hex X/+, Octa X/+, Y6, Tri, DodecaHex, Deca). Thrust linearization with voltage compensation, battery sag resistance estimation. 190 servo function slots |
-| `meridian-modes` | Flight mode state machines �� 22 copter modes (Stabilize, AltHold, Loiter, Auto, Guided, RTL, Land, Circle, Drift, Sport, Flip, AutoTune, PosHold, Brake, Throw, SmartRTL, FlowHold, Follow, ZigZag, SystemID, Heli_Autorotate, Turtle) and 24 plane modes |
-
-### Navigation & Guidance
-
-| Crate | Description |
-|-------|-------------|
-| `meridian-nav` | L1 guidance controller, waypoint navigation with acceptance radius, Hermite/Catmull-Rom spline corners, 7-phase jerk-limited S-curve trajectories, terrain following with lookahead, orbit/loiter control |
-| `meridian-mission` | Behavior tree mission engine: 55 NAV/DO commands (WAYPOINT, TAKEOFF, LAND, RTL, LOITER_UNLIM/TIME/TURNS, SPLINE_WAYPOINT, GUIDED_ENABLE, DO_SET_MODE, DO_SET_SERVO, DO_SET_RELAY, DO_REPEAT_SERVO, DO_SET_ROI, DO_DIGICAM_CONTROL, DO_MOUNT_CONTROL, DO_GRIPPER, DO_PARACHUTE, DO_WINCH, and more). Arena-allocated, `no_std` compatible |
-| `meridian-fence` | Geofencing: polygon inclusion/exclusion zones, circular zones, altitude ceiling/floor. Breach detection with configurable actions (report, RTL, land, brake). Polygon point-in-polygon test with winding number algorithm |
-| `meridian-terrain` | Terrain database: 32x28 SRTM grid blocks, 12-block LRU cache (~22KB RAM), bilinear interpolation, MAVLink TERRAIN_REQUEST/DATA protocol for GCS-assisted terrain data |
-
-### Mission Safety
-
-| Crate | Description |
-|-------|-------------|
-| `meridian-failsafe` | Failsafe monitor: RC loss (configurable timeout), battery voltage/capacity, GCS heartbeat timeout, EKF variance, geofence breach. Priority-based action selection (land > RTL > continue > report). Concrete types, no dynamic dispatch |
-| `meridian-arming` | Pre-arm check framework: GPS quality (fix type, HDOP, satellite count), compass calibration and consistency, IMU health (vibration, temperature, multi-IMU agreement at 0.75 m/s^2 accel / 5 deg/s gyro sustained 10s), barometer calibration, RC calibration, battery health, fence configuration |
-
-### Communication
-
-| Crate | Description |
-|-------|-------------|
-| `meridian-comms` | Meridian Native Protocol (MNP): COBS framing over any byte stream, postcard binary serialization, typed message envelopes. Designed for low-overhead, low-latency vehicle-to-GCS communication over WebSocket |
-| `meridian-mavlink` | MAVLink v2 bridge: CRC-X.25 with per-message CRC_EXTRA, 90+ message encode/decode handlers, stream rate system (10 groups), HMAC-SHA256 signing, 8s mission upload timeout, 30-entry statustext queue. Full compatibility with QGroundControl and Mission Planner |
-| `meridian-rc` | RC input protocol decoders: SBUS (with dual failsafe — explicit flag AND implicit channel check), CRSF/ELRS (with CRSFv3 baud negotiation), SRXL2, DSM/DSMX, SUMD, ST24, FPort, PPM. Telemetry: FrSky Sport passthrough with 10+ app IDs |
-| `meridian-can` | DroneCAN (UAVCAN v0): CAN frame encoding/decoding, dynamic node allocation (DNA) server, ESC RawCommand output, sensor message dispatch. Built on `libcanard` FFI for protocol compliance |
-| `meridian-adsb` | ADS-B traffic awareness: ICAO address tracking, position/velocity/heading decode, threat assessment with distance and closure rate, configurable avoidance actions |
-
-### Logging & Parameters
-
-| Crate | Description |
-|-------|-------------|
-| `meridian-log` | Structured binary logging: AP-compatible format with 0xA3/0x95 sync bytes, FMT format messages, 150+ message types, per-message rate limiting via 256-element timestamp array. SD card or file output |
-| `meridian-params` | Runtime parameter system: 18-bit group tree encoding (EEPROM-stable format compatible with ArduPilot), flash wear-leveling for embedded, file-backed for Linux/SITL. Supports PARAM_REQUEST_LIST, PARAM_SET, PARAM_VALUE MAVLink protocol |
-
-### Advanced Features
-
-| Crate | Description |
-|-------|-------------|
-| `meridian-autotune` | PID auto-tuning: multirotor "twitch" method (180 deg/s steps, 5-step sequence, 4 consecutive passes, 25% backoff on oscillation), helicopter frequency-sweep chirp with gain/phase extraction |
-| `meridian-fft` | Real-time FFT on gyro data: tracks 3 simultaneous noise peaks using distance-matrix matching, harmonic detection (frequency within 10% of N * fundamental), dynamic notch filter center frequency update every control loop iteration |
-| `meridian-precland` | Precision landing: separate 2-state Kalman filter per axis (X/Y), inertial history ring buffer for lag compensation, IR-Lock/companion computer sensor fusion |
-| `meridian-proximity` | Proximity sensor integration: 8 sectors x 5 layers = 40 3D boundary faces, 3-sample median filter + IIR smoothing, AC_Avoid velocity bending for obstacle avoidance |
-| `meridian-mount` | Gimbal/mount control: 14 backend types — Servo (direct PWM), MAVLink (GIMBAL_MANAGER protocol), Siyi (binary serial with P=1.5 angle-to-rate controller), Gremsy, Alexmos, SToRM32 |
-| `meridian-camera` | Camera trigger: servo/relay pulse, MAVLink Camera v2 protocol, distance/time-based triggering, GPS geotagging with shutter lag compensation |
-
-### Vehicle-Specific
-
-| Crate | Description |
-|-------|-------------|
-| `meridian-heli` | Helicopter support: swashplate mixing (H1/H3/H4), collective-to-yaw feedforward, rotor speed governor, autorotation entry/glide/flare state machine, tail rotor modes |
-| `meridian-vehicle` | Vehicle definition loader: parses TOML vehicle configs (mass, motor layout, PID defaults, failsafe thresholds, sensor assignments), dynamics model validation |
-
-### Payload & Utilities
-
-| Crate | Description |
-|-------|-------------|
-| `meridian-notify` | LED + buzzer notification: priority-based pattern scheduler (boot, arm, GPS lock, failsafe, battery warning, EKF error), NeoPixel via SPI DMA, piezo tune sequences |
-| `meridian-osd` | On-screen display: MAX7456 analog (SPI, character-cell 30x16 PAL) + MSP DisplayPort digital (DJI/Avatar/HDZero). 56+ display items, 4 switchable screen layouts |
-| `meridian-opendroneid` | FAA/EU Remote ID: 5 message types (Basic ID, Location, Authentication, Self-ID, System), WiFi NaN / BLE 4/5 broadcast, MAVLink relay. Pre-arm requires arm_status handshake |
-| `meridian-parachute` | Parachute deployment: motor shutdown sequence, configurable delay, servo/relay pulse. Trigger on altitude, speed, or manual command |
-| `meridian-gripper` | Gripper control: servo + EPM (electromagnet) backends, grab/release state machine with feedback |
-| `meridian-winch` | Winch control: position/rate/RC control modes, line length tracking |
-| `meridian-landing-gear` | Landing gear: deploy/retract servo control, altitude-based auto triggers, weight-on-wheels sensor input |
-| `meridian-sprayer` | Agricultural sprayer: pump + spinner PWM control, ground-speed-proportional flow rate |
-| `meridian-wasm` | WASM extension runtime: sandboxed execution environment for user scripts, 350-400 host bindings to vehicle state. Replaces ArduPilot's Lua scripting with compiled, type-safe extensions |
-
-### Platform Implementations
-
-| Crate | Description |
-|-------|-------------|
-| `meridian-platform-stm32` | STM32H7 platform: clock init (8MHz HSE → 400MHz PLL), DMA with per-stream recursive mutex, SPI with DMA_NOSHARE for IMU buses, I2C with bus clear recovery, 9 UARTs, USB CDC, Timer PWM + DShot via DMA, ADC, Flash storage (pages 14-15), SD card (SDMMC + FatFs), hardware watchdog. RTIC task mapping with interrupt priorities |
-| `meridian-platform-linux` | Linux companion computer: Tokio async runtime, serial UART, SPI/I2C via spidev/i2cdev, UDP networking, file-backed storage |
-| `meridian-platform-sitl` | Software-in-the-loop: UDP physics bridge (port 5501), TCP MAVLink server (port 5760), simulated SPI/I2C returning sensor data, file-backed storage |
-| `meridian-sitl` | SITL physics engine: rigid body dynamics with configurable vehicle models, sensor noise simulation, wind model, deterministic replay mode for regression testing |
-| `meridian-gcs` | GCS crate: WASM bindings for browser-side Rust code (telemetry parsing, protocol handling). The main GCS is in `gcs/` as vanilla JS/HTML/CSS |
-
----
-
-## Ground Control Station
-
-The `gcs/` directory contains a complete browser-based Ground Control Station — **28,000 lines** of hand-written JavaScript, CSS, and HTML with zero framework dependencies.
-
-### Why Browser-Based
-
-| Question | Mission Planner | QGroundControl | Meridian GCS |
-|----------|----------------|----------------|--------------|
-| Install required? | Yes (Windows MSI) | Yes (platform binary) | No — open a URL |
-| Works on tablet? | No | Partial (Qt scaling) | Yes — touch-first design |
-| Works on phone? | No | "Painful" (QGC docs) | Yes — responsive breakpoints |
-| Dark theme? | HUD only | 2 presets | Full dark/light with canvas adaptation |
-| Offline capable? | Desktop app | Desktop app | Yes — Cache API tile storage |
-| Custom instruments? | Limited | Grid widget | 8-field color-coded quick readout |
-| Build step? | Visual Studio | Qt/CMake | None — edit and refresh |
-
-### GCS Features
-
-**Fly View:**
-- Canvas flight instruments: ADI with pitch ladder and bank marks, horizontal compass strip, speed and altitude tapes — all theme-aware and GPU-accelerated
-- Leaflet map: vehicle icon with heading rotation, velocity trail, trajectory projection, home guide line, mission path overlay, ADSB traffic markers, drag-to-fly, geofence display, uncertainty ellipse
-- 8-field quick readout: altitude, speed, home distance, WP distance, climb rate, heading, flight time, throttle — color-coded per field, right-click customizable
-- Always-visible telemetry strip: GPS fix + satellites, battery % + voltage, RC RSSI, EKF variance, flight time — visible across all views
-- Wind estimation: real-time speed and direction from ground/airspeed vector difference with arrow overlay on map
-- Battery intelligence: time remaining estimate from current draw + capacity, consumption rate (mAh/min), color-coded warnings
-- Video feed: MJPEG/RTSP PiP overlay, draggable, fullscreen swap
-- Slide-to-arm with pre-flight checklist gate, long-press emergency KILL with 1.5s hold
-
-**Plan View:**
-- Click-to-add waypoints with drag reorder and inline parameter editing
-- Survey tools: polygon grid scan, corridor scan, orbit missions, cinematic quickshots
-- Terrain altitude profile chart with ground clearance warnings
-- Mission validator: altitude/distance limits, battery endurance vs flight time, duplicate waypoint detection, first-WP-not-takeoff warning
-- Statistics: distance, estimated time, max altitude, max distance from home, battery endurance margin
-- Geofence polygon drawing with FENCE_POINT upload/download
-- Import/Export: QGC WPL 110 waypoint file format
-
-**Setup:**
-- Pre-flight regulatory checklist: 7-item FAA/EU compliance check with auto + manual items
-- Calibration wizards: accelerometer (6-position), compass (3-axis visualization), radio (live channel bars)
-- Frame selection: visual grid with motor layout diagrams
-- Flight modes: 6-slot configuration with PWM range visualization
-- Failsafe: RC loss, battery, GCS timeout with action selection
-- Motor test: individual motor spin with throttle and duration control
-- Firmware: OTA update placeholder
-
-**Parameters:**
-- Grouped by prefix: 17 categories (Attitude Control, Battery, Failsafe, Geofence, Navigation, etc.)
-- 50+ parameter descriptions with human-readable explanations
-- Search, load from file, save to file, Betaflight CLI dump import
-- PID tuning panel with per-axis sliders and step response chart
-- Modified parameter highlighting with default comparison
-
-**Logs:**
-- Tlog recording to IndexedDB with 64KB chunks, auto-start on connect
-- Flight replay: play back tlog through HUD instruments and map at 0.5x-10x speed
-- Time-series graph viewer for any telemetry field
-- MAVLink inspector: live message stream with field-level decode and XSS escaping
-- Battery lifecycle tracking per pack with cycle count and health scoring
-- Auto-analysis: 6 anomaly checks on recorded flight data
-- Scripting console: sandboxed JavaScript with vehicle state access helpers
-
-**Status:**
-- 166+ telemetry fields organized by category (System, Attitude, Position, GPS, EKF, RC, Battery, Mission)
-- Units on every value (m, m/s, V, A, %, mAh, degrees)
-- 4Hz live update with change-flash animation
-- Collapsible category sections with search/filter
-- Alternating row colors for readability
-
-**Settings:**
-- 22 configuration sections: theme, units, map provider, connection, ADSB, operator identity, EU compliance, offline maps, recording, ROS2 bridge, STANAG 4586, audio alerts
-- Offline tile caching with area selection and zoom range
-- Multi-vehicle connection pool with fleet registry
-- i18n framework with locale-based string translation
-- Demo mode toggle
-
-**Accessibility:**
-- `:focus-visible` rings on all interactive elements
-- Skip-to-content link
-- ARIA roles on all custom widgets (instruments, arm slider, health grid)
-- `prefers-reduced-motion` support — disables all animations
-- `prefers-color-scheme` detection for automatic dark/light
-- Print stylesheet
-- Thin scrollbar styling
-- Keyboard shortcuts with `?` overlay (F/P/S/R/L/T/Esc/Ctrl+,/Ctrl+Shift+A/K)
-- Touch targets: 44px minimum, 48px on coarse pointer devices
-
----
-
-## Supported Hardware
-
-### Flight Controllers
-
-| Board | MCU | IMU | Baro | Compass | Features |
-|-------|-----|-----|------|---------|----------|
-| **CubeOrange** | STM32H743 @ 400MHz | ICM20602 + ICM20948 (dual) | MS5611 (dual) | AK09916 | IOMCU, dual CAN, 6 FMU PWM, FRAM, SD card |
-| **Pixhawk6X** | STM32H743 @ 400MHz | ICM42688 + BMI088 + ICM42670 | BMP388 + ICP201XX (dual) | BMM150 / RM3100 | IOMCU, dual CAN, Ethernet, FRAM, 8 FMU PWM |
-| **MatekH743** | STM32H743 @ 480MHz | ICM42688 | DPS310 | — | 13 PWM outputs, SD card, DShot |
-| **MatekL431** | STM32L431 @ 80MHz | — | — | — | DroneCAN peripheral node |
-| **SpeedyBeeF405Wing** | STM32F405 @ 168MHz | ICM42688 | DPS310 | — | Wing-specific, 12 PWM, SD card |
-
-These are the 5 Tier 1 boards with full sensor/pin configurations. Beyond these:
-
-| Tier | Boards | Status |
-|------|--------|--------|
-| **Tier 1** | 5 | CI-tested, recommended for first flights |
-| **Tier 2** | 19 | Popular boards (KakuteH7, Pixhawk4, CubeBlack, Durandal, etc.), validated TOML |
-| **Tier 3** | 359 | Auto-converted from ArduPilot hwdef.dat — community validation needed |
-| **Total** | **383** | Every board ArduPilot supports, converted to TOML |
-
-Board definitions are TOML files in `boards/`. Adding a new board requires only a TOML file — no code changes. See [COMMUNITY.md](COMMUNITY.md) for how to help validate Tier 3 boards.
-
-### Target Platforms
-
-| Platform | Crate | Runtime | Use Case |
-|----------|-------|---------|----------|
-| STM32H7 | `meridian-platform-stm32` | RTIC | Flight controller firmware |
-| Linux | `meridian-platform-linux` | Tokio | Companion computer, Raspberry Pi |
-| SITL | `meridian-platform-sitl` | std | Development, testing, CI |
-
----
-
-## Supported Vehicles
-
-All vehicle types are defined as TOML configurations in `vehicles/`:
-
-| Vehicle | Type | Motors | Key Parameters |
-|---------|------|--------|---------------|
-| **Quad-X** | Multirotor | 4 | 1.5kg, DShot600, 30N thrust |
-| **Quad-Plus** | Multirotor | 4 | Plus motor layout |
-| **Hex-X** | Multirotor | 6 | Redundant motors |
-| **Octo-X** | Multirotor | 8 | Heavy lift |
-| **Fixed-Wing** | Airplane | 1 | 2.0kg, 0.5m^2 wing, TECS |
-| **VTOL QuadPlane** | Hybrid | 5 | Quad + pusher, transition logic |
-| **Rover (Skid)** | Ground | 2 | Skid steering |
-| **Rover (Ackermann)** | Ground | 1+servo | Car-style steering |
-| **Boat** | Marine | 2 | Differential thrust |
-| **Sub (6DOF)** | Underwater | 6 | Full 6-axis control |
-
-### Motor Mixing
-
-38 frame geometry presets:
-
-- **Quad:** X, Plus, H, V, A-Tail, Y4
-- **Hex:** X, Plus, CoaxCopter
-- **Octa:** X, Plus, H, DJI, CoaxQuad
-- **Y6:** Standard, Inverted
-- **Tri:** Standard (with yaw servo)
-- **DodecaHex:** X, Plus
-- **Deca:** X, Plus
-- **OctaQuad:** X, H, Plus, V
-
----
-
-## Flight Features
-
-### Flight Modes
-
-**Copter (22 modes):**
-
-| Mode | Description |
-|------|-------------|
-| Stabilize | Manual throttle, self-leveling attitude |
-| AltHold | Barometric altitude hold, manual position |
-| Loiter | GPS position + altitude hold |
-| Auto | Autonomous mission execution |
-| Guided | GCS-commanded position targets |
-| RTL | Return to launch with configurable altitude |
-| Land | Autonomous landing with ground detection |
-| Circle | Orbit around a point |
-| Drift | Rate-controlled with GPS speed limiting |
-| Sport | High-rate manual with GPS assist |
-| Flip | Automated flip maneuver |
-| AutoTune | In-flight PID optimization |
-| PosHold | Simplified loiter with direct stick response |
-| Brake | Immediate deceleration to stop |
-| Throw | Launch detection + automatic stabilization |
-| SmartRTL | Return via recorded path with loop pruning |
-| FlowHold | Optical flow position hold (no GPS) |
-| Follow | Follow another vehicle or GCS |
-| ZigZag | Precision agriculture back-and-forth |
-| SystemID | System identification for tuning |
-| Heli_Autorotate | Helicopter emergency autorotation |
-| Turtle | Flip-over recovery (Betaflight-style) |
-
-**Plane (24 modes):** MANUAL, CIRCLE, STABILIZE, TRAINING, ACRO, FLY_BY_WIRE_A, FLY_BY_WIRE_B, CRUISE, AUTOTUNE, AUTO, RTL, LOITER, TAKEOFF, GUIDED, QSTABILIZE, QHOVER, QLOITER, QLAND, QRTL, QAUTOTUNE, QACRO, THERMAL, SOARING, AUTOLAND
-
-### Navigation
-
-- **L1 guidance controller:** Period-based lateral guidance with damping ratio
-- **Waypoint navigation:** Configurable acceptance radius, flythrough vs stop-at-waypoint
-- **Spline paths:** Hermite/Catmull-Rom interpolation for smooth corners
-- **S-curve trajectories:** 7-phase jerk-limited profiles for precise position control
-- **Terrain following:** Continuous altitude adjustment using terrain database with lookahead
-- **SmartRTL:** Records breadcrumb trail, prunes loops (Douglas-Peucker + intersection detection), replays in reverse
-- **Orbit/Circle:** Configurable radius, speed, direction, and center tracking
-
-### Safety Systems
-
-- **Pre-arm checks:** 15+ categories verified before arming (GPS, compass, IMU, baro, RC, battery, fence, EKF)
-- **Failsafe cascade:** RC loss → battery low → battery critical → GCS loss → EKF failure → geofence breach, each with configurable action (continue, RTL, land, brake, SmartRTL)
-- **Geofencing:** Polygon + circle + altitude, inclusion and exclusion zones, breach actions
-- **Emergency kill:** MAV_CMD_DO_FLIGHTTERMINATION — immediate motor shutdown
-- **Parachute:** Altitude/speed triggered or manual, motor shutdown + servo pulse sequence
-- **Watchdog:** Hardware watchdog on STM32, software watchdog on all platforms
-
-### Signal Processing
-
-- **Biquad low-pass filters** on all sensor data
-- **Notch filters** with 5% slew limiter (critical — without slew limiting, filter rings on step input)
-- **Harmonic notch filter:** Up to 16 harmonics, 5 tracking modes (throttle, RPM, FFT, ESC telemetry, fixed)
-- **GyroFFT:** Real-time 3-peak tracking with distance-matrix matching, harmonic validation (within 10% of N * fundamental)
-
----
-
-## Sensor Drivers
-
-### Inertial Measurement Units
-
-| Sensor | Interface | Features |
-|--------|-----------|----------|
-| ICM-42688 | SPI + DMA | 12-register init, FIFO with 16-byte packets, header 0x68 validation, AFSR bug mitigation (critical: disable anti-alias filter or gyro stalls at 100 deg/s) |
-| BMI270 | SPI | 4KB firmware upload before operational, separate accel/gyro FIFO frames |
-| BMI088 | SPI | Separate accel/gyro dies, individual FIFO config |
-| MPU6000/9250 | SPI | Legacy support, 512-byte FIFO |
-
-**IMU Pipeline:** DMA read → FIFO drain → temperature calibration (3rd-order polynomial) → board rotation → low-pass filter → notch filter → EKF input
-
-**Multi-IMU:** Up to 3 simultaneous IMUs with health monitoring. Consistency check: angle difference for gyro (< 5 deg/s sustained 10s), vector distance for accel (< 0.75 m/s^2 sustained 10s). Vibration detection via 5Hz + 2Hz LP envelope, clipping at 152 m/s^2.
-
-### Barometers
-
-| Sensor | Interface | Compensation |
-|--------|-----------|-------------|
-| BMP280 | I2C/SPI | Integer Bosch algorithm |
-| BMP388/390 | I2C/SPI | Float 11-coefficient compensation |
-| DPS310 | I2C/SPI | Temperature-compensated |
-| MS5611 | I2C/SPI | PROM calibration coefficients |
-| ICP-201XX | I2C | High-accuracy industrial |
-
-**Baro Pipeline:** Raw ADC → compensation algorithm → ground calibration (10s settle + 5-sample average) → low-pass filter → altitude conversion
-
-### Compass/Magnetometer
-
-| Sensor | Interface | Features |
-|--------|-----------|----------|
-| IST8310 | I2C | 200Hz, 16-bit |
-| QMC5883L | I2C | Temperature compensated |
-| RM3100 | SPI | High dynamic range |
-| LIS3MDL | I2C/SPI | 80Hz, low noise |
-| AK09916 | I2C | On-chip in ICM-20948 |
-| BMM150 | I2C | Integrated in BMI088 |
-
-**Compass Calibration:** Levenberg-Marquardt optimization fitting sphere + ellipsoid model (9 parameters: 3 offsets, 3 diagonal scale, 3 off-diagonal). Motor compensation: per-throttle or per-current 3D vector subtraction. Consistency check: 3D angle < 90 degrees, XY angle < 60 degrees.
-
-### GPS/GNSS
-
-| Receiver | Interface | Features |
-|----------|-----------|----------|
-| uBlox M8/M9/F9 | UART | 22-step configuration, 8-baud auto-detect (9600→460800), NAV-PVT/NAV-STATUS/NAV-DOP/NAV-SAT parsing, RTK via RTCM3, heading via RELPOSNED |
-| NMEA | UART | GGA + RMC within 150ms window, standard position/fix/satellite data |
-
-**GPS Pipeline:** Auto-detect → configure → parse → health check (delta_time EMA, delayed_count) → blending (inverse-variance weighting for dual GPS) → EKF fusion
-
----
-
-## Communication Protocols
-
-### Meridian Native Protocol (MNP)
-
-The primary vehicle-to-GCS protocol, designed for modern transport layers.
-
-- **Framing:** COBS (Consistent Overhead Byte Stuffing) — zero-byte-free encoding for reliable framing over any byte stream
-- **Serialization:** postcard — compact binary format based on serde, `no_std` compatible
-- **Transport:** WebSocket (browser GCS), UART (companion computer), USB CDC (direct)
-- **Message types:** 12 defined message types for telemetry, commands, parameters, missions
-- **Overhead:** 1-2 bytes per frame (COBS) + 1-4 bytes per field (varint encoding)
-
-### MAVLink v2
-
-Full compatibility layer for legacy ground stations and autopilots.
-
-- **90+ message handlers** covering all standard MAVLink message types
-- **10 telemetry stream groups** with configurable rates
-- **Mission protocol:** MISSION_COUNT → REQUEST_INT → ITEM_INT → ACK state machine with retry logic and 8s timeout
-- **Parameter protocol:** PARAM_REQUEST_LIST, PARAM_SET, PARAM_VALUE with acknowledgment
-- **Command protocol:** COMMAND_LONG with COMMAND_ACK tracking
-- **Signing:** HMAC-SHA256 link authentication
-- **STATUSTEXT:** 30-entry queue with 50-character chunking and severity levels
-
-### RC Protocols
-
-| Protocol | Baud | Channels | Failsafe | Notes |
-|----------|------|----------|----------|-------|
-| SBUS | 100000 (inverted) | 16 | Dual: flag + channel check | Channels 1-4 <= 875us indicates implicit failsafe |
-| CRSF | 416666 | 16 | 150ms RX timeout | CRSFv3 adds baud negotiation (0x70/0x71) |
-| ELRS | 420000 | 16 | 150ms RX timeout | Bootstrap baud differs from CRSF |
-| SRXL2 | 115200 | 32 | Handshake-based | Spektrum bidirectional |
-| DSM/DSMX | 115200 | 12 | Frame loss counting | Spektrum legacy |
-| PPM | — | 8 | Pulse width monitoring | Legacy analog |
-
-### DroneCAN
-
-| Feature | Implementation |
-|---------|---------------|
-| Frame format | CAN 2.0B, 29-bit ID with priority/source/destination encoding |
-| Node management | Dynamic Node Allocation (DNA) server in pure Rust |
-| ESC output | `uavcan.equipment.esc.RawCommand` at loop rate |
-| Sensors | GPS, compass, baro, airspeed, rangefinder message dispatch |
-| Firmware update | Binary upload to peripheral nodes |
-
----
-
-## Building
-
-### Requirements
-
-| Target | Requirements |
-|--------|-------------|
-| All targets | Rust 1.75+ (stable), Cargo |
-| STM32H7 | `rustup target add thumbv7em-none-eabihf`, `probe-rs` or `openocd` for flashing |
-| Linux | Standard Linux toolchain |
-| SITL | Linux or WSL with UDP networking |
-| GCS | Any modern browser (Chrome 60+, Firefox 55+, Safari 11+) |
-
-### Build Commands
+You should see live heartbeat / mode / GPS / battery within 1 sec. Click
+buttons. Each one logs to the right pane with success/timeout/denied
+status from the vehicle's COMMAND_ACK.
+
+### 2.3 If the boat is wedged (no USB enumeration)
 
 ```bash
-# Build everything
-cargo build --workspace
-
-# Build in release mode (optimized)
-cargo build --workspace --release
-
-# Run all tests
-cargo test --workspace
-
-# Build SITL binary
-cargo build --bin meridian-sitl
-
-# Run SITL
-cargo run --bin meridian-sitl
-
-# Build STM32H743 firmware
-cargo build --bin meridian-stm32 --target thumbv7em-none-eabihf --release
-
-# Flash to board (requires probe-rs)
-probe-rs run --chip STM32H743ZI target/thumbv7em-none-eabihf/release/meridian-stm32
-
-# Build Linux companion
-cargo build --bin meridian-linux --release
-
-# Run a specific crate's tests
-cargo test -p meridian-ekf
-cargo test -p meridian-control
-cargo test -p meridian-mavlink
-
-# Check all crates compile for no_std
-cargo check -p meridian-types --no-default-features
-cargo check -p meridian-math --no-default-features
-cargo check -p meridian-sync --no-default-features
+# from the USV laptop:
+python C:\Users\vangu\check-safety-net.ps1   # see what's on USB
 ```
 
-### Project Statistics
+Three recovery modes, in order of preference:
 
-| Metric | Count |
-|--------|-------|
-| Rust source lines | 82,000 |
-| Crates | 47 |
-| GCS source lines | 28,000 |
-| GCS files | 105 |
-| Vehicle profiles | 10 |
-| Board targets | 5 (Tier 1) |
-| MAVLink messages | 90+ |
-| Flight modes | 44 (20 copter + 24 plane) |
-| Sensor drivers | 20+ |
-| Frame geometries | 38 |
-| Total lines of code | 110,000 |
+1. **Wait** — if any Meridian build is loaded, its safety net should
+   fire within 120s and put the boat in DFU; auto-flash watcher catches.
+2. **MAVLink reboot** — if it's enumerating but stuck, run
+   `python C:\Users\vangu\usv-mav-reboot-to-bl.py` to drop to bootloader
+   on demand.
+3. **Power cycle** — when nothing else works. Until the USB relay arrives,
+   this needs Tristan's hand on the BEC. After relay: scriptable.
 
 ---
 
-## Project Status
+## 3. Project layout (subsystem map)
 
-Meridian is in active development. The core flight stack, sensor drivers, and ground control station are implemented and functionally complete. Hardware flight testing is the next milestone.
-
-| Component | Lines | Status |
-|-----------|-------|--------|
-| EKF (24-state) | 4,800 | Complete |
-| AHRS (multi-lane) | 3,200 | Complete |
-| PID controllers | 2,100 | Complete |
-| Navigation (L1, spline, S-curve) | 2,800 | Complete |
-| Mission engine (55 commands) | 1,900 | Complete |
-| Flight modes (44 total) | 3,400 | Complete |
-| Motor mixing (38 geometries) | 1,600 | Complete |
-| Sensor drivers (20+) | 5,200 | Complete |
-| RC protocols (8 types) | 1,800 | Complete |
-| MAVLink v2 (90+ messages) | 2,200 | Complete |
-| MNP protocol | 1,400 | Complete |
-| Parameter system | 1,500 | Complete |
-| Binary logging | 1,100 | Complete |
-| Geofencing | 800 | Complete |
-| Failsafe system | 700 | Complete |
-| STM32H7 platform | 3,600 | Complete |
-| SITL platform | 1,400 | Complete |
-| Browser GCS | 28,000 | Complete |
-| Hardware flight test | — | Next milestone |
-| Board validation (383 targets) | — | In progress (5 Tier 1, 19 Tier 2, 359 auto-converted) |
-
-### Roadmap
-
-1. **SITL integration testing** — Full flight simulation with GCS connected
-2. **First hardware hover** — MatekH743, Stabilize mode, 60 seconds
-3. **Mission flight** — 10-waypoint AUTO mission via GCS
-4. **ArduPilot Python test compatibility** — Pass `tests1a` batch
-5. **Board scaling** — 50 Tier 2 boards via TOML auto-generation
-6. **WASM extensions** — User scripting runtime
-7. **Community beta** — Open testing with selected operators
-
----
-
-## ArduPilot Parity
-
-Every algorithm in Meridian was ported from ArduPilot with surgical precision. The project maintains 17,697 lines of audit notes across 19 files (`docs/audit_*.md`), covering all 154 ArduPilot libraries.
-
-The audit was conducted by analyzing the ArduPilot source code (1.5M lines across 154 libraries and 430 board definitions), identifying every algorithm, data structure, and edge case, then verifying that Meridian's Rust implementation handles each one correctly.
-
-### Key Parity Points
-
-- **EKF:** 24-state model matches AP_NavEKF3 state vector, covariance prediction, and measurement fusion
-- **PID controllers:** Rate and angle loops match AC_AttitudeControl with identical gain scheduling
-- **sqrt_controller:** Kinematic shaper matches `control.h` — this is the core of all ArduPilot position/velocity control
-- **Motor mixing:** All 38 frame geometries produce identical thrust vectors
-- **Failsafe:** RC loss, battery, GCS, EKF cascade matches ArduPilot priority ordering
-- **SBUS parsing:** Both explicit failsafe flag AND implicit channel check (channels 1-4 <= 875us)
-- **Compass calibration:** Levenberg-Marquardt sphere+ellipsoid fit with motor compensation
-- **Mission protocol:** MISSION_COUNT/REQUEST_INT/ITEM_INT/ACK state machine with 8s timeout and retry
+```
+vanguard-mvp/
+├── bin/                     ← executable Rust crates (firmware, SITL)
+│   ├── meridian-stm32/      ← STM32H757 firmware (no_std, RTIC)
+│   └── meridian-sitl/       ← Software-in-the-loop physics + MAVLink server
+├── crates/                  ← 47 Rust library crates (HAL, EKF, control, drivers…)
+├── gcs/                     ← Browser GCS (vanilla JS, no build)
+│   ├── index.html           ← production fly view
+│   ├── test-console.html    ← dense command tester (BUILT TODAY)
+│   ├── mission.html         ← legacy mission view (large)
+│   ├── js/, css/, locales/  ← modules + theming + i18n
+│   └── tests/               ← MAVLink/MNP codec tests
+├── tools/                   ← Python utilities
+│   ├── tristan-gcs-bridge.py   ← one-command bring-up (BUILT TODAY)
+│   ├── mavlink-ws-bridge.py    ← MAVLink ↔ WebSocket adapter
+│   ├── mnp-sitl-server.py      ← MNP SITL for dev
+│   ├── usv-sim-suite.py        ← 12 boat-sim scenarios + replay
+│   ├── meridian-pack.py        ← firmware packager (.bin → .apj)
+│   ├── preflight-check.py      ← pre-flight system check
+│   ├── terrain.py              ← ETOPO bathymetry downloader
+│   ├── hwdef-to-toml.py        ← ArduPilot hwdef → board TOML
+│   └── orca-bridge/            ← bathymetric terrain matching daemon
+├── boards/                  ← board TOMLs (CubeOrangePlus.toml + others)
+├── vehicles/                ← vehicle config TOMLs (USV, copter, plane, …)
+├── docs/
+│   ├── flash-sessions/      ← v0.1–v1.4 firmware iteration log
+│   ├── vanguard/            ← deployment plan, hardware ID, runbook, brief
+│   ├── panel_01..20_*.md    ← 20 expert panel reviews (read for design context)
+│   ├── audit_*.md           ← 14 ArduPilot parity audits
+│   ├── final_review_*.md    ← deep dives (control, EKF, drivers, modes)
+│   ├── LAKE_TEST_RUNBOOK.md
+│   ├── usv-deploy-log.md
+│   └── …
+├── backups/usv-vanguard/    ← every firmware candidate + parm snapshots
+├── vendor/stm32h7xx-hal/    ← vendored HAL with `USB2.HIGH_SPEED = false` patch
+└── results/                 ← cached USV sim scenario JSON logs
+```
 
 ---
 
-## Contributing
+## 4. Subsystem details
 
-Meridian is a community project. We need your help to get to first flight and beyond.
+### 4.1 Firmware (Rust no_std, STM32H757)
 
-**Read the full guide: [COMMUNITY.md](COMMUNITY.md)** — everything you need to know about forking, building, testing, and submitting PRs.
+`bin/meridian-stm32/` and `crates/meridian-*` — **47 crates, ~85,000 LOC.**
 
-**Quick links:**
-- [Open an issue](https://github.com/jeranaias/meridian/issues/new/choose) — bugs, features, board requests
-- [Submit a PR](https://github.com/jeranaias/meridian/pulls) — code, docs, board configs, translations
-- [GCS contributing guide](gcs/CONTRIBUTING.md) — zero-build philosophy and code style
-- [Community guide](COMMUNITY.md) — full task list of what needs doing right now
+Highest-leverage crates for the MVP path (ArduRover-side, not used live
+yet but built and tested):
 
-**What we need most right now:**
+| Crate | LOC | Purpose |
+|---|---|---|
+| `meridian-types` | 631 | Shared data types, units, enums |
+| `meridian-hal` | 1,182 | HAL traits (GPIO/PWM/UART/SPI/I2C/DMA), platform-pluggable |
+| `meridian-platform-stm32` | 4,858 | Bare-metal STM32H7, RTIC tasks, **rescue.rs**, **watchdog.rs** |
+| `meridian-drivers` | 14,524 | 44 driver files: IMU, baro, mag, GPS, rangefinder, DroneCAN, optical flow… |
+| `meridian-comms` | 679 | MNP — COBS-framed postcard wire format |
+| `meridian-mavlink` | 3,531 | MAVLink v2 bridge, CRC-X.25 framing, GPS_INPUT/DISTANCE_SENSOR/WIND_COV |
+| `meridian-ekf` | 6,821 | 24-state Extended Kalman Filter (attitude + position) |
+| `meridian-control` | 3,704 | Attitude stabilization PID |
+| `meridian-mixing` | 2,037 | Motor/servo mixer (multirotor + USV + plane + heli) |
+| `meridian-modes` | 4,700 | 44 flight modes across all vehicle classes |
+| `meridian-mission` | 1,466 | 55 MAVLink commands implemented |
+| `meridian-rc` | 2,501 | PPM, SBUS, DroneCAN RC decoders |
+| `meridian-failsafe` | 2,594 | Safety state machine |
+| `meridian-drl-tune` | 1,812 | DRL adaptive PID (SAC-inspired, no_std, 21 tests) |
+| `meridian-autotune` | 1,284 | Relay feedback bootstrap (multirotor twitch + USV) |
 
-| Area | What | Difficulty |
-|------|------|-----------|
-| **Testing** | Connect GCS to SITL, fly a mission, report bugs | Easy |
-| **Board validation** | Test Tier 3 board TOMLs on real hardware | Medium |
-| **Sensor drivers** | Test ICM-42688, BMP388, uBlox on dev boards | Medium |
-| **GCS widgets** | New instruments, better mobile layout, video | Medium |
-| **Translations** | i18n for the GCS (`locales/en.json` as template) | Easy |
-| **Documentation** | Getting started guides, tutorials, architecture docs | Easy |
-| **EKF tuning** | Real flight data for filter validation | Hard |
-| **RC protocols** | Test CRSF/ELRS, SBUS, DSM with real receivers | Medium |
+**Status:** All compile and pass tests. Real-hardware bring-up is
+blocked on USB CDC (still silent on every Meridian variant). The
+**safety net** (`arm_rescue_flag` → IWDG → bootloader hold) was verified
+end-to-end today on v1.2 and on a `--features nettest` canary build.
+Iteration is frozen until the USB relay arrives so we can flash freely.
 
-If you love the idea of a Rust-native autopilot, if you want to `cargo test` a single flight algorithm in isolation, if you've wanted a GCS that runs on your tablet without installing anything — **fork this repo and start building.**
+#### NETTEST canary
+
+Build `--features nettest` swaps the post-IWDG path for an infinite
+`nop` loop. Flash it, watch DFU appear within 5 sec, and you've proven
+the safety chain on that exact code state — *before* risking a real flash.
+
+```bash
+RUST_MIN_STACK=16777216 rustup run 1.86.0 cargo build \
+  --target thumbv7em-none-eabihf -p meridian-stm32-bin \
+  --release --features nettest
+rust-objcopy -O binary \
+  target/thumbv7em-none-eabihf/release/meridian-stm32-bin \
+  target/thumbv7em-none-eabihf/release/canary.bin
+python tools/meridian-pack.py pack \
+  target/thumbv7em-none-eabihf/release/canary.bin 1063 CubeOrangePlus \
+  > target/thumbv7em-none-eabihf/release/canary.apj
+```
+
+### 4.2 GCS (browser, vanilla JS, no build step)
+
+`gcs/` — **~21,000 LOC JS across 31 modules.** Loads as a static
+website via any HTTP server (`python -m http.server 8765`).
+
+| View | Files | Notable features |
+|---|---|---|
+| `js/fly/` | 15 | ADI w/ pitch ladder, alt/airspeed tapes, compass strip, 8-field quick widget, battery widget, wind overlay, video PiP, vessel tracker, split view, spray/thermal widgets |
+| `js/plan/` | 12 | Waypoint editor, 4 survey types (polygon grid, corridor, orbit, quickshots), geofence, photogrammetry, inspection, terrain profile, validator |
+| `js/setup/` | 12 | Regulatory checklist (FAA/EU), accel/compass/radio cal, frame, flight modes, failsafe, motor test, firmware installer, battery |
+| `js/params/` | 4 | 17 grouped categories, 50+ descriptions, search, import/export, PID tuning + step-response chart, Betaflight CLI import |
+| `js/logs/` | 6 | tlog recording (IndexedDB chunks), variable-speed replay, graph viewer, MAVLink inspector, battery lifecycle, auto-analysis (6 anomaly checks), scripting console |
+| `js/status/` | 1 | 166+ telemetry fields, 4Hz refresh with change animation |
+
+Core utilities: `state.js` (multi-vehicle state + event bus),
+`connection.js` (dual MNP/MAVLink WS), `router.js`, `theme.js` (dark/light),
+`i18n.js`, `commands.js`, `fleet.js`, `ros-bridge.js`, `mavlink.js`,
+`mnp.js`, `demo.js` (synthetic telemetry).
+
+#### `test-console.html` — built today for dense vehicle testing
+
+Single-page button grid with: ARM/DISARM, all 12 ArduRover modes,
+DO_SET_SERVO sliders for ch1–ch10 with optional 1Hz keep-alive, mission
+ops (request/clear/upload-test-3WP/start/pause/resume/set-current),
+system commands (request params, set home, reboot, reboot-to-bootloader,
+calibration), browser-side banner/audio tests. Live telemetry strip
+across the top. ACK + STATUSTEXT logs on the right. Drop in any WS URL.
+
+#### Polish landed today
+
+- ADI vignette removed (Tufte-style declutter)
+- Failsafe banner: full-width, 20px, color-modulating pulse, HUD edge
+  red glow, distinct labels for `battery_critical` / `fence_breach` /
+  `disarm_in_flight`, audio alert wired
+- Quick-widget telemetry: 22px / 700-weight / 44px touch targets /
+  brighter labels — sunlight readable on a tablet
+
+#### Polish still pending (pick from these)
+
+- Connection affordance (`CONNECT` button instead of `DISCONNECTED` text)
+- HUD consolidation (alt tape + ADI + airspeed tape into one flush unit)
+- Map follow-mode throttling (Meier round-2 critique #2 — perf)
+- Message log expand affordance (Oborne round-2 #3)
+- Multi-vehicle selector chip (Meier round-2 #3)
+
+### 4.3 Bathymetric terrain-aided navigation
+
+`tools/orca-bridge/` — **~6,800 LOC Python, 9 test files.**
+
+Companion-computer daemon. Ingests NMEA 2000 (Orca Core 2: 10Hz GNSS,
+9-axis IMU, N2K bridge) → forwards `MAVLink GPS_INPUT` +
+`SCALED_PRESSURE` + `DISTANCE_SENSOR` to the FC.
+
+Core algorithms:
+- `bathy_rbpf.py` — Rao-Blackwellized particle filter, 1000 particles,
+  per-particle Kalman for velocity + tidal current
+- `bathy_match.py` — gradient-aware particle weighting via chart slope
+- `bathy_cnn*.py` — learned feature matcher (CNN) + filter
+- `chart_loader.py` — GEBCO ETOPO 2022 from NOAA OPeNDAP
+- `current_estimator.py` — tide + current state estimation
+- `ais_fusion.py` — multi-modal AIS target overlay
+- `cold_start.py` — GPS-denied init heuristics
+- `bathy_supervisor.py` — orchestration
+
+Replaces naive particle matching with RBPF for ~2–3× tighter error at
+the same particle count, plus MCC outlier-robust weighting.
+
+### 4.4 DRL adaptive PID
+
+`crates/meridian-drl-tune/` (1,812 LOC) + `crates/meridian-autotune/`
+(1,284 LOC), **21 unit tests.**
+
+Two-stage system:
+1. **Relay feedback bootstrap** (60 sec) — multirotor twitch method
+   (AC_AutoTune-style) or USV speed/heading axes
+2. **SAC-inspired DRL agent** — observation window with normalization,
+   integral + derivative computation, sea-state estimate; outputs gain
+   adjustments; safety: hard gain limits, NaN/inf revert, action clipping
+
+State: pre-trained in SITL. Not yet on real vehicle. No DRL UI in GCS
+yet (auto-tune setup panel exists for the relay-feedback half only).
+
+### 4.5 USV simulation
+
+`tools/usv-sim-suite.py` (846 LOC) — **12 cached scenarios** in
+`results/scenario_*.json`. Jet boat physics (thrust + nozzle steering +
+drag + water current), realistic battery drain, autopilot to waypoint
+with cross-track-error correction, JSON logs replayable into the GCS
+over WebSocket.
+
+`bin/meridian-sitl/` (4,558 LOC) — full Rust SITL boot of the actual
+flight stack at 1200 Hz physics + 400 Hz control, MAVLink TCP on
+127.0.0.1:5760 for QGroundControl.
+
+### 4.6 Vanguard deployment kit
+
+`docs/vanguard/`:
+- `00_deployment_plan.md` — overall plan
+- `01_hardware_identification.md` — Cube Orange Plus specs (STM32H757,
+  HSE 24 MHz, OTG2 USB-C, 3× ICM42688 IMU, 2× MS5611 baro, IOMCU)
+- `02_architecture_plan.md`
+- `03_zero_external_gps_architecture.md` — single GPS via Orca
+- `04_competitive_analysis.md`
+- `05_field_kit_checklist.md`
+- `DEPLOYMENT_RUNBOOK.md` — § 0–10 (pre-flight → recovery → post-flight)
+- `brief/` — LaTeX briefing decks (v1–v6)
+- `vanguard_defaults.meridian-params` — ~180 params, GCS-loadable
+
+`boards/CubeOrangePlus.toml` — pin map, USB ID, UART order, SPI buses.
+`vehicles/jetboat-single-nozzle.toml` — Vanguard-specific physics.
+
+### 4.7 Tools and host-side scripts
+
+`tools/`:
+- `preflight-check.py` (468 LOC) — Python deps, MAVLink reachability,
+  heartbeat rate, GPS fix, battery, terrain cache, WS bridge, HTTP server
+- `mavlink-ws-bridge.py` (384 LOC) — MAVLink-to-WebSocket adapter
+- `mnp-sitl-server.py` (1,422 LOC) — MNP SITL for dev
+- `mnp-radio-bridge.py` — MNP serial-to-radio repeater
+- `terrain.py` (408 LOC) — ETOPO 2022 downloader from NOAA OPeNDAP
+- `hwdef-to-toml.py` (1,129 LOC) — ArduPilot hwdef.dat → board TOML
+- `meridian-pack.py` — `.bin` → `.apj` packager
+- `tristan-gcs-bridge.py` — **built today**: kills watcher + finds Cube +
+  starts MAVLink WS bridge in one command
+
+USV-laptop scripts (lives in `C:\Users\jesse\bin\`, mirrored on USV):
+- `usv-watch-aggressive.py` — VID 0x2DAE bootloader catcher, 4-hour
+  poll window, fires uploader against any DFU appearance
+- `usv-mav-reboot-to-bl.py` — sends `MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN`
+  param1=3 (stay in bootloader)
+- `launch-meridian-v1.2.ps1`, `launch-ardurover-restore.ps1`,
+  `launch-canary-nettest.ps1` — each kills any running watcher/uploader,
+  re-registers a fresh ScheduledTask, then verifies the registered Action
+  arguments match the intended APJ before exiting
+
+### 4.8 Audit and review docs
+
+`docs/`:
+- 20 expert panel reviews (`panel_01_tridgell.md` …
+  `panel_20_doll.md`) + 4 GCS-specific reviews + 4 round-2 wave reviews
+- 14 ArduPilot parity audits (`audit_*.md`)
+- 4 final reviews (`final_review_*.md`) — control/motors, drivers/protocols,
+  EKF, modes/nav/safety
+- `MASTER_GCS_REVIEW.md` (62KB) — comprehensive GCS critique
+- `FULL_PARITY_AUDIT.md` + `PARITY_GAP_MASTER.md` + 6 parity_*.md
+- `LAKE_TEST_RUNBOOK.md`, `usv-deploy-log.md`, identification_*.md (5)
+
+**~17,700 lines of audit notes total.**
 
 ---
 
-## License
+## 5. Branching and workflow
 
-[MIT](gcs/LICENSE)
+```
+main ← stable, what you want to clone first
+  ↑
+feat/<thing>          ← short-lived branches per feature
+fix/<thing>
+chore/<thing>
+```
 
-Use it. Fork it. Fly with it.
+Push directly to `main` for fast moves; cut a branch + PR if you want
+review. PRs are not blocking — there's no CI gate yet (we'll add one
+once we slow down).
+
+**Don't push to public origin from this checkout.** Remotes here are:
+- `origin` → public Meridian (read-only for our purposes — never push)
+- `gcs-origin` → public GCS export (also don't push)
+- `vanguard` → **this private repo** (push here)
+
+If you `git push` without a remote name, **be sure git's tracking branch
+config doesn't accidentally route to `origin`.** Use:
+```bash
+git push vanguard <branch>
+```
+
+---
+
+## 6. What's deferred (and why)
+
+**Meridian USB CDC.** Every variant v0.1 → v1.4 enumerates silent on
+USB. v1.2 has a working safety net so the boat can self-recover; v1.3
+and v1.4 broke the safety net by removing apparently-no-op register
+writes that turned out to matter. We don't have a debug probe and we
+don't have a USB relay yet. Iteration without one of those is a coin
+flip — even with the canary, today proved we can lose a boat to a
+single bad iteration. **Wait for the relay (~2 days), then iterate
+freely with the canary as a hard gate before each real flash.**
+
+**DRL adaptive PID GCS panel.** Algorithm is in `meridian-drl-tune/`,
+SITL-trained, but no UI to drive it from the tablet. Add when the
+auto-tune panel needs it.
+
+**On-water shakedown.** Bench testing first, water test only after the
+mission upload + RTL behavior + geofence + kill switch are all
+exercised at the bench with Tristan as safety pilot.
+
+---
+
+## 7. References
+
+- Cube Orange Plus pinout: `docs/vanguard/01_hardware_identification.md`
+- Firmware version history (read this before flashing!):
+  `docs/flash-sessions/meridian-firmware-version-history.md`
+- ArduPilot bootloader source for the RTC magic check:
+  `libraries/AP_HAL_ChibiOS/hwdef/common/stm32_util.h`
+  (`enum rtc_boot_magic { RTC_BOOT_HOLD = 0xb0070001, ... }`)
+- MAVLink message reference: https://mavlink.io/en/messages/common.html
+- ArduRover parameters: https://ardupilot.org/rover/docs/parameters.html
+
+---
+
+## 8. Today's milestones (2026-05-06)
+
+- v1.2 safety-net empirically observed firing end-to-end (TIM6 120s →
+  bootloader DFU)
+- NETTEST canary built and verified the IWDG path one cycle (then went
+  silent — see version history doc for the post-mortem)
+- Strategic pivot: ArduRover for production, Meridian iteration deferred
+  to relay arrival
+- GCS dev server running, test console built and live
+- ArduRover restored cleanly via watcher after Tristan's main-power cycle
+- This repo (`vanguard-mvp`) created, populated, and ready for collaboration
