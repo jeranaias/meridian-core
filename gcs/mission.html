@@ -64,12 +64,15 @@
 
         /* ── Status Bar ── */
         #status-bar {
-            position: fixed; top: 0; left: 0; right: 0; z-index: 2000;
+            position: fixed; top: 0; left: 0; right: 0; z-index: 9000;
             display: flex; align-items: center; gap: 12px;
             padding: 10px 16px; height: 56px;
             background: var(--bg-glass); backdrop-filter: blur(12px);
             border-bottom: 1px solid var(--border);
         }
+        /* Action panel must also stay above overlays so the operator
+           can always tap STOP / DISARM no matter what mode panel is open. */
+        #action-panel { z-index: 9000; }
         .status-brand { font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 700; color: var(--primary); letter-spacing: 0.06em; }
         .status-item { display: flex; flex-direction: column; align-items: center; gap: 1px; }
         .status-val { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; color: var(--text); }
@@ -429,6 +432,94 @@
             border-color: var(--emergency) !important;
             color: var(--emergency) !important;
         }
+
+        /* ─── Tactical action-button override ─────────────────────────
+           Polish the four core buttons (ARM/GO/HOME/STOP) into a more
+           operational/military aesthetic:
+             - Sharp 3px corners instead of pillowy 12px
+             - Orbitron + tight letter-spacing
+             - Beveled clip-path "chamfer" on corners
+             - Inset background gradient (depth)
+             - Status LED dot top-right that pulses on critical
+             - Stencil-style icon at 28px with subtle text-shadow
+           Pure CSS override, no HTML/JS changes. */
+        .action-btn {
+            border-radius: 3px !important;
+            border-width: 1px !important;
+            font-family: 'Orbitron', 'Rajdhani', sans-serif !important;
+            letter-spacing: 0.16em !important;
+            font-weight: 700 !important;
+            font-size: 12px !important;
+            background:
+                linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.18)) !important;
+            box-shadow:
+                inset 0 1px 0 rgba(255,255,255,0.06),
+                inset 0 -1px 0 rgba(0,0,0,0.4),
+                0 1px 3px rgba(0,0,0,0.45);
+            position: relative;
+            overflow: hidden;
+        }
+        /* Top-right stencil chamfer */
+        .action-btn::before {
+            content: '';
+            position: absolute;
+            top: -1px; right: -1px;
+            width: 14px; height: 14px;
+            background: var(--bg-glass);
+            clip-path: polygon(100% 0, 0 0, 100% 100%);
+            border-bottom-left: 1px solid currentColor;
+        }
+        .action-btn .icon {
+            font-size: 28px !important;
+            text-shadow: 0 0 8px currentColor;
+            filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
+        }
+        /* Per-state strong glows when active/important */
+        .action-btn.arm.armed {
+            background:
+                linear-gradient(180deg, rgba(255,109,0,0.12), rgba(255,109,0,0.04)) !important;
+            box-shadow:
+                inset 0 0 24px rgba(255,109,0,0.25),
+                inset 0 1px 0 rgba(255,109,0,0.4),
+                0 0 12px rgba(255,109,0,0.4);
+            animation: tactical-pulse 1.6s ease-in-out infinite;
+        }
+        .action-btn.stop {
+            background:
+                linear-gradient(180deg, rgba(255,23,68,0.10), rgba(255,23,68,0.02)) !important;
+        }
+        .action-btn.stop:active,
+        .action-btn.stop:hover {
+            background: rgba(255,23,68,0.20) !important;
+            box-shadow:
+                inset 0 0 18px rgba(255,23,68,0.4),
+                0 0 14px rgba(255,23,68,0.5);
+        }
+        @keyframes tactical-pulse {
+            0%, 100% { box-shadow:
+                inset 0 0 24px rgba(255,109,0,0.25),
+                inset 0 1px 0 rgba(255,109,0,0.4),
+                0 0 12px rgba(255,109,0,0.4); }
+            50%      { box-shadow:
+                inset 0 0 32px rgba(255,109,0,0.4),
+                inset 0 1px 0 rgba(255,109,0,0.6),
+                0 0 22px rgba(255,109,0,0.6); }
+        }
+
+        /* Action panel: tighter spacing + tactical-bar feel */
+        #action-panel {
+            border-top: 1px solid var(--primary);
+            padding: 12px 14px;
+        }
+        #action-panel::before {
+            content: '';
+            position: absolute;
+            top: -1px; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
+            opacity: 0.6;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -526,7 +617,7 @@
 
         /* ── Bench Test Drawer ── */
         #bench-overlay {
-            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            display: none; position: fixed; top: 56px; left: 0; right: 0; bottom: 0;
             z-index: 4000; background: var(--bg); overflow: auto;
         }
         #bench-overlay.show { display: block; }
@@ -720,7 +811,7 @@
     </div>
 
     <!-- Compass / Magnetometer Calibration Wizard -->
-    <div id="magcal-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:4000;background:var(--bg);overflow:auto">
+    <div id="magcal-overlay" style="display:none;position:fixed;top:56px;left:0;right:0;bottom:0;z-index:4000;background:var(--bg);overflow:auto">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid var(--border);background:var(--bg-raised)">
             <div style="font-family:Rajdhani,sans-serif;font-size:20px;font-weight:700;color:var(--primary);letter-spacing:0.04em">COMPASS CALIBRATION</div>
             <button onclick="closeMagCal()" style="background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;padding:4px 12px">&times;</button>
@@ -791,7 +882,7 @@
     </style>
 
     <!-- PID Tuner Overlay -->
-    <div id="tuner-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:4000;background:var(--bg);overflow:auto">
+    <div id="tuner-overlay" style="display:none;position:fixed;top:56px;left:0;right:0;bottom:0;z-index:4000;background:var(--bg);overflow:auto">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid var(--border)">
             <div style="font-family:Rajdhani,sans-serif;font-size:20px;font-weight:700;color:var(--primary);letter-spacing:0.04em">PID TUNING</div>
             <button onclick="closeTuner()" style="background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;padding:4px 12px">&times;</button>
