@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="VANGUARD">
+  <meta name="theme-color" content="#00D2B4">
+  <meta name="msapplication-TileColor" content="#03080F">
+  <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png"> content="width=device-width, initial-scale=1.0">
+<title>VANGUARD · MESH RELAY SYSTEM</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --void:#03080F;--deep:#060D18;--edge:rgba(0,210,180,0.12);--edge2:rgba(0,210,180,0.06);
+  --teal:#00D2B4;--teal2:#00F5D4;--teal-dim:rgba(0,210,180,0.08);
+  --amber:#FFB020;--amber-dim:rgba(255,176,32,0.08);
+  --red:#FF3B5C;--red-dim:rgba(255,59,92,0.1);
+  --blue:#2196F3;--blue-dim:rgba(33,150,243,0.1);
+  --cyan:#00AAFF;
+  --text:#C8E0FF;--text-dim:rgba(200,224,255,0.4);--text-faint:rgba(200,224,255,0.15);
+  --frost:rgba(200,230,255,0.04);
+  --orb:'Orbitron',monospace;--mono:'DM Mono',monospace;--sans:'DM Sans',sans-serif;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--void);color:var(--text);font-family:var(--sans);}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9990;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.025) 2px,rgba(0,0,0,0.025) 4px);}
+
+.app{display:grid;grid-template-rows:56px 1fr;grid-template-columns:280px 1fr 300px;height:100vh;}
+
+/* ── TOPBAR ── */
+.topbar{grid-column:1/-1;display:flex;align-items:center;background:rgba(3,8,15,0.97);border-bottom:1px solid var(--edge);position:relative;overflow:hidden;z-index:100;}
+.topbar::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--teal),transparent);animation:gsweep 5s ease-in-out infinite;}
+@keyframes gsweep{0%,100%{opacity:0.2}50%{opacity:1}}
+
+.tb-brand{display:flex;align-items:center;gap:12px;padding:0 18px;border-right:1px solid var(--edge);height:100%;min-width:280px;}
+.hex{width:32px;height:32px;background:var(--teal-dim);border:1px solid var(--teal);clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);display:flex;align-items:center;justify-content:center;}
+.hex-core{width:11px;height:11px;background:var(--teal);clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);animation:spin 4s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.brand-name{font-family:var(--orb);font-size:13px;font-weight:700;letter-spacing:0.2em;}
+.brand-sub{font-family:var(--mono);font-size:8px;color:var(--teal);letter-spacing:0.22em;margin-top:2px;}
+
+.tb-fleet{display:flex;gap:3px;padding:0 12px;border-right:1px solid var(--edge);height:100%;align-items:center;}
+.fp{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:3px;cursor:pointer;border:1px solid transparent;transition:all 0.2s;position:relative;min-height:40px;}
+.fp::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:2px;border-radius:1px;}
+.fp.t-active{background:var(--teal-dim);border-color:rgba(0,210,180,0.2);}
+.fp.t-active::before{background:var(--teal);box-shadow:0 0 6px var(--teal);}
+.fp.t-transit::before{background:var(--amber);}
+.fp.t-standby::before{background:var(--text-faint);}
+.fp:hover{background:var(--frost);}
+.fp-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.fp-id{font-family:var(--orb);font-size:11px;font-weight:700;letter-spacing:0.12em;}
+.fp-st{font-family:var(--mono);font-size:9px;color:var(--text-dim);}
+
+.tb-mid{flex:1;display:flex;align-items:center;justify-content:center;gap:24px;}
+.kpi{text-align:center;}
+.kv{font-family:var(--orb);font-size:11px;font-weight:500;letter-spacing:0.1em;}
+.kl{font-family:var(--mono);font-size:8px;color:var(--text-faint);letter-spacing:0.14em;margin-top:2px;}
+.ksep{width:1px;height:24px;background:var(--edge);}
+
+.tb-right{display:flex;align-items:center;padding:0 16px;border-left:1px solid var(--edge);height:100%;gap:12px;}
+.utc{font-family:var(--orb);font-size:16px;letter-spacing:0.12em;}
+.utc-l{font-family:var(--mono);font-size:8px;color:var(--text-faint);letter-spacing:0.2em;margin-top:2px;}
+
+/* DEMO MODE button in topbar */
+.demo-btn{
+  display:flex;align-items:center;gap:7px;padding:7px 14px;
+  background:rgba(255,176,32,0.08);border:1px solid rgba(255,176,32,0.3);border-radius:3px;
+  font-family:var(--orb);font-size:10px;letter-spacing:0.14em;color:var(--amber);
+  cursor:pointer;transition:all 0.2s;flex-shrink:0;
+}
+.demo-btn:hover{background:rgba(255,176,32,0.15);border-color:var(--amber);}
+.demo-btn.running{background:rgba(255,59,92,0.1);border-color:rgba(255,59,92,0.4);color:var(--red);}
+.demo-pulse{width:7px;height:7px;border-radius:50%;background:var(--amber);flex-shrink:0;}
+.demo-btn.running .demo-pulse{background:var(--red);animation:blink 0.8s ease-in-out infinite;}
+
+/* ── LEFT ── */
+.left{background:var(--deep);border-right:1px solid var(--edge);display:flex;flex-direction:column;overflow:hidden;}
+.sect{padding:12px 14px;border-bottom:1px solid var(--edge2);}
+.sect-h{font-family:var(--mono);font-size:8px;letter-spacing:0.22em;color:var(--text-faint);margin-bottom:10px;}
+
+/* glove-friendly tiles — bigger touch targets */
+.tile{border:1px solid var(--edge2);border-radius:4px;padding:12px 13px;margin-bottom:6px;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden;min-height:80px;}
+.tile::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
+.tile.teal::before{background:var(--teal);box-shadow:0 0 8px var(--teal);}
+.tile.amber::before{background:var(--amber);}
+.tile.gray::before{background:var(--text-faint);}
+.tile.sel{background:rgba(0,210,180,0.05);border-color:rgba(0,210,180,0.25);}
+.tile:hover{background:var(--frost);}
+.tile:active{transform:scale(0.98);}
+.tile-top{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
+.tid{font-family:var(--orb);font-size:13px;font-weight:700;letter-spacing:0.14em;flex:1;}
+.tbadge{font-family:var(--mono);font-size:9px;letter-spacing:0.08em;padding:3px 8px;border-radius:2px;}
+.bg-teal{background:var(--teal-dim);color:var(--teal);border:1px solid rgba(0,210,180,0.25);}
+.bg-amber{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(255,176,32,0.2);}
+.bg-gray{background:var(--frost);color:var(--text-dim);border:1px solid var(--edge2);}
+.bg-red{background:var(--red-dim);color:var(--red);border:1px solid rgba(255,59,92,0.25);}
+.tile-m{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;}
+.tm-v{font-family:var(--orb);font-size:12px;font-weight:500;}
+.tm-l{font-family:var(--mono);font-size:8px;color:var(--text-faint);margin-top:1px;}
+.bbar{height:3px;background:rgba(200,224,255,0.07);border-radius:2px;overflow:hidden;}
+.bfill{height:100%;border-radius:2px;transition:width 0.6s;}
+
+.log-wrap{flex:1;overflow-y:auto;padding:10px 14px;}
+.log-wrap::-webkit-scrollbar{width:2px;}
+.log-wrap::-webkit-scrollbar-thumb{background:var(--edge);}
+.le{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--edge2);}
+.le:last-child{border-bottom:none;}
+.lt{font-family:var(--mono);font-size:9px;color:rgba(0,210,180,0.6);flex-shrink:0;}
+.lm{font-family:var(--mono);font-size:9px;color:var(--text-dim);line-height:1.4;}
+.lok{color:var(--teal);}.lwarn{color:var(--amber);}.lerr{color:var(--red);}
+
+/* ── MAP ── */
+.map-area{position:relative;overflow:hidden;background:var(--void);}
+canvas{position:absolute;inset:0;width:100%;height:100%;}
+
+/* HUD elements */
+.hud-tl{position:absolute;top:14px;left:14px;display:flex;flex-direction:column;gap:8px;}
+.hud-tr{position:absolute;top:14px;right:14px;display:flex;flex-direction:column;gap:5px;}
+.hud-bl{position:absolute;bottom:14px;left:14px;display:flex;align-items:center;gap:10px;}
+.hud-bc{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:5px;align-items:center;}
+.hud-br{position:absolute;bottom:14px;right:14px;}
+
+.nbadge{display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:3px;font-family:var(--mono);font-size:10px;letter-spacing:0.08em;border:1px solid;backdrop-filter:blur(10px);}
+.nb-t{background:rgba(0,14,10,0.9);border-color:rgba(0,210,180,0.3);color:var(--teal);}
+.nb-a{background:rgba(15,8,0,0.9);border-color:rgba(255,176,32,0.35);color:var(--amber);}
+.nb-r{background:rgba(18,0,4,0.9);border-color:rgba(255,59,92,0.4);color:var(--red);}
+.nb-c{background:rgba(0,6,18,0.9);border-color:rgba(0,170,255,0.35);color:var(--cyan);}
+.nb-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+
+/* map layer toggle — glove sized */
+.layer-toggle{display:flex;flex-direction:column;gap:4px;}
+.lt-btn{padding:8px 12px;font-family:var(--mono);font-size:9px;letter-spacing:0.1em;border-radius:3px;cursor:pointer;border:1px solid;transition:all 0.2s;backdrop-filter:blur(8px);white-space:nowrap;min-height:34px;display:flex;align-items:center;gap:6px;}
+.lt-btn.on{background:var(--teal-dim);border-color:rgba(0,210,180,0.35);color:var(--teal);}
+.lt-btn.off{background:rgba(3,8,15,0.85);border-color:var(--edge);color:var(--text-dim);}
+.lt-btn:hover{border-color:var(--teal);color:var(--teal);}
+.lt-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+
+/* map tools — bigger for gloves */
+.tool-bar{display:flex;gap:5px;}
+.tool{padding:9px 16px;font-family:var(--mono);font-size:10px;letter-spacing:0.1em;border-radius:3px;cursor:pointer;border:1px solid;transition:all 0.15s;backdrop-filter:blur(8px);min-height:40px;display:flex;align-items:center;gap:6px;}
+.tool.sel{background:var(--teal-dim);border-color:rgba(0,210,180,0.35);color:var(--teal);}
+.tool.unsel{background:rgba(3,8,15,0.88);border-color:var(--edge);color:var(--text-dim);}
+.tool:hover{border-color:var(--teal);color:var(--teal);}
+.tool:active{transform:scale(0.97);}
+
+.jam-widget{display:flex;align-items:center;gap:9px;padding:8px 14px;background:rgba(3,8,15,0.9);border:1px solid var(--edge);border-radius:3px;backdrop-filter:blur(10px);}
+.jw-l{font-family:var(--mono);font-size:9px;color:var(--text-faint);letter-spacing:0.1em;}
+/* glove-friendly jam button */
+.jw-btn{font-family:var(--orb);font-size:10px;letter-spacing:0.12em;padding:8px 16px;border-radius:3px;cursor:pointer;transition:all 0.15s;background:var(--amber-dim);border:1px solid rgba(255,176,32,0.25);color:var(--amber);min-height:38px;}
+.jw-btn:hover{background:rgba(255,176,32,0.15);border-color:var(--amber);}
+.jw-btn.jam-on{background:var(--red-dim);border-color:rgba(255,59,92,0.4);color:var(--red);}
+
+.mc-btn{width:40px;height:40px;background:rgba(3,8,15,0.88);border:1px solid var(--edge);border-radius:3px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;color:var(--text-dim);transition:all 0.15s;backdrop-filter:blur(8px);}
+.mc-btn:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-dim);}
+.mc-btn:active{transform:scale(0.95);}
+
+.compass{width:52px;height:52px;border:1px solid var(--edge);border-radius:50%;background:rgba(3,8,15,0.88);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);position:relative;}
+.cn{position:absolute;top:5px;left:50%;transform:translateX(-50%);font-family:var(--orb);font-size:9px;color:var(--red);font-weight:700;}
+
+.scalebar{font-family:var(--mono);font-size:9px;color:var(--text-faint);display:flex;align-items:center;gap:6px;}
+.sb{width:54px;height:1px;background:var(--text-faint);position:relative;}
+.sb::before,.sb::after{content:'';position:absolute;top:-3px;width:1px;height:7px;background:var(--text-faint);}
+.sb::before{left:0;}.sb::after{right:0;}
+
+.map-tip{position:absolute;background:rgba(3,8,15,0.95);border:1px solid var(--edge);border-radius:2px;padding:7px 12px;font-family:var(--mono);font-size:9px;color:var(--text-dim);pointer-events:none;display:none;backdrop-filter:blur(8px);z-index:100;white-space:nowrap;}
+.ctx-menu{position:absolute;background:rgba(6,13,24,0.97);border:1px solid var(--edge);border-radius:4px;padding:5px 0;z-index:200;display:none;min-width:180px;backdrop-filter:blur(14px);}
+.ctx-item{padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--text-dim);cursor:pointer;transition:background 0.1s;letter-spacing:0.05em;}
+.ctx-item:hover{background:var(--teal-dim);color:var(--teal);}
+.ctx-sep{height:1px;background:var(--edge2);margin:4px 0;}
+.ctx-item.danger:hover{background:var(--red-dim);color:var(--red);}
+
+/* relay planner overlay */
+.planner-overlay{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:rgba(3,8,15,0.92);border:1px solid var(--edge);border-radius:4px;padding:10px 16px;backdrop-filter:blur(12px);display:none;min-width:340px;z-index:50;}
+.po-head{font-family:var(--orb);font-size:9px;letter-spacing:0.2em;color:var(--teal);margin-bottom:10px;}
+.po-chain{display:flex;align-items:center;gap:0;}
+.po-node{text-align:center;padding:0 8px;}
+.po-nid{font-family:var(--orb);font-size:10px;color:var(--teal);}
+.po-nst{font-family:var(--mono);font-size:8px;color:var(--text-faint);margin-top:2px;}
+.po-link{flex:1;height:1px;background:var(--teal);opacity:0.4;position:relative;}
+.po-link::after{content:'';position:absolute;right:-4px;top:-3px;width:0;height:0;border-left:6px solid rgba(0,210,180,0.4);border-top:4px solid transparent;border-bottom:4px solid transparent;}
+.po-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px;}
+.po-stat{background:var(--frost);border:1px solid var(--edge2);border-radius:2px;padding:6px 8px;text-align:center;}
+.po-sv{font-family:var(--orb);font-size:12px;color:var(--teal);}
+.po-sl{font-family:var(--mono);font-size:8px;color:var(--text-faint);margin-top:2px;}
+
+/* ── DEMO OVERLAY ── */
+.demo-overlay{position:absolute;inset:0;background:rgba(3,8,15,0.92);z-index:500;display:none;flex-direction:column;align-items:center;justify-content:center;gap:0;backdrop-filter:blur(4px);}
+.demo-overlay.show{display:flex;}
+.demo-title{font-family:var(--orb);font-size:28px;font-weight:900;letter-spacing:0.3em;color:var(--teal);margin-bottom:4px;text-align:center;}
+.demo-sub{font-family:var(--mono);font-size:11px;color:var(--text-faint);letter-spacing:0.2em;margin-bottom:40px;}
+.demo-steps{display:flex;flex-direction:column;gap:0;width:520px;margin-bottom:40px;}
+.demo-step{display:flex;align-items:flex-start;gap:16px;padding:14px 20px;border-left:2px solid var(--edge2);position:relative;transition:all 0.3s;}
+.demo-step.ds-done{border-left-color:var(--teal);}
+.demo-step.ds-active{border-left-color:var(--teal);background:rgba(0,210,180,0.05);}
+.demo-step.ds-pending{opacity:0.4;}
+.ds-num{width:28px;height:28px;border-radius:50%;border:1px solid var(--edge);display:flex;align-items:center;justify-content:center;font-family:var(--orb);font-size:10px;flex-shrink:0;transition:all 0.3s;}
+.ds-done .ds-num{background:var(--teal-dim);border-color:var(--teal);color:var(--teal);}
+.ds-active .ds-num{background:var(--teal-dim);border-color:var(--teal);color:var(--teal);animation:blink 1s ease-in-out infinite;}
+.ds-content{}
+.ds-title{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--text);margin-bottom:3px;}
+.ds-desc{font-family:var(--sans);font-size:11px;color:var(--text-dim);line-height:1.5;}
+.demo-progress{width:520px;height:3px;background:var(--edge2);border-radius:2px;overflow:hidden;margin-bottom:20px;}
+.demo-prog-fill{height:100%;background:linear-gradient(90deg,var(--teal),var(--teal2));border-radius:2px;transition:width 0.5s;}
+.demo-controls{display:flex;gap:10px;}
+.demo-ctl-btn{padding:12px 28px;font-family:var(--orb);font-size:11px;letter-spacing:0.15em;border-radius:3px;cursor:pointer;border:1px solid;transition:all 0.2s;min-height:46px;}
+.dcb-start{background:var(--teal-dim);border-color:rgba(0,210,180,0.4);color:var(--teal);}
+.dcb-start:hover{background:rgba(0,210,180,0.15);}
+.dcb-skip{background:transparent;border-color:var(--edge);color:var(--text-dim);}
+.dcb-skip:hover{border-color:var(--text-dim);}
+.dcb-stop{background:var(--red-dim);border-color:rgba(255,59,92,0.4);color:var(--red);}
+.dcb-stop:hover{background:rgba(255,59,92,0.15);}
+
+/* ── RIGHT ── */
+.right{background:var(--deep);border-left:1px solid var(--edge);display:flex;flex-direction:column;overflow:hidden;}
+.hero{padding:16px;border-bottom:1px solid var(--edge2);position:relative;overflow:hidden;}
+.hero::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--teal) 40%,transparent);opacity:0.5;}
+.h-id{font-family:var(--orb);font-size:22px;font-weight:900;letter-spacing:0.2em;}
+.h-role{font-family:var(--mono);font-size:9px;color:var(--teal);letter-spacing:0.18em;margin-top:3px;}
+.h-pill{display:inline-flex;align-items:center;gap:6px;margin-top:9px;padding:4px 10px;border-radius:2px;background:var(--teal-dim);border:1px solid rgba(0,210,180,0.2);}
+.h-pdot{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 5px var(--teal);}
+.h-ptxt{font-family:var(--mono);font-size:9px;color:var(--teal);letter-spacing:0.1em;}
+
+.big-m{padding:14px 16px;border-bottom:1px solid var(--edge2);}
+.bm-l{font-family:var(--mono);font-size:8px;color:var(--text-faint);letter-spacing:0.18em;margin-bottom:5px;}
+.bm-row{display:flex;align-items:baseline;gap:6px;}
+.bm-n{font-family:var(--orb);font-size:42px;font-weight:900;line-height:1;}
+.bm-u{font-family:var(--mono);font-size:14px;color:var(--text-dim);}
+.bm-bar{height:2px;background:var(--edge2);border-radius:1px;margin-top:8px;}
+.bm-fill{height:100%;border-radius:1px;background:linear-gradient(90deg,var(--teal),var(--teal2));transition:width 0.8s;}
+
+.m4{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--edge2);}
+.mc{padding:11px 14px;border-right:1px solid var(--edge2);border-bottom:1px solid var(--edge2);}
+.mc:nth-child(even){border-right:none;}
+.mc:nth-last-child(-n+2){border-bottom:none;}
+.mc-v{font-family:var(--orb);font-size:15px;font-weight:500;}
+.mc-l{font-family:var(--mono);font-size:8px;color:var(--text-faint);letter-spacing:0.1em;margin-top:3px;}
+
+.sysp{flex:0 0 auto;}
+.sysh{padding:9px 14px 7px;font-family:var(--mono);font-size:8px;letter-spacing:0.2em;color:var(--text-faint);}
+.sr{display:flex;align-items:center;gap:9px;padding:8px 14px;border-bottom:1px solid var(--edge2);}
+.sr:last-child{border-bottom:none;}
+.srdot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.srn{font-family:var(--mono);font-size:10px;color:var(--text-dim);flex:1;}
+.srv{font-family:var(--mono);font-size:10px;font-weight:500;}
+.ct{color:var(--teal);}.ca{color:var(--amber);}.cr{color:var(--red);}.cd{color:var(--text-faint);}
+
+/* hold timer */
+.hold-d{padding:13px 14px;border-bottom:1px solid var(--edge2);}
+.hd-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;}
+.hd-lbl{font-family:var(--mono);font-size:8px;color:var(--text-faint);letter-spacing:0.16em;}
+.hd-val{font-family:var(--orb);font-size:22px;font-weight:700;color:var(--teal);}
+.hd-sub{font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-bottom:6px;}
+.hd-bar{height:2px;background:var(--edge2);border-radius:1px;overflow:hidden;}
+.hd-fill{height:100%;background:linear-gradient(90deg,var(--teal),var(--teal2));border-radius:1px;transition:width 1s linear;}
+
+/* glove-friendly sliders */
+.speed-p{padding:12px 14px;border-bottom:1px solid var(--edge2);}
+.sp-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.sp-row:last-child{margin-bottom:0;}
+.sp-lbl{font-family:var(--mono);font-size:9px;color:var(--text-faint);letter-spacing:0.12em;flex:0 0 64px;}
+.sp-val{font-family:var(--orb);font-size:15px;font-weight:500;color:var(--teal);min-width:52px;}
+input[type=range]{flex:1;-webkit-appearance:none;height:4px;background:var(--edge);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--teal);cursor:pointer;box-shadow:0 0 8px var(--teal);border:2px solid var(--void);transition:transform 0.1s;}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2);}
+
+/* glove-friendly action buttons */
+.actions{padding:10px 12px;border-top:1px solid var(--edge2);display:flex;flex-direction:column;gap:6px;margin-top:auto;}
+.abt{width:100%;padding:13px 14px;font-family:var(--orb);font-size:10px;font-weight:500;letter-spacing:0.14em;border-radius:3px;cursor:pointer;border:1px solid;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.2s;min-height:46px;}
+.abt:active{transform:scale(0.98);}
+.ab-bl{background:var(--blue-dim);border-color:rgba(33,150,243,0.3);color:#70C8FF;}
+.ab-bl:hover{background:rgba(33,150,243,0.15);}
+.ab-am{background:var(--amber-dim);border-color:rgba(255,176,32,0.3);color:var(--amber);}
+.ab-am:hover{background:rgba(255,176,32,0.15);}
+.ab-rd{background:var(--red-dim);border-color:rgba(255,59,92,0.35);color:var(--red);}
+.ab-rd:hover{background:rgba(255,59,92,0.15);}
+
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+.blink{animation:blink 1.4s ease-in-out infinite;}
+
+/* install prompt */
+.install-prompt{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(120px);
+  display:flex;align-items:center;gap:14px;padding:14px 20px;
+  background:rgba(6,13,24,0.97);border:1px solid rgba(0,210,180,0.35);border-radius:4px;
+  backdrop-filter:blur(16px);z-index:10000;transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  box-shadow:0 8px 32px rgba(0,0,0,0.6),0 0 0 1px rgba(0,210,180,0.1);}
+.install-prompt.show{transform:translateX(-50%) translateY(0);}
+.ip-icon{width:36px;height:36px;border-radius:8px;overflow:hidden;flex-shrink:0;}
+.ip-icon img{width:100%;height:100%;}
+.ip-text{}
+.ip-title{font-family:var(--orb);font-size:11px;font-weight:700;letter-spacing:0.15em;color:var(--text);margin-bottom:2px;}
+.ip-sub{font-family:var(--mono);font-size:9px;color:var(--text-dim);letter-spacing:0.06em;}
+.ip-btns{display:flex;gap:6px;flex-shrink:0;}
+.ip-btn{padding:7px 14px;font-family:var(--orb);font-size:9px;font-weight:600;letter-spacing:0.12em;
+  border-radius:2px;cursor:pointer;border:1px solid;transition:all 0.15s;}
+.ip-install{background:var(--teal-dim);border-color:rgba(0,210,180,0.4);color:var(--teal);}
+.ip-install:hover{background:rgba(0,210,180,0.15);}
+.ip-dismiss{background:transparent;border-color:var(--edge);color:var(--text-dim);}
+.ip-dismiss:hover{background:var(--frost);}
+
+/* offline banner */
+.offline-banner{position:fixed;top:0;left:0;right:0;height:3px;background:var(--amber);
+  z-index:10001;display:none;animation:pulse-bar 1.5s ease-in-out infinite;}
+.offline-banner.show{display:block;}
+.offline-label{position:fixed;top:6px;left:50%;transform:translateX(-50%);
+  font-family:var(--mono);font-size:9px;color:var(--amber);letter-spacing:0.12em;
+  background:rgba(3,8,15,0.95);padding:3px 10px;border-radius:1px;
+  border:1px solid rgba(255,176,32,0.3);z-index:10001;display:none;}
+.offline-label.show{display:block;}
+@keyframes pulse-bar{0%,100%{opacity:1}50%{opacity:0.5}}
+
+/* update toast */
+.update-toast{position:fixed;top:20px;right:20px;padding:12px 16px;
+  background:rgba(6,13,24,0.97);border:1px solid rgba(0,210,180,0.3);border-radius:3px;
+  font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:0.06em;
+  z-index:10000;display:none;backdrop-filter:blur(12px);}
+.update-toast.show{display:flex;align-items:center;gap:10px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="tb-brand">
+    <div class="hex"><div class="hex-core"></div></div>
+    <div><div class="brand-name">VANGUARD</div><div class="brand-sub">MESH · RELAY · v2.1</div></div>
+  </div>
+  <div class="tb-fleet">
+    <div class="fp t-active" onclick="selUSV(0)">
+      <div class="fp-dot" style="background:var(--teal);box-shadow:0 0 5px var(--teal)"></div>
+      <div><div class="fp-id" style="color:var(--teal)">USV-07</div><div class="fp-st" id="fp0">ON STATION</div></div>
+    </div>
+    <div class="fp t-transit" onclick="selUSV(1)">
+      <div class="fp-dot" style="background:var(--amber)"></div>
+      <div><div class="fp-id" style="color:var(--amber)">USV-12</div><div class="fp-st" id="fp1">TRANSIT</div></div>
+    </div>
+    <div class="fp t-standby" onclick="selUSV(2)">
+      <div class="fp-dot"></div>
+      <div><div class="fp-id">USV-03</div><div class="fp-st">STANDBY</div></div>
+    </div>
+  </div>
+  <div class="tb-mid">
+    <div class="kpi"><div class="kv" style="color:var(--teal)" id="kpi-mesh">ACTIVE</div><div class="kl">MESH</div></div>
+    <div class="ksep"></div>
+    <div class="kpi"><div class="kv" id="kpi-nodes">2/3</div><div class="kl">NODES</div></div>
+    <div class="ksep"></div>
+    <div class="kpi"><div class="kv" style="color:var(--teal)">−68 dBm</div><div class="kl">LINK</div></div>
+    <div class="ksep"></div>
+    <div class="kpi"><div class="kv" id="kpi-nav" style="color:var(--amber)">GPS+CHART</div><div class="kl">NAV</div></div>
+    <div class="ksep"></div>
+    <div class="kpi"><div class="kv" style="color:var(--teal)">v1.1</div><div class="kl">MERIDIAN</div></div>
+  </div>
+  <div class="tb-right">
+    <div class="demo-btn" id="demo-btn" onclick="toggleDemoOverlay()">
+      <div class="demo-pulse" id="demo-pulse"></div>
+      <span id="demo-btn-txt">SOCOM DEMO</span>
+    </div>
+    <div><div class="utc" id="clk">--:--:--</div><div class="utc-l">ZULU</div></div>
+  </div>
+</div>
+
+<!-- LEFT -->
+<div class="left">
+  <div class="sect">
+    <div class="sect-h">Fleet status</div>
+    <div class="tile teal sel" onclick="selUSV(0)" id="tile0">
+      <div class="tile-top"><span class="tid" style="color:var(--teal)">USV-07</span><span class="tbadge bg-teal" id="t0b">ON STATION</span></div>
+      <div class="tile-m">
+        <div><div class="tm-v" style="color:var(--teal)">92%</div><div class="tm-l">BATTERY</div></div>
+        <div><div class="tm-v" id="t0spd">0.3 kt</div><div class="tm-l">SPEED</div></div>
+        <div><div class="tm-v">3.2 NM</div><div class="tm-l">RANGE</div></div>
+      </div>
+      <div class="bbar"><div class="bfill" style="width:92%;background:var(--teal);box-shadow:0 0 4px var(--teal)"></div></div>
+    </div>
+    <div class="tile amber" onclick="selUSV(1)" id="tile1">
+      <div class="tile-top"><span class="tid" style="color:var(--amber)">USV-12</span><span class="tbadge bg-amber" id="t1b">TRANSIT</span></div>
+      <div class="tile-m">
+        <div><div class="tm-v" style="color:var(--amber)">78%</div><div class="tm-l">BATTERY</div></div>
+        <div><div class="tm-v" id="t1spd">16 kt</div><div class="tm-l">SPEED</div></div>
+        <div><div class="tm-v">1.1 NM</div><div class="tm-l">RANGE</div></div>
+      </div>
+      <div class="bbar"><div class="bfill" style="width:78%;background:var(--amber)"></div></div>
+    </div>
+    <div class="tile gray" onclick="selUSV(2)" id="tile2">
+      <div class="tile-top"><span class="tid">USV-03</span><span class="tbadge bg-gray" id="t2b">STANDBY</span></div>
+      <div class="tile-m">
+        <div><div class="tm-v">100%</div><div class="tm-l">BATTERY</div></div>
+        <div><div class="tm-v">—</div><div class="tm-l">SPEED</div></div>
+        <div><div class="tm-v">—</div><div class="tm-l">RANGE</div></div>
+      </div>
+      <div class="bbar"><div class="bfill" style="width:100%;background:var(--text-faint)"></div></div>
+    </div>
+  </div>
+  <div class="log-wrap" id="log-wrap">
+    <div class="sect-h" style="padding-top:6px">Mission log</div>
+  </div>
+</div>
+
+<!-- MAP -->
+<div class="map-area" id="map-area">
+  <canvas id="c"></canvas>
+
+  <div class="hud-tl">
+    <div class="nbadge nb-t" id="nbadge">
+      <div class="nb-dot blink" id="nbdot" style="background:var(--teal);box-shadow:0 0 6px var(--teal)"></div>
+      <span id="nbtext">NAV: GPS + DEPTH CHART</span>
+    </div>
+    <!-- relay planner card -->
+    <div class="planner-overlay" id="planner" style="position:relative;top:auto;left:auto;transform:none;margin-top:0;display:none;">
+      <div class="po-head">RELAY CHAIN · COVERAGE PLAN</div>
+      <div class="po-chain" id="po-chain">
+        <div class="po-node"><div class="po-nid">SHIP</div><div class="po-nst">BASE</div></div>
+        <div class="po-link"></div>
+        <div class="po-node"><div class="po-nid">USV-07</div><div class="po-nst">WP-ALPHA</div></div>
+        <div class="po-link"></div>
+        <div class="po-node"><div class="po-nid">USV-12</div><div class="po-nst">WP-ALPHA</div></div>
+      </div>
+      <div class="po-stats">
+        <div class="po-stat"><div class="po-sv" id="po-cov">6.4 NM</div><div class="po-sl">COVERAGE</div></div>
+        <div class="po-stat"><div class="po-sv" id="po-ovl">0.8 NM</div><div class="po-sl">OVERLAP</div></div>
+        <div class="po-stat"><div class="po-sv" id="po-end">4.1 hr</div><div class="po-sl">MIN ENDURANCE</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hud-tr">
+    <div class="mc-btn" onclick="zoomMap(1.2)">+</div>
+    <div class="mc-btn" onclick="zoomMap(0.8)">−</div>
+    <div class="mc-btn" style="font-size:12px" onclick="resetView()">⊡</div>
+    <!-- layer toggles -->
+    <div class="layer-toggle" style="margin-top:4px">
+      <div class="lt-btn on" id="lyr-depth" onclick="toggleLayer('depth')">
+        <div class="lt-dot" style="background:var(--blue)"></div>DEPTH CHART
+      </div>
+      <div class="lt-btn on" id="lyr-cover" onclick="toggleLayer('cover')">
+        <div class="lt-dot" style="background:var(--teal)"></div>RF COVERAGE
+      </div>
+      <div class="lt-btn off" id="lyr-plan" onclick="toggleLayer('plan')">
+        <div class="lt-dot" style="background:var(--amber)"></div>RELAY PLANNER
+      </div>
+    </div>
+  </div>
+
+  <div class="hud-bl">
+    <div class="scalebar"><div class="sb"></div><span>2 NM</span></div>
+  </div>
+
+  <div class="hud-bc">
+    <div class="tool-bar">
+      <div class="tool sel" id="tool-pan" onclick="setTool('pan')">PAN</div>
+      <div class="tool unsel" id="tool-wp" onclick="setTool('wp')">+ WAYPOINT</div>
+    </div>
+    <div class="jam-widget">
+      <span class="jw-l">GPS JAM</span>
+      <button class="jw-btn" id="jbtn" onclick="toggleJam()">SIMULATE</button>
+    </div>
+  </div>
+
+  <div class="hud-br">
+    <div class="compass"><div class="cn">N</div><span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:8px">↑</span></div>
+  </div>
+
+  <div class="map-tip" id="maptip"></div>
+  <div class="ctx-menu" id="ctx"></div>
+
+  <!-- DEMO OVERLAY -->
+  <div class="demo-overlay" id="demo-overlay">
+    <div class="demo-title">SOCOM DEMO</div>
+    <div class="demo-sub">VANGUARD · MESH RELAY SYSTEM · SCRIPTED SEQUENCE</div>
+    <div class="demo-steps" id="demo-steps">
+      <div class="demo-step ds-done" id="ds0"><div class="ds-num">✓</div><div class="ds-content"><div class="ds-title">System online · pre-flight complete</div><div class="ds-desc">All three USVs ready. GPS fix confirmed. Depth chart loaded for area of operations.</div></div></div>
+      <div class="demo-step ds-active" id="ds1"><div class="ds-num">2</div><div class="ds-content"><div class="ds-title">USV-07 deployed → WP-Alpha</div><div class="ds-desc">Launched from port quarter. Autonomous transit at 14 kt. Antenna raises on arrival.</div></div></div>
+      <div class="demo-step ds-pending" id="ds2"><div class="ds-num">3</div><div class="ds-content"><div class="ds-title">Mesh link established</div><div class="ds-desc">Silvus MANET node online. Ship-to-USV link active. −68 dBm. Relay chain bridged.</div></div></div>
+      <div class="demo-step ds-pending" id="ds3"><div class="ds-num">4</div><div class="ds-content"><div class="ds-title">GPS jam simulated</div><div class="ds-desc">Adversary jamming engaged. Nav source flips to depth-chart filter. Mission continues uninterrupted.</div></div></div>
+      <div class="demo-step ds-pending" id="ds4"><div class="ds-num">5</div><div class="ds-content"><div class="ds-title">Landmark fusion · cyan badge</div><div class="ds-desc">USV-12 in range — triangulation active. Position accuracy drops from 25 m to 4 m.</div></div></div>
+      <div class="demo-step ds-pending" id="ds5"><div class="ds-num">6</div><div class="ds-content"><div class="ds-title">GPS restored · USV-03 deployed</div><div class="ds-desc">Satellite lock recovered. Second relay node extends chain to WP-Bravo. Coverage 8.6 NM.</div></div></div>
+      <div class="demo-step ds-pending" id="ds6"><div class="ds-num">7</div><div class="ds-content"><div class="ds-title">RTL · full recovery</div><div class="ds-desc">Hold time expired. USV-07 returns autonomously. Deck crew ready for retrieval.</div></div></div>
+    </div>
+    <div class="demo-progress"><div class="demo-prog-fill" id="demo-prog" style="width:14%"></div></div>
+    <div class="demo-controls">
+      <button class="demo-ctl-btn dcb-start" id="demo-play-btn" onclick="demoPlay()">▶ RUN SEQUENCE</button>
+      <button class="demo-ctl-btn dcb-skip" onclick="demoSkip()">SKIP STEP ›</button>
+      <button class="demo-ctl-btn dcb-stop" onclick="demoStop()">✕ CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<!-- RIGHT -->
+<div class="right">
+  <div class="hero">
+    <div class="h-id">USV-07</div>
+    <div class="h-role">MESH RELAY · WP-ALPHA · ACTIVE</div>
+    <div class="h-pill"><div class="h-pdot blink"></div><div class="h-ptxt" id="h-status">STATION-KEEPING</div></div>
+  </div>
+
+  <div class="big-m">
+    <div class="bm-l">DISTANCE TO SHIP</div>
+    <div class="bm-row"><div class="bm-n">3.2</div><div class="bm-u">NM</div></div>
+    <div class="bm-bar"><div class="bm-fill" style="width:64%"></div></div>
+  </div>
+
+  <div class="hold-d">
+    <div class="hd-row"><span class="hd-lbl">HOLD REMAINING</span><span class="hd-val" id="hold-val">42:00</span></div>
+    <div class="hd-sub" id="hold-sub">60 min hold · auto-RTL on expiry</div>
+    <div class="hd-bar"><div class="hd-fill" id="hold-fill" style="width:70%"></div></div>
+  </div>
+
+  <div class="speed-p">
+    <div class="sp-row">
+      <span class="sp-lbl">TRANSIT</span>
+      <span class="sp-val" id="spd-val">14 kt</span>
+      <input type="range" min="5" max="25" value="14" id="spd-sl" oninput="updSpd(this.value)">
+    </div>
+    <div class="sp-row">
+      <span class="sp-lbl">HOLD</span>
+      <span class="sp-val" id="hold-sl-val">60 min</span>
+      <input type="range" min="15" max="240" value="60" step="15" id="hold-sl" oninput="updHold(this.value)">
+    </div>
+  </div>
+
+  <div class="m4">
+    <div class="mc"><div class="mc-v" style="color:var(--teal)">0.3 kt</div><div class="mc-l">STATION SPD</div></div>
+    <div class="mc"><div class="mc-v">SS2</div><div class="mc-l">SEA STATE</div></div>
+    <div class="mc"><div class="mc-v" style="color:var(--teal)">92%</div><div class="mc-l">BATTERY</div></div>
+    <div class="mc"><div class="mc-v">247°</div><div class="mc-l">HEADING</div></div>
+  </div>
+
+  <div class="sysp">
+    <div class="sysh">SYSTEMS</div>
+    <div class="sr"><div class="srdot" style="background:var(--teal)"></div><span class="srn">GPS</span><span class="srv ct" id="s-gps">FIX · 8 SATS</span></div>
+    <div class="sr"><div class="srdot" style="background:var(--teal)"></div><span class="srn">Depth chart</span><span class="srv ct">LOADED</span></div>
+    <div class="sr"><div class="srdot" id="ant-dot" style="background:var(--teal)"></div><span class="srn">Silvus antenna</span><span class="srv ct" id="s-ant">EXTENDED</span></div>
+    <div class="sr"><div class="srdot" style="background:var(--teal)"></div><span class="srn">Mesh node</span><span class="srv ct" id="s-mesh">ONLINE</span></div>
+    <div class="sr"><div class="srdot" style="background:var(--teal)"></div><span class="srv ct">−68 dBm</span><span class="srn">Radio link</span></div>
+    <div class="sr"><div class="srdot" id="mtr-dot" style="background:var(--teal)"></div><span class="srn">Motors</span><span class="srv ct" id="s-mtr">ARMED</span></div>
+  </div>
+
+  <div class="actions">
+    <button class="abt ab-bl" onclick="deployUSV3()">+ DEPLOY USV-03 → WP-BRAVO</button>
+    <button class="abt ab-am" onclick="issueRTL()">↩ RETURN USV-07 TO SHIP</button>
+    <button class="abt ab-rd" onclick="eStop()">■ EMERGENCY STOP</button>
+  </div>
+</div>
+
+</div><!-- .app -->
+<script>
+// ── STATE ──
+const S={
+  jammed:false, tool:'pan', zoom:1, pan:{x:0,y:0},
+  dragging:false, panStart:null, dragWP:null, mousePos:null,
+  holdSec:42*60, holdTotal:60*60, missionActive:true,
+  layers:{depth:true,cover:true,plan:false},
+  u07:{rx:0.54,ry:0.34,state:'station'},
+  u12:{rx:0.36,ry:0.56,state:'transit'},
+  u03:{rx:0.14,ry:0.76,state:'standby'},
+  ship:{rx:0.12,ry:0.80},
+  wps:[
+    {id:'WP-ALPHA',rx:0.54,ry:0.34,color:'#00D2B4'},
+    {id:'WP-BRAVO',rx:0.76,ry:0.18,color:'#FFB020'}
+  ],
+  t:0,
+  demo:{active:false,step:0,timer:null,playing:false}
+};
+
+// ── CLOCK ──
+(function tick(){
+  const n=new Date();
+  document.getElementById('clk').textContent=
+    String(n.getUTCHours()).padStart(2,'0')+':'+
+    String(n.getUTCMinutes()).padStart(2,'0')+':'+
+    String(n.getUTCSeconds()).padStart(2,'0');
+  setTimeout(tick,1000);
+})();
+
+// ── CANVAS ──
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+let W,H,dpr;
+
+function resize(){
+  const r=canvas.parentElement.getBoundingClientRect();
+  dpr=window.devicePixelRatio||1;
+  W=r.width; H=r.height;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  ctx.scale(dpr,dpr);
+}
+window.addEventListener('resize',resize); resize();
+
+function gp(rx,ry){return{x:rx*W*S.zoom+S.pan.x, y:ry*H*S.zoom+S.pan.y};}
+function toRel(x,y){return{rx:(x-S.pan.x)/(W*S.zoom), ry:(y-S.pan.y)/(H*S.zoom)};}
+function dst(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+
+// ── DEPTH CHART DATA (synthetic harbour) ──
+// Regions: channel (deep), sandbank (shallow), approach
+const depthMap=[
+  // [cx, cy, rx, ry, depth_m, label]
+  [0.45,0.50,0.38,0.28, 28,''],
+  [0.42,0.48,0.18,0.12, 45,'DEEP CHANNEL'],
+  [0.65,0.30,0.10,0.07,  4,'SANDBANK'],
+  [0.28,0.60,0.08,0.06,  6,'SHOAL'],
+  [0.55,0.65,0.12,0.08, 18,''],
+  [0.20,0.40,0.09,0.06, 12,'ROCKS'],
+];
+
+function drawFrame(){
+  ctx.clearRect(0,0,W,H);
+
+  // bg
+  const bg=ctx.createRadialGradient(W*.45,H*.4,0,W*.5,H*.5,W*.7);
+  bg.addColorStop(0,'#060E1E'); bg.addColorStop(1,'#03080F');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+
+  // grid
+  ctx.strokeStyle='rgba(0,210,180,0.035)'; ctx.lineWidth=0.5;
+  const gs=Math.min(W,H)/8*S.zoom;
+  const ox=S.pan.x%gs, oy=S.pan.y%gs;
+  for(let x=ox-gs;x<W+gs;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=oy-gs;y<H+gs;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  // ── DEPTH CHART LAYER ──
+  if(S.layers.depth){
+    depthMap.forEach(([crx,cry,erx,ery,depth])=>{
+      const c=gp(crx,cry);
+      const ex=erx*W*S.zoom, ey=ery*H*S.zoom;
+      // colour by depth
+      let col;
+      if(depth>=40) col='rgba(0,40,100,';
+      else if(depth>=20) col='rgba(0,60,120,';
+      else if(depth>=10) col='rgba(20,90,100,';
+      else if(depth>=5) col='rgba(80,120,60,';
+      else col='rgba(120,100,30,';
+      const gr=ctx.createRadialGradient(c.x,c.y,0,c.x,c.y,Math.max(ex,ey));
+      gr.addColorStop(0,col+'0.22)'); gr.addColorStop(1,col+'0)');
+      ctx.fillStyle=gr;
+      ctx.beginPath();ctx.ellipse(c.x,c.y,ex,ey,0,0,Math.PI*2);ctx.fill();
+    });
+
+    // depth contour lines
+    [[0.38,0.28,'rgba(33,100,200,0.15)'],[0.22,0.16,'rgba(33,150,200,0.1)'],[0.10,0.07,'rgba(0,180,160,0.1)']].forEach(([erx,ery,col])=>{
+      const c=gp(0.44,0.49);
+      ctx.strokeStyle=col; ctx.lineWidth=0.5; ctx.setLineDash([4,10]);
+      ctx.beginPath();ctx.ellipse(c.x,c.y,erx*W*S.zoom,ery*H*S.zoom,0,0,Math.PI*2);ctx.stroke();
+    });
+    ctx.setLineDash([]);
+
+    // depth labels
+    depthMap.filter(d=>d[5]).forEach(([crx,cry,,,depth,lbl])=>{
+      const c=gp(crx,cry);
+      ctx.fillStyle='rgba(100,160,220,0.5)';
+      ctx.font='9px DM Mono,monospace'; ctx.textAlign='center';
+      ctx.fillText(lbl,c.x,c.y);
+      ctx.fillStyle='rgba(100,160,220,0.35)';
+      ctx.fillText(`${depth}m`,c.x,c.y+12);
+    });
+  }
+
+  const ship=gp(S.ship.rx,S.ship.ry);
+  const u7=gp(S.u07.rx,S.u07.ry);
+  const u12=gp(S.u12.rx,S.u12.ry);
+  const u03=gp(S.u03.rx,S.u03.ry);
+
+  // ── RF COVERAGE LAYER ──
+  if(S.layers.cover){
+    // USV-07 coverage
+    if(S.u07.state==='station'||S.u07.state==='rtl'){
+      const rr2=W*S.zoom*0.2+Math.sin(S.t*.04)*W*S.zoom*.005;
+      const gr7=ctx.createRadialGradient(u7.x,u7.y,0,u7.x,u7.y,rr2);
+      const col7=S.jammed?'rgba(255,176,32,':'rgba(0,210,180,';
+      gr7.addColorStop(0,col7+'0.05)'); gr7.addColorStop(1,col7+'0)');
+      ctx.fillStyle=gr7; ctx.beginPath();ctx.arc(u7.x,u7.y,rr2,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=col7+'0.12)'; ctx.lineWidth=0.5; ctx.setLineDash([5,8]);
+      ctx.beginPath();ctx.arc(u7.x,u7.y,rr2,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+    }
+    // USV-03 coverage when deployed
+    if(S.u03.state==='station'){
+      const rr3=W*S.zoom*0.18;
+      const gr3=ctx.createRadialGradient(u03.x,u03.y,0,u03.x,u03.y,rr3);
+      gr3.addColorStop(0,'rgba(0,210,180,0.05)'); gr3.addColorStop(1,'rgba(0,210,180,0)');
+      ctx.fillStyle=gr3; ctx.beginPath();ctx.arc(u03.x,u03.y,rr3,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='rgba(0,210,180,0.1)'; ctx.lineWidth=0.5; ctx.setLineDash([5,8]);
+      ctx.beginPath();ctx.arc(u03.x,u03.y,rr3,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+    }
+    // ship range ring
+    ctx.strokeStyle='rgba(33,150,243,0.1)'; ctx.lineWidth=0.5; ctx.setLineDash([3,9]);
+    ctx.beginPath();ctx.arc(ship.x,ship.y,W*S.zoom*0.13,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+  }
+
+  // ── RELAY PLANNER LAYER ──
+  if(S.layers.plan){
+    // draw planned hop zones
+    S.wps.forEach(w=>{
+      const p=gp(w.rx,w.ry);
+      ctx.strokeStyle=w.color+'44'; ctx.lineWidth=1; ctx.setLineDash([2,6]);
+      ctx.beginPath();ctx.arc(p.x,p.y,W*S.zoom*0.18,0,Math.PI*2);ctx.stroke();
+      ctx.setLineDash([]);
+    });
+  }
+
+  // ── WP MARKERS ──
+  S.wps.forEach(w=>{
+    const p=gp(w.rx,w.ry);
+    ctx.strokeStyle=w.color+'66'; ctx.lineWidth=0.5; ctx.setLineDash([2,5]);
+    ctx.beginPath();ctx.arc(p.x,p.y,13,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=w.color+'22'; ctx.strokeStyle=w.color; ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.arc(p.x,p.y,7,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle=w.color; ctx.font='8px DM Mono,monospace'; ctx.textAlign='center';
+    ctx.fillText(w.id,p.x,p.y-16);
+  });
+
+  // ── MESH LINKS ──
+  function drawLink(ax,ay,bx,by,col,alpha,lw){
+    const off=-(S.t*.055)%18;
+    ctx.strokeStyle=col.replace('1)',`${alpha*0.07})`);
+    ctx.lineWidth=7; ctx.setLineDash([8,6]); ctx.lineDashOffset=off;
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
+    ctx.strokeStyle=col.replace('1)',`${alpha})`);
+    ctx.lineWidth=lw; ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
+    ctx.setLineDash([]);ctx.lineDashOffset=0;
+  }
+
+  const jammed=S.jammed;
+  const lc=jammed?'rgba(255,176,32,1)':'rgba(0,210,180,1)';
+  if(S.u07.state!=='standby') drawLink(ship.x,ship.y,u7.x,u7.y,lc,0.7,1.5);
+  if(S.u12.state==='station'||S.u12.state==='transit') drawLink(u12.x,u12.y,u7.x,u7.y,'rgba(255,176,32,1)',0.35,0.8);
+  if(S.u03.state==='station') drawLink(u03.x,u03.y,u7.x,u7.y,'rgba(0,210,180,1)',0.5,1.2);
+
+  // link label
+  const lmx=(ship.x+u7.x)/2, lmy=(ship.y+u7.y)/2;
+  const ang=Math.atan2(u7.y-ship.y,u7.x-ship.x);
+  ctx.save();ctx.translate(lmx,lmy);ctx.rotate(ang);
+  ctx.fillStyle=jammed?'rgba(255,176,32,0.7)':'rgba(0,210,180,0.65)';
+  ctx.font='9px DM Mono,monospace';ctx.textAlign='center';
+  ctx.fillText(jammed?'DEPTH CHART NAV':'−68 dBm · 3.2 NM',0,-10);
+  ctx.restore();
+
+  // ── SHIP ──
+  const pr1=(S.t%70)/70, pr2=((S.t+35)%70)/70;
+  ctx.strokeStyle=`rgba(33,150,243,${.45*(1-pr1)})`; ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(ship.x,ship.y,pr1*40,0,Math.PI*2);ctx.stroke();
+  ctx.strokeStyle=`rgba(33,150,243,${.25*(1-pr2)})`; ctx.lineWidth=.5;
+  ctx.beginPath();ctx.arc(ship.x,ship.y,pr2*40,0,Math.PI*2);ctx.stroke();
+  drawShip(ctx,ship.x,ship.y);
+
+  // ── USVs ──
+  const u07col=jammed?'#FFB020':'#00D2B4';
+  if(S.u07.state!=='standby') drawUSV(u7.x,u7.y,'07',u07col,S.u07.state,S.t,60);
+  drawUSV(u12.x,u12.y,'12','#FFB020',S.u12.state,S.t+20,80);
+  if(S.u03.state!=='standby') drawUSV(u03.x,u03.y,'03','#00D2B4',S.u03.state,S.t+40,70);
+  else{
+    ctx.fillStyle='rgba(10,20,40,0.8)';ctx.strokeStyle='rgba(200,224,255,0.15)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(u03.x,u03.y,9,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle='rgba(200,224,255,0.35)';ctx.font='bold 8px Orbitron,monospace';ctx.textAlign='center';
+    ctx.fillText('03',u03.x,u03.y+3);
+  }
+
+  // crosshair for WP tool
+  if(S.tool==='wp'&&S.mousePos){
+    const mp=S.mousePos;
+    ctx.strokeStyle='rgba(0,210,180,0.5)';ctx.lineWidth=0.8;ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(mp.x-16,mp.y);ctx.lineTo(mp.x+16,mp.y);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(mp.x,mp.y-16);ctx.lineTo(mp.x,mp.y+16);ctx.stroke();
+    ctx.beginPath();ctx.arc(mp.x,mp.y,5,0,Math.PI*2);ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ── ANIMATE TRANSITS ── (steer toward WP, clamp bounds)
+  function steer(usv, trx, try_, spd){
+    const dx=trx-usv.rx, dy=try_-usv.ry;
+    const d=Math.hypot(dx,dy);
+    if(d<0.025) return true;
+    usv.rx=Math.max(0.05,Math.min(0.95,usv.rx+dx/d*spd));
+    usv.ry=Math.max(0.05,Math.min(0.95,usv.ry+dy/d*spd));
+    return false;
+  }
+
+  if(S.u12.state==='transit'){
+    if(steer(S.u12,S.wps[0].rx,S.wps[0].ry,0.0008)){
+      S.u12.state='station';
+      addLog('USV-12 on station · WP-ALPHA','ok');
+      document.getElementById('t1b').textContent='ON STATION';
+      document.getElementById('t1b').className='tbadge bg-teal';
+      document.getElementById('t1spd').textContent='0.2 kt';
+    }
+  }
+  if(S.u03.state==='transit'){
+    if(steer(S.u03,S.wps[1].rx,S.wps[1].ry,0.001)){
+      S.u03.state='station';
+      addLog('USV-03 on station · WP-BRAVO','ok');
+      document.getElementById('kpi-nodes').textContent='3/3';
+      document.getElementById('t2b').textContent='ON STATION';
+      document.getElementById('t2b').className='tbadge bg-teal';
+      updatePlannerStats();
+    }
+  }
+  if(S.u07.state==='rtl'){
+    if(steer(S.u07,S.ship.rx,S.ship.ry,0.0025)){
+      S.u07.state='recovered';
+      addLog('USV-07 recovered aboard ship','ok');
+      document.getElementById('t0b').textContent='RECOVERED';
+      document.getElementById('h-status').textContent='RECOVERED';
+    }
+  }
+
+  S.t++;
+  requestAnimationFrame(drawFrame);
+}
+
+// ── SHIP SILHOUETTE ──
+function drawShip(c,x,y){
+  c.save(); c.translate(x,y);
+  // hull
+  c.fillStyle='#0A2848'; c.strokeStyle='#2196F3'; c.lineWidth=1.5;
+  c.beginPath();
+  c.moveTo(0,-30);c.lineTo(11,-22);c.lineTo(13,-6);c.lineTo(13,17);
+  c.lineTo(7,24);c.lineTo(-7,24);c.lineTo(-13,17);c.lineTo(-13,-6);c.lineTo(-11,-22);
+  c.closePath(); c.fill(); c.stroke();
+  // superstructure
+  c.fillStyle='#0F3870'; c.strokeStyle='rgba(33,150,243,0.4)'; c.lineWidth=0.8;
+  c.fillRect(-8,-14,16,15); c.strokeRect(-8,-14,16,15);
+  // bridge windows
+  c.fillStyle='rgba(100,200,255,0.7)';
+  [-4,0,4].forEach(bx=>{c.beginPath();c.arc(bx,-7,1.5,0,Math.PI*2);c.fill();});
+  // mast
+  c.fillStyle='#60C0FF'; c.beginPath();c.arc(0,-18,2.2,0,Math.PI*2);c.fill();
+  // radar sweep (animated)
+  c.strokeStyle='rgba(0,210,180,0.5)'; c.lineWidth=1;
+  c.beginPath();c.moveTo(0,-18);
+  const ra=(S.t*0.05)%(Math.PI*2);
+  c.lineTo(Math.cos(ra)*14,Math.sin(ra)*14-18); c.stroke();
+  // helideck
+  c.fillStyle='rgba(255,176,32,0.1)'; c.strokeStyle='rgba(255,176,32,0.55)'; c.lineWidth=1;
+  c.beginPath();c.arc(0,15,9,0,Math.PI*2);c.fill();c.stroke();
+  c.strokeStyle='rgba(255,176,32,0.65)'; c.lineWidth=1.2;
+  c.beginPath();c.moveTo(-4,12);c.lineTo(-4,18);c.stroke();
+  c.beginPath();c.moveTo(4,12);c.lineTo(4,18);c.stroke();
+  c.beginPath();c.moveTo(-4,15);c.lineTo(4,15);c.stroke();
+  // wake
+  c.strokeStyle='rgba(33,150,243,0.18)'; c.lineWidth=0.8; c.setLineDash([3,5]);
+  c.beginPath();c.moveTo(-9,24);c.quadraticCurveTo(-20,36,-24,48);c.stroke();
+  c.beginPath();c.moveTo(9,24);c.quadraticCurveTo(20,36,24,48);c.stroke();
+  c.setLineDash([]);
+  c.restore();
+  // label
+  c.fillStyle='rgba(100,180,255,0.7)'; c.font='8px DM Mono,monospace'; c.textAlign='center';
+  c.fillText('HOST SHIP',x,y+50);
+}
+
+// ── USV DRAW ──
+function drawUSV(x,y,id,col,state,t_,period){
+  const p1=(t_%period)/period, p2=((t_+period/2)%period)/period;
+  const a1=Math.round(0.5*(1-p1)*255).toString(16).padStart(2,'0');
+  const a2=Math.round(0.3*(1-p2)*255).toString(16).padStart(2,'0');
+  ctx.strokeStyle=`${col}${a1}`; ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(x,y,p1*28,0,Math.PI*2);ctx.stroke();
+  ctx.strokeStyle=`${col}${a2}`; ctx.lineWidth=.5;
+  ctx.beginPath();ctx.arc(x,y,p2*28,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle=col+'22'; ctx.strokeStyle=col; ctx.lineWidth=1.8;
+  ctx.shadowColor=col; ctx.shadowBlur=state==='station'?12:5;
+  ctx.beginPath();ctx.arc(x,y,10,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.shadowBlur=0;
+  ctx.fillStyle=col; ctx.font='bold 9px Orbitron,monospace'; ctx.textAlign='center';
+  ctx.fillText(id,x,y+3);
+  const lbl={station:'ON STATION',transit:'TRANSIT →',rtl:'← RTL',recovered:'RECOVERED',estop:'E-STOP',standby:'STANDBY'}[state]||state;
+  ctx.fillStyle=col+'CC'; ctx.font='9px DM Mono,monospace'; ctx.textAlign='left';
+  ctx.fillText(lbl,x+17,y+3);
+}
+
+function rrect(c,x,y,w,h,r,fill,stroke){
+  c.beginPath();c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.quadraticCurveTo(x+w,y,x+w,y+r);
+  c.lineTo(x+w,y+h-r);c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  c.lineTo(x+r,y+h);c.quadraticCurveTo(x,y+h,x,y+h-r);
+  c.lineTo(x,y+r);c.quadraticCurveTo(x,y,x+r,y);c.closePath();
+  if(fill)c.fill();if(stroke)c.stroke();
+}
+
+drawFrame();
+
+// ── HOLD TIMER ──
+setInterval(()=>{
+  if(!S.missionActive||S.u07.state!=='station') return;
+  S.holdSec=Math.max(0,S.holdSec-1);
+  const m=Math.floor(S.holdSec/60), s=S.holdSec%60;
+  document.getElementById('hold-val').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  document.getElementById('hold-fill').style.width=((S.holdSec/S.holdTotal)*100)+'%';
+  if(S.holdSec===0){addLog('Hold time expired — RTL · USV-07','warn');issueRTL();}
+},1000);
+
+// ── MAP INTERACTION ──
+const mapEl=document.getElementById('map-area');
+const tip=document.getElementById('maptip');
+const ctxMenu=document.getElementById('ctx');
+
+mapEl.addEventListener('contextmenu',e=>{
+  e.preventDefault();
+  const r=mapEl.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+  const rel=toRel(mx,my);
+  let found=null;
+  [{n:'USV-07',u:S.u07},{n:'USV-12',u:S.u12},{n:'USV-03',u:S.u03}].forEach(({n,u})=>{
+    if(Math.hypot(u.rx-rel.rx,u.ry-rel.ry)<0.05)found=n;
+  });
+  ctxMenu.innerHTML='';
+  if(found){
+    ctxMenu.innerHTML=`<div class="ctx-item" onclick="issueRTL('${found}')">↩ RTL ${found}</div>
+      <div class="ctx-item" onclick="extendHold()">+ Extend hold 30 min</div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item danger" onclick="eStop()">■ Emergency stop ${found}</div>`;
+  } else {
+    ctxMenu.innerHTML=`<div class="ctx-item" onclick="placeWP(${rel.rx.toFixed(3)},${rel.ry.toFixed(3)})">+ Waypoint here</div>
+      <div class="ctx-item" onclick="setTool('pan')">✕ Cancel tool</div>`;
+  }
+  ctxMenu.style.left=Math.min(mx,W-200)+'px';
+  ctxMenu.style.top=Math.min(my,H-130)+'px';
+  ctxMenu.style.display='block';
+});
+
+mapEl.addEventListener('click',e=>{
+  ctxMenu.style.display='none';
+  const r=mapEl.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+  if(S.tool==='wp'){
+    const rel=toRel(mx,my);
+    placeWP(rel.rx,rel.ry); setTool('pan');
+  }
+});
+
+mapEl.addEventListener('mousemove',e=>{
+  const r=mapEl.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+  S.mousePos={x:mx,y:my};
+  if(S.dragging&&S.dragWP!==null){
+    const rel=toRel(mx,my);
+    S.wps[S.dragWP].rx=Math.max(0.05,Math.min(0.95,rel.rx));
+    S.wps[S.dragWP].ry=Math.max(0.05,Math.min(0.95,rel.ry));
+    return;
+  }
+  if(S.dragging&&S.panStart){
+    S.pan.x+=mx-S.panStart.x; S.pan.y+=my-S.panStart.y;
+    S.panStart={x:mx,y:my}; return;
+  }
+  let hov=false;
+  S.wps.forEach(w=>{
+    const p=gp(w.rx,w.ry);
+    if(dst({x:mx,y:my},p)<20){
+      tip.style.display='block';tip.style.left=(mx+14)+'px';tip.style.top=(my-10)+'px';
+      tip.textContent=`${w.id} — drag to reposition`;hov=true;mapEl.style.cursor='grab';
+    }
+  });
+  if(!hov){tip.style.display='none';mapEl.style.cursor=S.tool==='wp'?'crosshair':'default';}
+});
+
+mapEl.addEventListener('mousedown',e=>{
+  if(e.button!==0)return;
+  const r=mapEl.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+  S.dragging=true;
+  let fw=null;
+  S.wps.forEach((w,i)=>{const p=gp(w.rx,w.ry);if(dst({x:mx,y:my},p)<20)fw=i;});
+  if(fw!==null){S.dragWP=fw;mapEl.style.cursor='grabbing';}
+  else{S.dragWP=null;S.panStart={x:mx,y:my};}
+});
+
+mapEl.addEventListener('mouseup',()=>{S.dragging=false;S.dragWP=null;S.panStart=null;mapEl.style.cursor=S.tool==='wp'?'crosshair':'default';});
+mapEl.addEventListener('mouseleave',()=>{S.dragging=false;S.dragWP=null;S.panStart=null;tip.style.display='none';});
+mapEl.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const r=mapEl.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+  const f=e.deltaY>0?0.88:1.14;
+  const nz=Math.max(0.4,Math.min(5,S.zoom*f));
+  S.pan.x=mx-(mx-S.pan.x)*(nz/S.zoom);
+  S.pan.y=my-(my-S.pan.y)*(nz/S.zoom);
+  S.zoom=nz;
+},{passive:false});
+
+// ── LAYER TOGGLES ──
+function toggleLayer(lyr){
+  S.layers[lyr]=!S.layers[lyr];
+  const btn=document.getElementById('lyr-'+lyr);
+  btn.className='lt-btn '+(S.layers[lyr]?'on':'off');
+  if(lyr==='plan'){
+    document.getElementById('planner').style.display=S.layers.plan?'block':'none';
+  }
+}
+
+// ── PLANNER STATS ──
+function updatePlannerStats(){
+  const nodes=[];
+  if(S.u07.state==='station')nodes.push(S.u07);
+  if(S.u12.state==='station')nodes.push(S.u12);
+  if(S.u03.state==='station')nodes.push(S.u03);
+  const cov=(2.8+nodes.length*1.9).toFixed(1);
+  document.getElementById('po-cov').textContent=cov+' NM';
+  document.getElementById('po-end').textContent=(4.8-nodes.length*0.3).toFixed(1)+' hr';
+}
+
+// ── TOOLS ──
+function setTool(t){
+  S.tool=t;
+  ['pan','wp'].forEach(id=>{
+    const el=document.getElementById('tool-'+id);
+    if(el)el.className='tool '+(id===t?'sel':'unsel');
+  });
+  mapEl.style.cursor=t==='wp'?'crosshair':'default';
+}
+
+function placeWP(rx,ry){
+  S.wps.push({id:`WP-${String.fromCharCode(65+S.wps.length)}`,rx:parseFloat(rx),ry:parseFloat(ry),color:'#00AAFF'});
+  addLog(`Waypoint placed · ${S.wps[S.wps.length-1].id}`);
+}
+
+function zoomMap(f){S.zoom=Math.max(0.4,Math.min(5,S.zoom*f));}
+function resetView(){S.zoom=1;S.pan={x:0,y:0};}
+
+// ── JAM ──
+function toggleJam(){
+  S.jammed=!S.jammed;
+  const jb=document.getElementById('jbtn');
+  const nb=document.getElementById('nbadge');
+  const nt=document.getElementById('nbtext');
+  const nd=document.getElementById('nbdot');
+  const kn=document.getElementById('kpi-nav');
+  const sg=document.getElementById('s-gps');
+  if(S.jammed){
+    jb.textContent='RESTORE'; jb.classList.add('jam-on');
+    nb.className='nbadge nb-a'; nt.textContent='NAV: DEPTH CHART (GPS JAMMED)';
+    nd.style.background='var(--amber)'; nd.style.boxShadow='0 0 6px var(--amber)';
+    kn.textContent='DEPTH CHART'; kn.style.color='var(--red)';
+    sg.textContent='JAMMED'; sg.className='srv ca';
+    addLog('GPS jam active — depth chart nav engaged','warn');
+  } else {
+    jb.textContent='SIMULATE'; jb.classList.remove('jam-on');
+    nb.className='nbadge nb-t'; nt.textContent='NAV: GPS + DEPTH CHART';
+    nd.style.background='var(--teal)'; nd.style.boxShadow='0 0 6px var(--teal)';
+    kn.textContent='GPS+CHART'; kn.style.color='var(--amber)';
+    sg.textContent='FIX · 8 SATS'; sg.className='srv ct';
+    addLog('GPS restored — satellite fix confirmed','ok');
+  }
+}
+
+// ── RTL ──
+function issueRTL(name){
+  if(S.u07.state==='recovered'||S.u07.state==='estop') return;
+  S.u07.state='rtl';
+  document.getElementById('h-status').textContent='RTL IN PROGRESS';
+  document.getElementById('t0b').textContent='RTL'; document.getElementById('t0b').className='tbadge bg-amber';
+  document.getElementById('s-ant').textContent='STOWING'; document.getElementById('ant-dot').style.background='var(--amber)';
+  addLog('RTL acknowledged · USV-07','warn');
+  addLog('Antenna lowering · mast retracting');
+}
+
+// ── DEPLOY USV-03 ──
+function deployUSV3(){
+  if(S.u03.state!=='standby')return;
+  S.u03.state='transit';
+  document.getElementById('t2b').textContent='TRANSIT'; document.getElementById('t2b').className='tbadge bg-amber';
+  document.getElementById('tile2').querySelector('.tile::before');
+  addLog('USV-03 deployed → WP-BRAVO','ok');
+  document.getElementById('kpi-nodes').textContent='2/3';
+  updatePlannerStats();
+}
+
+function extendHold(){
+  ctxMenu.style.display='none';
+  S.holdSec=Math.min(S.holdTotal,S.holdSec+30*60);
+  addLog('Hold extended +30 min · USV-07');
+}
+
+// ── E-STOP ──
+function eStop(){
+  S.u07.state='estop'; S.missionActive=false;
+  document.getElementById('s-mtr').textContent='DISARMED'; document.getElementById('s-mtr').className='srv cr';
+  document.getElementById('mtr-dot').style.background='var(--red)';
+  document.getElementById('s-mesh').textContent='OFFLINE'; document.getElementById('s-mesh').className='srv cd';
+  document.getElementById('s-ant').textContent='STOWED'; document.getElementById('ant-dot').style.background='var(--text-faint)';
+  document.getElementById('h-status').textContent='EMERGENCY STOP';
+  document.getElementById('t0b').textContent='E-STOP'; document.getElementById('t0b').className='tbadge bg-red';
+  document.getElementById('nbadge').className='nbadge nb-r';
+  document.getElementById('nbtext').textContent='E-STOP · USV-07 DEAD IN WATER';
+  document.getElementById('nbdot').style.background='var(--red)';
+  addLog('EMERGENCY STOP · motors cut · USV-07 dead in water','err');
+}
+
+function selUSV(i){document.querySelectorAll('.tile').forEach((t,j)=>t.classList.toggle('sel',i===j));}
+function updSpd(v){document.getElementById('spd-val').textContent=v+' kt';}
+function updHold(v){document.getElementById('hold-sl-val').textContent=v+' min';S.holdTotal=v*60;}
+
+// ── DEMO MODE ──
+const DEMO_STEPS=[
+  {dur:3000, fn:()=>{ addLog('DEMO: System check complete · all green','ok'); }},
+  {dur:5000, fn:()=>{ addLog('DEMO: USV-07 launched → WP-Alpha','ok'); setDemoStep(1); }},
+  {dur:6000, fn:()=>{ addLog('DEMO: USV-07 on station · antenna raised','ok'); setDemoStep(2); }},
+  {dur:5000, fn:()=>{ addLog('DEMO: Mesh link established · −68 dBm','ok'); setDemoStep(3); }},
+  {dur:5000, fn:()=>{ toggleJam(); setDemoStep(3); }},
+  {dur:5000, fn:()=>{
+    // upgrade to cyan landmark fusion
+    document.getElementById('nbadge').className='nbadge nb-c';
+    document.getElementById('nbtext').textContent='NAV: DEPTH CHART + 2 LANDMARKS';
+    document.getElementById('nbdot').style.background='var(--cyan)';
+    addLog('DEMO: Landmark fusion active · 2 vessels in range · 4 m accuracy','ok');
+    setDemoStep(4);
+  }},
+  {dur:6000, fn:()=>{
+    if(S.jammed) toggleJam();
+    deployUSV3();
+    addLog('DEMO: GPS restored · USV-03 deployed → WP-BRAVO','ok');
+    setDemoStep(5);
+  }},
+  {dur:6000, fn:()=>{
+    issueRTL();
+    addLog('DEMO: Hold complete · USV-07 RTL','ok');
+    setDemoStep(6);
+  }},
+  {dur:3000, fn:()=>{
+    addLog('DEMO COMPLETE · all objectives demonstrated','ok');
+    document.getElementById('demo-play-btn').textContent='▶ REPLAY';
+    S.demo.playing=false;
+    S.demo.step=0;
+    document.getElementById('demo-prog').style.width='100%';
+  }}
+];
+
+function setDemoStep(n){
+  document.querySelectorAll('.demo-step').forEach((el,i)=>{
+    el.className='demo-step '+(i<n?'ds-done':i===n?'ds-active':'ds-pending');
+    el.querySelector('.ds-num').textContent=i<n?'✓':i+1;
+  });
+  document.getElementById('demo-prog').style.width=((n/7)*100)+'%';
+}
+
+function toggleDemoOverlay(){
+  const ov=document.getElementById('demo-overlay');
+  const showing=ov.classList.contains('show');
+  ov.classList.toggle('show',!showing);
+  const btn=document.getElementById('demo-btn');
+  btn.classList.toggle('running',!showing);
+  document.getElementById('demo-btn-txt').textContent=showing?'SOCOM DEMO':'CLOSE DEMO';
+}
+
+function demoPlay(){
+  if(S.demo.playing) return;
+  S.demo.playing=true;
+  document.getElementById('demo-play-btn').textContent='⏳ RUNNING...';
+  runDemoStep(S.demo.step);
+}
+
+function runDemoStep(i){
+  if(i>=DEMO_STEPS.length) return;
+  S.demo.step=i;
+  DEMO_STEPS[i].fn();
+  if(i<DEMO_STEPS.length-1){
+    S.demo.timer=setTimeout(()=>runDemoStep(i+1), DEMO_STEPS[i].dur);
+  }
+}
+
+function demoSkip(){
+  if(S.demo.timer) clearTimeout(S.demo.timer);
+  const next=S.demo.step+1;
+  if(next<DEMO_STEPS.length){
+    S.demo.step=next;
+    DEMO_STEPS[next].fn();
+    if(next<DEMO_STEPS.length-1) S.demo.timer=setTimeout(()=>runDemoStep(next+1),DEMO_STEPS[next].dur);
+  }
+}
+
+function demoStop(){
+  if(S.demo.timer) clearTimeout(S.demo.timer);
+  S.demo.playing=false;
+  S.demo.step=0;
+  document.getElementById('demo-overlay').classList.remove('show');
+  document.getElementById('demo-btn').classList.remove('running');
+  document.getElementById('demo-btn-txt').textContent='SOCOM DEMO';
+}
+
+// seed log
+['All systems green · pre-launch check','Mission authorised · 3 USVs ready',
+ 'USV-07 launched · port quarter','Antenna raised · mast extended',
+ 'On station · WP-Alpha','Mesh node active · −68 dBm'].forEach((m,i)=>{
+  setTimeout(()=>addLog(m,i>2?'ok':''),i*150);
+});
+updatePlannerStats();
+
+function addLog(msg,type=''){
+  const w=document.getElementById('log-wrap');
+  const n=new Date();
+  const t=String(n.getUTCHours()).padStart(2,'0')+':'+String(n.getUTCMinutes()).padStart(2,'0')+':'+String(n.getUTCSeconds()).padStart(2,'0');
+  const d=document.createElement('div');d.className='le';
+  d.innerHTML=`<span class="lt">${t}</span><span class="lm ${type==='ok'?'lok':type==='warn'?'lwarn':type==='err'?'lerr':''}">${msg}</span>`;
+  w.appendChild(d);w.scrollTop=w.scrollHeight;
+}
+</script>
+
+<!-- offline banner -->
+<div class="offline-banner" id="offline-bar"></div>
+<div class="offline-label" id="offline-lbl">⚠ OFFLINE · CACHED DATA</div>
+
+<!-- install prompt -->
+<div class="install-prompt" id="install-prompt">
+  <div class="ip-icon"><img src="icons/icon-192.png" alt=""></div>
+  <div class="ip-text">
+    <div class="ip-title">INSTALL APP</div>
+    <div class="ip-sub">Add to home screen · works offline</div>
+  </div>
+  <div class="ip-btns">
+    <button class="ip-btn ip-install" id="ip-install-btn">INSTALL</button>
+    <button class="ip-btn ip-dismiss" id="ip-dismiss-btn">LATER</button>
+  </div>
+</div>
+
+<!-- update toast -->
+<div class="update-toast" id="update-toast">
+  <span>New version available</span>
+  <button onclick="window.location.reload()" style="background:var(--teal-dim);border:1px solid rgba(0,210,180,0.3);color:var(--teal);padding:3px 8px;border-radius:1px;cursor:pointer;font-family:var(--mono);font-size:9px;">UPDATE</button>
+</div>
+</body>
+</html>
