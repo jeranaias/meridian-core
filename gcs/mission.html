@@ -1015,6 +1015,23 @@
             state.connected = true;
             document.getElementById('conn-dot').className = 'conn-dot connected';
             toast('Connected');
+            // Wake the autopilot's MAVLink streams so we actually receive
+            // GPS / position / VFR_HUD / battery — ArduPilot defaults to a
+            // skeleton stream until a GCS asks for more. Send REQUEST_DATA_STREAM
+            // (msgid 66) for stream 0 (ALL) at 10Hz.
+            // Layout: u16 rate, u8 target_sys, u8 target_comp, u8 stream_id, u8 start_stop
+            if (protocol === 'mavlink') {
+                try {
+                    var rate = 10;
+                    var p = new Uint8Array(6);
+                    p[0] = rate & 0xFF; p[1] = (rate >> 8) & 0xFF;
+                    p[2] = 1;        // target_sys
+                    p[3] = 1;        // target_comp
+                    p[4] = 0;        // MAV_DATA_STREAM_ALL
+                    p[5] = 1;        // start
+                    ws.send(mavEncode(66, p));
+                } catch(e) { console.warn('stream request failed:', e); }
+            }
         };
         ws.onclose = function() {
             state.connected = false;
@@ -1335,12 +1352,21 @@
     function sendMode(idx) {
         if (!ws || ws.readyState !== 1) return;
         if (protocol === 'mavlink') {
-            // MAV_CMD_DO_SET_MODE: base_mode=209 (armed+custom), custom_mode=mode_number
-            var modeNum = idx;
-            // Map MNP mode indices to ArduPilot mode numbers
-            var modeMap = {0:0, 1:2, 2:5, 3:6, 4:3, 5:9, 6:4}; // MNP→ArduPilot
-            modeNum = modeMap[idx] !== undefined ? modeMap[idx] : idx;
-            ws.send(mavEncode(76, mavCommandLong(176, 209, modeNum, 0, 0, 0, 0, 0)));
+            // MAV_CMD_DO_SET_MODE: base_mode bit0=CUSTOM_MODE_ENABLED required.
+            // Use 1 (just CUSTOM) — ArduPilot reads custom_mode regardless of
+            // other base bits, but extra bits like SAFETY_ARMED can be misleading.
+            //
+            // Map our internal mode indices to ArduRover mode numbers (NOT
+            // ArduCopter — different table). ArduRover modes (per
+            // libraries/AP_Vehicle/AP_Vehicle.h): 0=MANUAL, 1=ACRO,
+            // 3=STEERING, 4=HOLD, 5=LOITER, 6=FOLLOW, 7=SIMPLE, 10=AUTO,
+            // 11=RTL, 12=SMART_RTL, 15=GUIDED.
+            //
+            // Internal idx convention used by the buttons:
+            //   0=MANUAL, 1=HOLD, 2=LOITER, 3=RTL, 4=AUTO, 5=GUIDED, 6=ACRO
+            var modeMap = { 0:0, 1:4, 2:5, 3:11, 4:10, 5:15, 6:1 };
+            var modeNum = modeMap[idx] !== undefined ? modeMap[idx] : idx;
+            ws.send(mavEncode(76, mavCommandLong(176, 1, modeNum, 0, 0, 0, 0, 0)));
         } else {
             ws.send(cobsEncode(new Uint8Array([0x85, idx])));
         }

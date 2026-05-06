@@ -1,5 +1,13 @@
 # Vanguard MVP — Hand-Off Repo
 
+> **🟡 STATUS: ALMOST READY — see [`STATUS.md`](STATUS.md).**
+> Telemetry pipe + outbound commands proven end-to-end. Tablet GCS PWA-wrapped
+> and connected to the live boat. **Blocking the tank test:** ESC and steering
+> servo aren't mapped to ArduRover output channels yet. Tristan, see § 4 in
+> STATUS.md — three quick answers from you and we're green.
+
+---
+
 Private working repo for getting a complete tablet GCS shipped on the
 **Vanguard USV running ArduRover 4.6.3**, with Meridian firmware
 iteration paused until hardware lets us iterate safely.
