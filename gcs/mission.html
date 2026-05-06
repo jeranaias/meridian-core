@@ -224,6 +224,95 @@
         .status-mode:not(.disarmed) {
             box-shadow: 0 0 12px rgba(255, 109, 0, 0.45);
         }
+
+        /* ── Health chip + slide-out panel ── */
+        .health-chip {
+            font-family: 'DM Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.08em;
+            padding: 4px 9px;
+            border-radius: 4px;
+            margin-left: 8px;
+            cursor: pointer;
+            user-select: none;
+            border: 1px solid;
+            transition: background 0.15s;
+        }
+        .health-chip.ok    { color: var(--safe);      border-color: var(--safe);      background: rgba(0, 230, 118, 0.10); }
+        .health-chip.warn  { color: var(--warning);   border-color: var(--warning);   background: rgba(255, 167, 38, 0.10); }
+        .health-chip.crit  { color: var(--emergency); border-color: var(--emergency); background: rgba(255, 23, 68, 0.15);
+                             animation: hp-pulse 1s ease-in-out infinite; }
+        @keyframes hp-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        #health-panel {
+            position: fixed;
+            top: 56px;
+            right: 0;
+            width: 360px;
+            max-width: 92vw;
+            max-height: calc(100vh - 56px);
+            overflow-y: auto;
+            z-index: 2500;
+            background: var(--bg-glass);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border-left: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            box-shadow: -4px 4px 24px rgba(0, 0, 0, 0.5);
+            font-family: 'DM Sans', 'Barlow', sans-serif;
+            color: var(--text);
+        }
+        .hp-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            font: 700 12px 'Orbitron', 'Rajdhani', sans-serif;
+            letter-spacing: 0.12em;
+            color: var(--primary);
+            background: rgba(0, 0, 0, 0.25);
+        }
+        .hp-close { background: none; border: none; color: var(--dim); font-size: 20px; cursor: pointer; line-height: 1; }
+        .hp-close:hover { color: var(--text); }
+
+        .hp-section {
+            padding: 10px 14px 4px;
+            border-bottom: 1px solid var(--border);
+        }
+        .hp-section h4 {
+            margin: 0 0 6px 0;
+            font: 600 11px 'Rajdhani', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--dim);
+        }
+        .hp-row {
+            display: flex; justify-content: space-between; gap: 12px;
+            font-size: 12px;
+            padding: 3px 0;
+            border-bottom: 1px dashed rgba(30, 42, 56, 0.5);
+        }
+        .hp-row:last-child { border-bottom: 0; }
+        .hp-row span { color: var(--dim); }
+        .hp-row strong { font-family: 'DM Mono', monospace; color: var(--text); font-weight: 500; }
+        .hp-row strong.warn { color: var(--warning); }
+        .hp-row strong.crit { color: var(--emergency); }
+
+        .health-evt {
+            display: grid;
+            grid-template-columns: 60px 60px 1fr;
+            gap: 6px;
+            padding: 4px 0;
+            font: 500 11px 'DM Mono', monospace;
+            border-bottom: 1px dashed rgba(30, 42, 56, 0.5);
+        }
+        .health-evt .evt-t { color: var(--dim); }
+        .health-evt .evt-l { text-transform: uppercase; letter-spacing: 0.06em; font-size: 9px; padding-top: 1px; }
+        .health-evt .evt-txt { color: var(--text); word-break: break-word; }
+        .health-evt.emergency .evt-l, .health-evt.alert .evt-l, .health-evt.critical .evt-l, .health-evt.error .evt-l {
+            color: var(--emergency);
+        }
+        .health-evt.warning .evt-l { color: var(--warning); }
+        .health-evt.notice .evt-l, .health-evt.info .evt-l { color: var(--primary); }
     </style>
 </head>
 <body>
@@ -241,7 +330,36 @@
         <span class="nav-source-badge" id="nav-source-badge" style="display:none;font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;padding:4px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:0.04em" title="Active navigation source"></span>
         <span class="station-badge" id="station-badge" style="display:none;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;padding:4px 10px;border-radius:4px;text-transform:uppercase;letter-spacing:0.04em;background:rgba(0,230,118,0.15);color:var(--safe);border:1px solid var(--safe)"></span>
         <span class="status-mode disarmed" id="status-mode">DISARMED</span>
+        <span class="health-chip ok" id="health-chip" onclick="toggleHealthPanel()" title="Tap for battery, vibration, ESC + events">HEALTH ✓</span>
         <button id="btn-settings" onclick="toggleSettings()" style="background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer;padding:4px 8px" title="Settings">&#9881;</button>
+    </div>
+
+    <!-- Health Panel (slide-out from right edge, tap chip to open) -->
+    <div id="health-panel" style="display:none;">
+        <div class="hp-header">
+            <span>VEHICLE HEALTH</span>
+            <button onclick="toggleHealthPanel()" class="hp-close" title="Close">&times;</button>
+        </div>
+        <div class="hp-section">
+            <h4>Battery</h4>
+            <div id="hp-batt-detail"></div>
+        </div>
+        <div class="hp-section">
+            <h4>IMU vibration</h4>
+            <div id="hp-vibe-detail"></div>
+        </div>
+        <div class="hp-section">
+            <h4>ESC telemetry</h4>
+            <div id="hp-esc-detail"></div>
+        </div>
+        <div class="hp-section">
+            <h4>Predictive maintenance</h4>
+            <div id="hp-maint-detail"></div>
+        </div>
+        <div class="hp-section">
+            <h4>Recent events (STATUSTEXT)</h4>
+            <div id="health-events"></div>
+        </div>
     </div>
 
     <style>
@@ -630,6 +748,27 @@
         // Commanded vs actual control outputs (from MSG_CONTROL 0x0E)
         cmd_thr: 0, act_thr: 0, cmd_steer: 0, act_steer: 0, rudder_deg: 0,
         rudder_updated_at: 0,
+        // Throttle % from VFR_HUD (0..100)
+        thr: 0,
+        // BATTERY_STATUS — detailed from MAVLink msgid 147
+        cells: [],                 // array of cell voltages (V)
+        batt_curr_a: 0,            // battery current (A)
+        batt_mah: 0,               // mAh consumed
+        batt_hj: 0,                // hectojoules consumed (energy)
+        batt_temp: 0,              // battery temp (°C, if reported)
+        batt_id: 0,
+        batt_time_remaining_s: -1, // -1 = unknown
+        // Per-output PWM from SERVO_OUTPUT_RAW msgid 36 (16 channels)
+        servo_pwm: new Array(16).fill(0),
+        // VIBRATION msgid 241
+        vibe_x: 0, vibe_y: 0, vibe_z: 0,
+        clipping: [0, 0, 0],
+        // ESC_TELEMETRY 1..16
+        esc: new Array(16).fill(null),
+        // STATUSTEXT log (most-recent-first)
+        events: [],
+        // Health latch — set by check* functions, displayed in #health-badge
+        health: { battery: 'ok', vibration: 'ok', esc: 'ok' },
         // Bench test
         bench_active: false, bench_thr: 0, bench_steer: 0, bench_pattern: null, bench_pattern_t0: 0,
         // AIS sim enable state (mirror of server param)
@@ -1291,6 +1430,85 @@
             state.sats = dv.getUint8(29);
         } else if (id === 74 && p.length >= 20) { // VFR_HUD
             state.spd = dv.getFloat32(4, true); // groundspeed
+            state.thr = dv.getInt16(12, true); // throttle %
+        } else if (id === 30 && p.length >= 28) { // ATTITUDE
+            state.roll = dv.getFloat32(4, true);
+            state.pitch = dv.getFloat32(8, true);
+            state.yaw = dv.getFloat32(12, true);
+            state.yaw_rate = dv.getFloat32(24, true);
+            pushHist('yaw_rate', state.yaw_rate);
+        } else if (id === 36 && p.length >= 21) { // SERVO_OUTPUT_RAW
+            // u32 time, u8 port, u16 servo1..16_raw
+            for (var ch = 0; ch < 16; ch++) {
+                state.servo_pwm[ch] = dv.getUint16(5 + ch * 2, true);
+            }
+        } else if (id === 147 && p.length >= 36) { // BATTERY_STATUS
+            // u8 id, u8 battery_function, u8 type, i16 temperature,
+            // u16 voltages[10] (cells, mV), i16 current_battery (cA),
+            // i32 current_consumed (mAh), i32 energy_consumed (hJ),
+            // i8 battery_remaining, i32 time_remaining, u8 charge_state
+            // wire order is by size: i32×2 → i16×11 → u8×4
+            // current_consumed @ 0, energy_consumed @ 4, temperature @ 8,
+            // voltages[10] @ 10, current_battery @ 30, then bytes
+            state.batt_mah = dv.getInt32(0, true);
+            state.batt_hj = dv.getInt32(4, true);
+            state.batt_temp = dv.getInt16(8, true) / 100.0;
+            state.cells = [];
+            for (var c = 0; c < 10; c++) {
+                var mv = dv.getUint16(10 + c * 2, true);
+                if (mv && mv !== 0xFFFF) state.cells.push(mv / 1000.0);
+            }
+            state.batt_curr_a = dv.getInt16(30, true) / 100.0; // centiAmps -> A
+            // Remaining bytes: u8 id, u8 fn, u8 type, i8 remaining, i32 time_rem, u8 chg_state
+            var off = 32;
+            if (p.length >= off + 4) {
+                state.batt_id = dv.getUint8(off);
+                state.batt = dv.getInt8(off + 3);
+            }
+            if (p.length >= 40) {
+                state.batt_time_remaining_s = dv.getInt32(36, true);
+            }
+            checkBatteryThresholds();
+        } else if (id === 241 && p.length >= 32) { // VIBRATION
+            // u64 time, f32 vibration_x, vibration_y, vibration_z,
+            // u32 clipping_0, clipping_1, clipping_2
+            state.vibe_x = dv.getFloat32(8, true);
+            state.vibe_y = dv.getFloat32(12, true);
+            state.vibe_z = dv.getFloat32(16, true);
+            state.clipping = [
+                dv.getUint32(20, true),
+                dv.getUint32(24, true),
+                dv.getUint32(28, true),
+            ];
+            checkVibrationThresholds();
+        } else if (id === 253 && p.length >= 2) { // STATUSTEXT
+            var sev = dv.getUint8(0);
+            var text = '';
+            for (var ti = 1; ti < Math.min(p.length, 51); ti++) {
+                if (p[ti] === 0) break;
+                text += String.fromCharCode(p[ti]);
+            }
+            onStatusText(sev, text);
+        } else if (id === 242 && p.length >= 52) { // HOME_POSITION
+            state.home = {
+                lat: dv.getInt32(0, true) / 1e7,
+                lon: dv.getInt32(4, true) / 1e7,
+                alt: dv.getInt32(8, true) / 1000.0,
+            };
+        } else if ((id === 11030 || id === 11031 || id === 11032 || id === 11033) && p.length >= 44) {
+            // ESC_TELEMETRY_n_TO_n+3: u8 temperature[4], u16 voltage[4],
+            //   u16 current[4], u16 totalcurrent[4], u16 rpm[4], u16 count[4]
+            // Wire order: u16×20 → u8×4
+            var base = (id - 11030) * 4;
+            for (var e = 0; e < 4; e++) {
+                state.esc[base + e] = {
+                    voltage: dv.getUint16(0 + e * 2, true) / 100.0,
+                    current: dv.getUint16(8 + e * 2, true) / 100.0,
+                    rpm: dv.getUint16(24 + e * 2, true) * 100,
+                    temp: dv.getUint8(40 + e),
+                };
+            }
+            checkEscThresholds();
         }
         updateStatus();
     }
@@ -1551,6 +1769,291 @@
         t.className = 'show';
         clearTimeout(t._timer);
         t._timer = setTimeout(function() { t.className = ''; }, 2500);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  HEALTH MONITORING — battery / vibration / ESC / events
+    //
+    //  Designed for the Vanguard tank/water test. Surfaces ArduPilot's
+    //  own health signals through visible UI changes + audible alerts
+    //  so the operator notices a problem without watching the tablet.
+    //
+    //  Thresholds match ArduPilot's recommended Rover defaults; tune
+    //  via the per-key entries in HEALTH_THRESH below.
+    // ─────────────────────────────────────────────────────────────
+    var HEALTH_THRESH = {
+        // Battery percent — depends on chemistry. Defaults are conservative
+        // for LiPo packs (3.7V nominal/cell, 4.2V max, 3.5V low, 3.3V critical).
+        batt_pct_warn:   30,
+        batt_pct_crit:   20,
+        batt_pct_rtl:    15,    // auto-RTL hint at this level
+        // Per-cell voltage (LiPo)
+        cell_warn_v:     3.65,
+        cell_crit_v:     3.50,
+        // IMU vibration (m/s²). Anything >30 starts to hurt EKF, >60 is bad.
+        vibe_warn:       30,
+        vibe_crit:       60,
+        // FFT clipping count delta per session — many clips = saturated IMU
+        clip_warn:       100,
+        // ESC temperature (°C) — most BLHeli ESCs derate >80, fail >100
+        esc_temp_warn:   80,
+        esc_temp_crit:   100,
+    };
+
+    var _health_alerts = {
+        batt_warn_played:  false,
+        batt_crit_played:  false,
+        vibe_warn_played:  false,
+        last_event_t:      0,
+    };
+
+    function _audioBeep(freq, durMs, gain) {
+        try {
+            var ac = (window.AudioContext || window.webkitAudioContext);
+            if (!ac) return;
+            if (!window._gcsAudioCtx) window._gcsAudioCtx = new ac();
+            var ctx = window._gcsAudioCtx;
+            if (ctx.state === 'suspended') ctx.resume();
+            var o = ctx.createOscillator(), g = ctx.createGain();
+            o.connect(g); g.connect(ctx.destination);
+            o.frequency.value = freq;
+            o.type = 'square';
+            g.gain.value = gain || 0.12;
+            var t0 = ctx.currentTime;
+            o.start(t0); o.stop(t0 + durMs / 1000);
+        } catch (e) { /* no audio is acceptable */ }
+    }
+
+    function _setHealthChip(key, level) {
+        // level: 'ok' | 'warn' | 'crit'
+        state.health[key] = level;
+        var worst = 'ok';
+        for (var k in state.health) {
+            if (state.health[k] === 'crit') { worst = 'crit'; break; }
+            if (state.health[k] === 'warn') worst = 'warn';
+        }
+        var chip = document.getElementById('health-chip');
+        if (chip) {
+            chip.className = 'health-chip ' + worst;
+            chip.textContent = worst === 'ok' ? 'HEALTH ✓' : (worst === 'warn' ? 'HEALTH ⚠' : 'HEALTH ✕');
+        }
+    }
+
+    function checkBatteryThresholds() {
+        // Use BATTERY_STATUS battery_remaining if available, else SYS_STATUS state.batt
+        var pct = (typeof state.batt === 'number' && state.batt >= 0) ? state.batt : 100;
+        var minCell = state.cells.length ? Math.min.apply(null, state.cells) : null;
+
+        var level = 'ok';
+        if (pct <= HEALTH_THRESH.batt_pct_crit ||
+            (minCell !== null && minCell <= HEALTH_THRESH.cell_crit_v)) {
+            level = 'crit';
+            if (!_health_alerts.batt_crit_played) {
+                _audioBeep(220, 800);
+                toast('⚠ BATTERY CRITICAL — RTL strongly advised');
+                _health_alerts.batt_crit_played = true;
+            }
+        } else if (pct <= HEALTH_THRESH.batt_pct_warn ||
+                   (minCell !== null && minCell <= HEALTH_THRESH.cell_warn_v)) {
+            level = 'warn';
+            if (!_health_alerts.batt_warn_played) {
+                _audioBeep(440, 200);
+                _audioBeep(440, 200, 0.10); // (will overlap; fine)
+                toast('⚠ Battery low — ' + pct + '%');
+                _health_alerts.batt_warn_played = true;
+            }
+        } else {
+            // Reset warn-alert latch when battery comes back up (e.g., new pack)
+            if (pct > HEALTH_THRESH.batt_pct_warn + 5) _health_alerts.batt_warn_played = false;
+            if (pct > HEALTH_THRESH.batt_pct_crit + 5) _health_alerts.batt_crit_played = false;
+        }
+        _setHealthChip('battery', level);
+    }
+
+    function checkVibrationThresholds() {
+        var maxv = Math.max(state.vibe_x || 0, state.vibe_y || 0, state.vibe_z || 0);
+        var level = 'ok';
+        if (maxv >= HEALTH_THRESH.vibe_crit) level = 'crit';
+        else if (maxv >= HEALTH_THRESH.vibe_warn) level = 'warn';
+        if (level === 'warn' && !_health_alerts.vibe_warn_played) {
+            _audioBeep(660, 150);
+            toast('IMU vibration elevated — check mounts/balance');
+            _health_alerts.vibe_warn_played = true;
+            setTimeout(function () { _health_alerts.vibe_warn_played = false; }, 60000);
+        }
+        _setHealthChip('vibration', level);
+    }
+
+    function checkEscThresholds() {
+        var worst = 'ok';
+        for (var i = 0; i < 16; i++) {
+            var e = state.esc[i];
+            if (!e) continue;
+            if (e.temp >= HEALTH_THRESH.esc_temp_crit) { worst = 'crit'; break; }
+            if (e.temp >= HEALTH_THRESH.esc_temp_warn) worst = 'warn';
+        }
+        _setHealthChip('esc', worst);
+    }
+
+    function onStatusText(severity, text) {
+        // MAVLink severity: 0=Emergency..7=Debug. We surface 0..4 (emergency..warning).
+        var levelMap = ['emergency', 'alert', 'critical', 'error', 'warning', 'notice', 'info', 'debug'];
+        var level = levelMap[severity] || 'info';
+        var ev = { t: Date.now(), severity: severity, level: level, text: text };
+        state.events.unshift(ev);
+        if (state.events.length > 100) state.events.pop();
+        renderEventList();
+        if (severity <= 3) {
+            // Critical and above — toast + beep
+            toast('[' + level.toUpperCase() + '] ' + text);
+            _audioBeep(880, 100);
+        }
+    }
+
+    // Predictive maintenance — track session-level baselines and flag drift
+    var _maint = {
+        session_start: Date.now(),
+        arm_count: 0,
+        total_arm_seconds: 0,
+        last_arm_at: null,
+        peak_current_a: 0,
+        peak_vibe: 0,
+        peak_esc_temp: 0,
+        cumulative_clipping: 0,
+    };
+    function _maintTick() {
+        var v = Math.max(state.vibe_x, state.vibe_y, state.vibe_z) || 0;
+        if (v > _maint.peak_vibe) _maint.peak_vibe = v;
+        if (state.batt_curr_a > _maint.peak_current_a) _maint.peak_current_a = state.batt_curr_a;
+        for (var i = 0; i < 16; i++) {
+            var e = state.esc[i];
+            if (e && e.temp > _maint.peak_esc_temp) _maint.peak_esc_temp = e.temp;
+        }
+        _maint.cumulative_clipping = (state.clipping[0] | 0) + (state.clipping[1] | 0) + (state.clipping[2] | 0);
+        // Save to localStorage every 30s for cross-session predictive tracking
+        if (!_maint._lastSave || Date.now() - _maint._lastSave > 30000) {
+            try {
+                var hist = JSON.parse(localStorage.getItem('vanguard_maint_history') || '[]');
+                hist.push({
+                    t: Date.now(),
+                    arm_count: _maint.arm_count,
+                    total_arm_seconds: _maint.total_arm_seconds,
+                    peak_current_a: _maint.peak_current_a,
+                    peak_vibe: _maint.peak_vibe,
+                    peak_esc_temp: _maint.peak_esc_temp,
+                    cumulative_clipping: _maint.cumulative_clipping,
+                });
+                if (hist.length > 200) hist = hist.slice(-200);
+                localStorage.setItem('vanguard_maint_history', JSON.stringify(hist));
+                _maint._lastSave = Date.now();
+            } catch (e) { /* localStorage full or denied — non-fatal */ }
+        }
+    }
+    setInterval(_maintTick, 1000);
+
+    // Track arm/disarm transitions for cycle counting
+    var _wasArmed = false;
+    setInterval(function () {
+        if (state.armed && !_wasArmed) {
+            _maint.arm_count++;
+            _maint.last_arm_at = Date.now();
+        } else if (!state.armed && _wasArmed && _maint.last_arm_at) {
+            _maint.total_arm_seconds += (Date.now() - _maint.last_arm_at) / 1000;
+            _maint.last_arm_at = null;
+        }
+        _wasArmed = state.armed;
+        renderHealthPanel();
+    }, 500);
+
+    // ── Health panel UI rendering ──
+    function renderEventList() {
+        var el = document.getElementById('health-events');
+        if (!el) return;
+        var html = '';
+        var n = Math.min(state.events.length, 30);
+        for (var i = 0; i < n; i++) {
+            var ev = state.events[i];
+            var time = new Date(ev.t).toLocaleTimeString();
+            html += '<div class="health-evt ' + ev.level + '">'
+                + '<span class="evt-t">' + time + '</span>'
+                + '<span class="evt-l">' + ev.level + '</span>'
+                + '<span class="evt-txt">' + ev.text.replace(/[<>&]/g, function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c];}) + '</span>'
+                + '</div>';
+        }
+        if (!html) html = '<div class="health-evt info"><span class="evt-txt">no events yet</span></div>';
+        el.innerHTML = html;
+    }
+
+    function renderHealthPanel() {
+        var el = document.getElementById('health-panel');
+        if (!el || el.style.display === 'none') return;
+
+        // Battery
+        var battEl = document.getElementById('hp-batt-detail');
+        if (battEl) {
+            var minCell = state.cells.length ? Math.min.apply(null, state.cells) : null;
+            var timeRemMin = state.batt_time_remaining_s > 0 ? Math.round(state.batt_time_remaining_s / 60) : null;
+            battEl.innerHTML =
+                '<div class="hp-row"><span>Charge</span><strong>' + (state.batt > 0 ? state.batt + '%' : '—') + '</strong></div>' +
+                '<div class="hp-row"><span>Pack voltage</span><strong>' + (state.volt ? state.volt.toFixed(2) + ' V' : '—') + '</strong></div>' +
+                (state.cells.length ? '<div class="hp-row"><span>Cells (' + state.cells.length + ')</span><strong>' + state.cells.map(function(c){return c.toFixed(2);}).join(' / ') + '</strong></div>' : '') +
+                (minCell !== null ? '<div class="hp-row"><span>Lowest cell</span><strong>' + minCell.toFixed(3) + ' V</strong></div>' : '') +
+                '<div class="hp-row"><span>Current draw</span><strong>' + (state.batt_curr_a ? state.batt_curr_a.toFixed(1) + ' A' : '—') + '</strong></div>' +
+                (state.batt_mah > 0 ? '<div class="hp-row"><span>Consumed</span><strong>' + state.batt_mah + ' mAh / ' + (state.batt_hj * 0.0001).toFixed(2) + ' kJ</strong></div>' : '') +
+                (timeRemMin !== null ? '<div class="hp-row"><span>Time remaining</span><strong>~' + timeRemMin + ' min</strong></div>' : '') +
+                (state.batt_temp ? '<div class="hp-row"><span>Pack temp</span><strong>' + state.batt_temp.toFixed(1) + ' °C</strong></div>' : '');
+        }
+
+        // Vibration
+        var vibEl = document.getElementById('hp-vibe-detail');
+        if (vibEl) {
+            var maxv = Math.max(state.vibe_x || 0, state.vibe_y || 0, state.vibe_z || 0);
+            var lvl = maxv >= HEALTH_THRESH.vibe_crit ? 'crit' : (maxv >= HEALTH_THRESH.vibe_warn ? 'warn' : 'ok');
+            vibEl.innerHTML =
+                '<div class="hp-row"><span>Vibe X / Y / Z</span><strong class="' + lvl + '">' +
+                    state.vibe_x.toFixed(1) + ' / ' + state.vibe_y.toFixed(1) + ' / ' + state.vibe_z.toFixed(1) + '</strong></div>' +
+                '<div class="hp-row"><span>Clipping (IMU 0/1/2)</span><strong>' +
+                    (state.clipping[0] | 0) + ' / ' + (state.clipping[1] | 0) + ' / ' + (state.clipping[2] | 0) + '</strong></div>' +
+                '<div class="hp-row"><span>Peak this session</span><strong>' + _maint.peak_vibe.toFixed(1) + '</strong></div>';
+        }
+
+        // ESC
+        var escEl = document.getElementById('hp-esc-detail');
+        if (escEl) {
+            var rows = '';
+            for (var i = 0; i < 16; i++) {
+                var e = state.esc[i];
+                if (!e) continue;
+                var tlvl = e.temp >= HEALTH_THRESH.esc_temp_crit ? 'crit' : (e.temp >= HEALTH_THRESH.esc_temp_warn ? 'warn' : 'ok');
+                rows += '<div class="hp-row"><span>ESC ' + (i + 1) + '</span><strong class="' + tlvl + '">' +
+                    e.voltage.toFixed(1) + ' V · ' +
+                    e.current.toFixed(1) + ' A · ' +
+                    e.rpm + ' rpm · ' +
+                    e.temp + ' °C</strong></div>';
+            }
+            escEl.innerHTML = rows || '<div class="hp-row"><span>No ESC telemetry on this build</span></div>';
+        }
+
+        // Maintenance summary
+        var mEl = document.getElementById('hp-maint-detail');
+        if (mEl) {
+            var sessionMin = ((Date.now() - _maint.session_start) / 60000).toFixed(1);
+            mEl.innerHTML =
+                '<div class="hp-row"><span>Session uptime</span><strong>' + sessionMin + ' min</strong></div>' +
+                '<div class="hp-row"><span>Arm cycles (session)</span><strong>' + _maint.arm_count + '</strong></div>' +
+                '<div class="hp-row"><span>Total armed</span><strong>' + Math.round(_maint.total_arm_seconds) + ' s</strong></div>' +
+                '<div class="hp-row"><span>Peak current</span><strong>' + _maint.peak_current_a.toFixed(1) + ' A</strong></div>' +
+                '<div class="hp-row"><span>Peak ESC temp</span><strong>' + _maint.peak_esc_temp + ' °C</strong></div>' +
+                '<div class="hp-row"><span>Throttle (commanded)</span><strong>' + (state.thr | 0) + '%</strong></div>';
+        }
+    }
+
+    function toggleHealthPanel() {
+        var el = document.getElementById('health-panel');
+        if (!el) return;
+        var show = el.style.display === 'none' || el.style.display === '';
+        el.style.display = show ? 'block' : 'none';
+        if (show) renderHealthPanel();
     }
 
     function haversine(lat1, lon1, lat2, lon2) {
