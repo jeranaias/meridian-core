@@ -1,0 +1,20 @@
+# Orca Bridge — Python companion daemon deps
+# Pinned loosely; these are mature libraries with stable APIs.
+
+# MAVLink protocol (outgoing to Cube)
+pymavlink>=2.4.49
+
+# NMEA 2000 PGN decoder (wraps canboat database)
+nmea2000>=0.1.5
+
+# Serial port (for MAVLink → Cube via USB)
+pyserial>=3.5
+
+# Async WebSocket client (for Signal K protocol)
+websockets>=12.0
+
+# YAML config
+PyYAML>=6.0
+
+# Optional: pcap reading for replay mode
+# scapy>=2.5  (uncomment if replay mode needed; adds ~10 MB)

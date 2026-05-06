@@ -10,6 +10,87 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::time::{Duration, Instant};
 
+#[cfg(feature = "dds")]
+mod dds;
+
+#[cfg(not(feature = "dds"))]
+mod dds {
+    //! Stub when DDS feature is disabled.
+    use meridian_math::Quaternion;
+    use meridian_math::frames::{Body, NED};
+    use meridian_math::Vec3;
+    use meridian_math::geodetic::LatLonAlt;
+    use meridian_types::messages::GnssFixType;
+    use meridian_types::vehicle::FlightModeId;
+
+    pub struct DdsHandle;
+    impl DdsHandle {
+        pub fn send(&self, _telem: DdsTelemetry) {}
+    }
+
+    pub fn start() -> DdsHandle { DdsHandle }
+
+    #[allow(dead_code)]
+    pub struct DdsTelemetry {
+        pub boot_secs: f64,
+        pub ekf: EkfSnapshot,
+        pub imu: ImuSnapshot,
+        pub gps: Option<GpsSnapshot>,
+        pub mag: Option<MagSnapshot>,
+        pub baro: Option<BaroSnapshot>,
+        pub armed: bool,
+        pub mode: FlightModeId,
+        pub battery_voltage: f32,
+        pub battery_pct: f32,
+        pub throttle: f32,
+        pub num_sats: u8,
+        pub gps_fix: GnssFixType,
+    }
+
+    #[allow(dead_code)]
+    #[derive(Clone, Copy)]
+    pub struct EkfSnapshot {
+        pub attitude: Quaternion,
+        pub velocity_ned: Vec3<NED>,
+        pub position_ned: Vec3<NED>,
+        pub gyro_bias: Vec3<Body>,
+        pub accel_bias: Vec3<Body>,
+        pub origin: LatLonAlt,
+        pub healthy: bool,
+    }
+
+    #[allow(dead_code)]
+    #[derive(Clone, Copy)]
+    pub struct ImuSnapshot {
+        pub accel: Vec3<Body>,
+        pub gyro: Vec3<Body>,
+        pub temperature: f32,
+    }
+
+    #[allow(dead_code)]
+    #[derive(Clone, Copy)]
+    pub struct GpsSnapshot {
+        pub fix_type: GnssFixType,
+        pub position: LatLonAlt,
+        pub velocity_ned: Vec3<NED>,
+        pub horizontal_accuracy: f32,
+        pub vertical_accuracy: f32,
+        pub num_sats: u8,
+    }
+
+    #[allow(dead_code)]
+    #[derive(Clone, Copy)]
+    pub struct MagSnapshot { pub field: Vec3<Body> }
+
+    #[allow(dead_code)]
+    #[derive(Clone, Copy)]
+    pub struct BaroSnapshot {
+        pub pressure_pa: f32,
+        pub temperature: f32,
+        pub altitude_m: f32,
+    }
+}
+
 use meridian_control::attitude_controller::AttitudeController;
 use meridian_control::position_controller::PositionController;
 use meridian_control::rate_controller::RateController;
@@ -97,6 +178,10 @@ fn main() {
     // ─── 8. Init MAVLink server ───
     let mut mav_server = MavlinkServer::new(1, 1);
 
+    // ─── 8b. Start DDS publisher thread ───
+    let dds_handle = dds::start();
+    println!("DDS publisher thread started (ROS2 topics)");
+
     // ─── 9. Start TCP listener ───
     let listener = TcpListener::bind(LISTEN_ADDR).expect("Failed to bind TCP listener");
     listener
@@ -113,6 +198,9 @@ fn main() {
     let mut throttle_out: f32 = 0.0;
     let boot_time = Instant::now();
     let mut rx_buf = [0u8; RX_BUF_SIZE];
+    let mut last_gps: Option<dds::GpsSnapshot> = None;
+    let mut last_mag: Option<dds::MagSnapshot> = None;
+    let mut last_baro: Option<dds::BaroSnapshot> = None;
 
     // ─── 10. Main loop at 400 Hz ───
     loop {
@@ -209,14 +297,28 @@ fn main() {
 
         if tick % GPS_INTERVAL as u64 == 0 {
             let gps = sensors.sample_gps(&physics);
+            last_gps = Some(dds::GpsSnapshot {
+                fix_type: gps.fix_type,
+                position: gps.position,
+                velocity_ned: gps.velocity_ned,
+                horizontal_accuracy: gps.horizontal_accuracy,
+                vertical_accuracy: gps.vertical_accuracy,
+                num_sats: gps.num_sats,
+            });
             ekf.fuse_gps(&gps);
         }
         if tick % BARO_INTERVAL as u64 == 0 {
             let baro = sensors.sample_baro(&physics);
+            last_baro = Some(dds::BaroSnapshot {
+                pressure_pa: baro.pressure_pa,
+                temperature: baro.temperature,
+                altitude_m: baro.altitude_m,
+            });
             ekf.fuse_baro(&baro);
         }
         if tick % MAG_INTERVAL as u64 == 0 {
             let mag = sensors.sample_mag(&physics);
+            last_mag = Some(dds::MagSnapshot { field: mag.field });
             ekf.fuse_mag(&mag);
         }
 
@@ -313,6 +415,38 @@ fn main() {
                     }
                 }
             }
+        }
+
+        // ── n2. Send telemetry to DDS thread ──
+        {
+            let ekf_out = ekf.output_state();
+            dds_handle.send(dds::DdsTelemetry {
+                boot_secs: boot_time.elapsed().as_secs_f64(),
+                ekf: dds::EkfSnapshot {
+                    attitude: ekf_out.attitude,
+                    velocity_ned: ekf_out.velocity_ned,
+                    position_ned: ekf_out.position_ned,
+                    gyro_bias: ekf_out.gyro_bias,
+                    accel_bias: ekf_out.accel_bias,
+                    origin,
+                    healthy: ekf_out.healthy,
+                },
+                imu: dds::ImuSnapshot {
+                    accel: imu.accel,
+                    gyro: imu.gyro,
+                    temperature: imu.temperature,
+                },
+                gps: last_gps,
+                mag: last_mag,
+                baro: last_baro,
+                armed,
+                mode: modes.active_mode(),
+                battery_voltage: 16.8,
+                battery_pct: 100.0,
+                throttle: throttle_out,
+                num_sats: 14,
+                gps_fix: meridian_types::messages::GnssFixType::Fix3D,
+            });
         }
 
         // ── o. Log flight data (periodic console print) ──

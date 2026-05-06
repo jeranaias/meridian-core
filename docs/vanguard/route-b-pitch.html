@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Route B — Meridian on the Cube</title>
+<style>
+  :root{
+    --bg:#0a0e17; --paper:#11161f; --ink:#e6edf6; --dim:#7a8a9f;
+    --rule:#1f2a38; --cyan:#22b8ce; --cyan-dim:#0e6a78; --safe:#34d399;
+    --warn:#f59e0b; --fail:#f87171; --accent:#22b8ce;
+    --serif:'Source Serif 4','Source Serif Pro','Iowan Old Style',Georgia,serif;
+    --sans:'Inter','Helvetica Neue',system-ui,-apple-system,sans-serif;
+    --mono:'JetBrains Mono','Source Code Pro','SF Mono',Menlo,monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  body{display:flex;flex-direction:column}
+
+  /* top bar */
+  .topbar{display:flex;justify-content:space-between;align-items:center;
+    padding:14px 28px;border-bottom:1px solid var(--rule);background:rgba(10,14,23,.85);backdrop-filter:blur(12px);
+    position:relative;z-index:10}
+  .brand{display:flex;align-items:center;gap:12px;font-family:var(--serif);font-size:18px;letter-spacing:.01em}
+  .brand-mark{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--cyan-dim));
+    box-shadow:0 0 18px rgba(34,184,206,.4)}
+  .brand-mark::after{content:'';display:block;width:8px;height:8px;border-radius:50%;background:var(--bg);
+    transform:translate(8px,8px)}
+  .brand strong{color:var(--cyan)}
+  .meta{font-size:12px;color:var(--dim);font-family:var(--mono)}
+
+  /* deck */
+  .deck{flex:1;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;
+    scroll-behavior:smooth;display:flex;
+    scrollbar-width:thin;scrollbar-color:var(--cyan-dim) transparent}
+  .deck::-webkit-scrollbar{height:6px}
+  .deck::-webkit-scrollbar-thumb{background:var(--cyan-dim);border-radius:3px}
+  .slide{flex:0 0 100vw;height:100%;scroll-snap-align:start;padding:40px 64px 60px;
+    display:flex;flex-direction:column;gap:24px;position:relative;overflow-y:auto}
+  .slide::before{content:attr(data-num);position:absolute;top:24px;right:32px;font-family:var(--mono);
+    font-size:11px;color:var(--dim);letter-spacing:.15em}
+
+  /* nav */
+  .nav{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:5}
+  .nav button{width:32px;height:6px;border:0;background:var(--rule);border-radius:3px;cursor:pointer;
+    transition:background .2s,width .2s}
+  .nav button.active{background:var(--cyan);width:48px}
+  .nav button:hover{background:var(--cyan-dim)}
+
+  .arrow{position:absolute;top:50%;width:44px;height:44px;border-radius:50%;
+    background:rgba(34,184,206,.12);border:1px solid var(--rule);color:var(--cyan);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+    font-size:18px;transition:all .2s;z-index:5}
+  .arrow:hover{background:rgba(34,184,206,.25);transform:translateY(-50%) scale(1.05)}
+  .arrow.prev{left:16px;transform:translateY(-50%)}
+  .arrow.next{right:16px;transform:translateY(-50%)}
+
+  /* type */
+  h1{font-family:var(--serif);font-size:64px;font-weight:500;line-height:1.05;letter-spacing:-.02em}
+  h1 em{font-style:normal;color:var(--cyan)}
+  h2{font-family:var(--serif);font-size:38px;font-weight:500;line-height:1.15;letter-spacing:-.01em;
+    margin-bottom:8px}
+  h3{font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.18em;color:var(--cyan);
+    font-family:var(--sans)}
+  .sub{color:var(--dim);font-size:18px;line-height:1.5;max-width:680px}
+  .lede{font-size:22px;line-height:1.5;color:var(--ink);max-width:720px;margin-top:12px}
+  p{line-height:1.6;color:var(--ink);max-width:680px}
+  small{color:var(--dim);font-size:12px;font-family:var(--mono);letter-spacing:.05em}
+
+  /* slide 1 hero */
+  .hero{flex:1;display:grid;grid-template-columns:1.4fr 1fr;gap:48px;align-items:center}
+  .hero-art{position:relative;height:80%;display:flex;align-items:center;justify-content:center}
+  .orbit{position:relative;width:380px;height:380px}
+  .orbit-ring{position:absolute;inset:0;border-radius:50%;border:1px dashed rgba(34,184,206,.3);
+    animation:rot 28s linear infinite}
+  .orbit-ring.r2{inset:30px;animation-direction:reverse;animation-duration:42s;border-color:rgba(34,184,206,.18)}
+  .orbit-ring.r3{inset:60px;animation-duration:60s;border-color:rgba(34,184,206,.1)}
+  .orbit-core{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:140px;height:140px;border-radius:50%;
+    background:radial-gradient(circle at 30% 30%,var(--cyan),var(--cyan-dim) 60%,transparent 80%);
+    box-shadow:0 0 80px rgba(34,184,206,.4),inset 0 0 40px rgba(0,0,0,.3);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--bg);font-weight:700}
+  .orbit-dot{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--cyan);
+    box-shadow:0 0 12px var(--cyan)}
+  .orbit-dot.d1{top:0;left:50%;transform:translateX(-50%)}
+  .orbit-dot.d2{top:50%;right:0;transform:translateY(-50%);background:var(--safe);box-shadow:0 0 12px var(--safe)}
+  .orbit-dot.d3{bottom:0;left:50%;transform:translateX(-50%);background:var(--warn);box-shadow:0 0 12px var(--warn)}
+  .orbit-dot.d4{top:50%;left:0;transform:translateY(-50%);background:var(--cyan);box-shadow:0 0 12px var(--cyan)}
+  @keyframes rot{to{transform:rotate(360deg)}}
+
+  .pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:24px}
+  .pill{padding:6px 14px;border-radius:99px;font-size:12px;font-family:var(--mono);
+    background:rgba(34,184,206,.1);color:var(--cyan);border:1px solid var(--cyan-dim)}
+  .pill.warn{background:rgba(245,158,11,.1);color:var(--warn);border-color:#7a4f0d}
+  .pill.safe{background:rgba(52,211,153,.1);color:var(--safe);border-color:#0f5439}
+
+  /* architecture diagram */
+  .arch-wrap{display:grid;grid-template-columns:1fr 1fr;gap:32px;flex:1;align-items:stretch}
+  .arch-card{background:var(--paper);border:1px solid var(--rule);border-radius:14px;
+    padding:24px;display:flex;flex-direction:column;gap:16px}
+  .arch-card.dim{opacity:.62}
+  .arch-card-title{display:flex;justify-content:space-between;align-items:baseline}
+  .arch-tag{font-family:var(--mono);font-size:10px;letter-spacing:.2em;padding:4px 8px;border-radius:4px;
+    background:rgba(245,158,11,.15);color:var(--warn);border:1px solid #7a4f0d}
+  .arch-tag.good{background:rgba(52,211,153,.15);color:var(--safe);border-color:#0f5439}
+  .arch-svg{flex:1;width:100%;min-height:340px}
+
+  /* table */
+  .grid-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:8px}
+  .stat{background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:18px;
+    transition:border-color .2s}
+  .stat:hover{border-color:var(--cyan-dim)}
+  .stat-num{font-family:var(--serif);font-size:38px;color:var(--cyan);line-height:1;margin-bottom:6px}
+  .stat-label{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.12em}
+  .stat-detail{font-size:13px;color:var(--ink);margin-top:6px;line-height:1.4}
+
+  /* bar chart */
+  .bars{display:grid;gap:10px;margin-top:12px}
+  .bar-row{display:grid;grid-template-columns:180px 1fr 80px;gap:14px;align-items:center;
+    font-size:13px}
+  .bar-row .name{color:var(--dim)}
+  .bar-row.done .name{color:var(--ink)}
+  .bar-track{height:24px;background:var(--paper);border-radius:6px;overflow:hidden;border:1px solid var(--rule);
+    position:relative}
+  .bar-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--cyan-dim),var(--cyan));
+    display:flex;align-items:center;padding:0 8px;font-family:var(--mono);font-size:10px;color:var(--bg);
+    font-weight:700}
+  .bar-fill.gap{background:linear-gradient(90deg,#7a4f0d,var(--warn));color:var(--bg)}
+  .bar-fill.todo{background:linear-gradient(90deg,#3b3f4a,#5a6478);color:var(--ink)}
+  .bar-row .val{text-align:right;color:var(--dim);font-family:var(--mono);font-size:12px}
+
+  /* timeline */
+  .timeline{position:relative;padding:24px 0 8px;flex:1;display:flex;flex-direction:column;gap:18px}
+  .tl-row{display:grid;grid-template-columns:88px 1fr;gap:24px;align-items:start}
+  .tl-day{font-family:var(--mono);font-size:11px;color:var(--cyan);text-transform:uppercase;
+    letter-spacing:.15em;padding-top:4px}
+  .tl-card{background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:14px 18px;
+    border-left:3px solid var(--cyan)}
+  .tl-card.alt{border-left-color:var(--warn)}
+  .tl-card .what{font-size:15px;font-weight:600;margin-bottom:4px}
+  .tl-card .why{font-size:12px;color:var(--dim);line-height:1.5}
+
+  /* split */
+  .split{display:grid;grid-template-columns:1fr 1.2fr;gap:48px;flex:1;align-items:start}
+  .split ul{list-style:none;display:flex;flex-direction:column;gap:14px}
+  .split li{padding-left:22px;position:relative;line-height:1.55}
+  .split li::before{content:'';position:absolute;left:0;top:9px;width:8px;height:8px;border-radius:50%;
+    background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+
+  /* big number */
+  .big{font-family:var(--serif);font-size:120px;line-height:1;color:var(--cyan);font-weight:500;
+    letter-spacing:-.04em}
+  .big small{display:block;font-family:var(--sans);font-size:14px;color:var(--dim);
+    letter-spacing:.1em;margin-top:8px;text-transform:uppercase}
+
+  /* footer */
+  .foot{padding:14px 28px;border-top:1px solid var(--rule);font-size:11px;color:var(--dim);
+    font-family:var(--mono);display:flex;justify-content:space-between}
+
+  @media(max-width:1024px){
+    .slide{padding:32px 36px 50px}
+    h1{font-size:48px}
+    h2{font-size:30px}
+    .arch-wrap,.split,.hero{grid-template-columns:1fr}
+    .grid-stats{grid-template-columns:repeat(2,1fr)}
+    .orbit{width:280px;height:280px}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="brand-mark"></span><span>Vanguard <strong>+ Meridian</strong></span></div>
+  <div class="meta">Route B Architecture · For Tristan · 29 Apr 2026</div>
+</header>
+
+<main class="deck" id="deck">
+
+  <!-- ======================== SLIDE 1 ========================== -->
+  <section class="slide" data-num="01 / 06">
+    <div class="hero">
+      <div>
+        <h3>The Plan</h3>
+        <h1>Meridian, on the Cube. <em>Nothing else in between.</em></h1>
+        <p class="lede">The Orca talks to the Cube directly. The Cube runs the autopilot, the bathy filter, the AIS fusion, and the tablet bridge — one chip, one firmware. No laptop. No companion computer. Same hardware Tristan already has.</p>
+        <div class="pills">
+          <span class="pill safe">83 k lines built</span>
+          <span class="pill safe">1,386 tests passing</span>
+          <span class="pill safe">Jet-boat physics simulator</span>
+          <span class="pill warn">10–14 days to deploy</span>
+        </div>
+      </div>
+      <div class="hero-art">
+        <div class="orbit">
+          <div class="orbit-ring"></div>
+          <div class="orbit-ring r2"></div>
+          <div class="orbit-ring r3"></div>
+          <div class="orbit-dot d1"></div>
+          <div class="orbit-dot d2"></div>
+          <div class="orbit-dot d3"></div>
+          <div class="orbit-dot d4"></div>
+          <div class="orbit-core">CUBE H7</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================== SLIDE 2 ========================== -->
+  <section class="slide" data-num="02 / 06">
+    <div>
+      <h3>Architecture</h3>
+      <h2>Today vs Route B</h2>
+      <p class="sub">Today: Orca data is ingested by a companion daemon, translated to MAVLink, forwarded to the Cube. Three components, three failure points. Route B: Orca speaks to the Cube directly. One firmware does everything.</p>
+    </div>
+
+    <div class="arch-wrap">
+      <div class="arch-card dim">
+        <div class="arch-card-title"><h3 style="color:var(--dim)">Today</h3><span class="arch-tag">three boxes</span></div>
+        <svg class="arch-svg" viewBox="0 0 400 380">
+          <defs>
+            <marker id="ad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#5a6478"/>
+            </marker>
+          </defs>
+          <g font-family="JetBrains Mono,monospace" font-size="11" fill="#7a8a9f">
+            <rect x="40" y="40" width="120" height="64" rx="8" fill="#11161f" stroke="#3b3f4a"/>
+            <text x="100" y="68" text-anchor="middle" fill="#e6edf6" font-size="13" font-weight="600">Orca Core 2</text>
+            <text x="100" y="88" text-anchor="middle">marine gateway</text>
+
+            <rect x="40" y="160" width="120" height="64" rx="8" fill="#11161f" stroke="#3b3f4a"/>
+            <text x="100" y="188" text-anchor="middle" fill="#e6edf6" font-size="13" font-weight="600">Laptop / Pi</text>
+            <text x="100" y="208" text-anchor="middle">bridge daemon</text>
+
+            <rect x="40" y="280" width="120" height="64" rx="8" fill="#11161f" stroke="#3b3f4a"/>
+            <text x="100" y="308" text-anchor="middle" fill="#e6edf6" font-size="13" font-weight="600">Cube Plus</text>
+            <text x="100" y="328" text-anchor="middle">ArduPilot Rover</text>
+
+            <line x1="100" y1="104" x2="100" y2="155" stroke="#5a6478" marker-end="url(#ad)"/>
+            <text x="170" y="135" font-size="10">Ethernet · N2K</text>
+            <line x1="100" y1="224" x2="100" y2="275" stroke="#5a6478" marker-end="url(#ad)"/>
+            <text x="170" y="255" font-size="10">USB · MAVLink</text>
+
+            <text x="290" y="190" fill="#f87171" font-size="11">3 power rails</text>
+            <text x="290" y="205" fill="#f87171" font-size="11">3 failure points</text>
+            <text x="290" y="220" fill="#f87171" font-size="11">protocol bridge</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="arch-card">
+        <div class="arch-card-title"><h3>Route B</h3><span class="arch-tag good">one box</span></div>
+        <svg class="arch-svg" viewBox="0 0 400 380">
+          <defs>
+            <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#22b8ce"/>
+            </marker>
+          </defs>
+          <g font-family="JetBrains Mono,monospace" font-size="11" fill="#7a8a9f">
+            <rect x="40" y="40" width="120" height="64" rx="8" fill="#11161f" stroke="#0e6a78"/>
+            <text x="100" y="68" text-anchor="middle" fill="#e6edf6" font-size="13" font-weight="600">Orca Core 2</text>
+            <text x="100" y="88" text-anchor="middle">marine gateway</text>
+
+            <rect x="40" y="180" width="320" height="120" rx="10" fill="#0e6a78" fill-opacity=".15" stroke="#22b8ce" stroke-width="1.5"/>
+            <text x="200" y="208" text-anchor="middle" fill="#22b8ce" font-size="14" font-weight="700">CUBE PLUS · MERIDIAN</text>
+            <text x="200" y="234" text-anchor="middle" fill="#e6edf6" font-size="11">autopilot · EKF · modes · mission</text>
+            <text x="200" y="252" text-anchor="middle" fill="#e6edf6" font-size="11">bathy filter · AIS fusion · MNP</text>
+            <text x="200" y="278" text-anchor="middle" fill="#22b8ce" font-size="11" font-weight="600">single firmware · 83 k lines</text>
+
+            <line x1="100" y1="104" x2="100" y2="175" stroke="#22b8ce" stroke-width="2" marker-end="url(#ag)"/>
+            <text x="170" y="145" font-size="10" fill="#22b8ce">UART · NMEA 0183</text>
+            <text x="170" y="160" font-size="10" fill="#22b8ce">(or CAN · NMEA 2000)</text>
+
+            <line x1="200" y1="300" x2="200" y2="346" stroke="#22b8ce" stroke-width="2" marker-end="url(#ag)"/>
+            <rect x="140" y="320" width="120" height="36" rx="6" fill="none" stroke="#22b8ce" stroke-dasharray="3 3"/>
+            <text x="200" y="343" text-anchor="middle" fill="#22b8ce" font-size="11" font-weight="600">tablet · radio</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================== SLIDE 3 ========================== -->
+  <section class="slide" data-num="03 / 06">
+    <div>
+      <h3>The Codebase</h3>
+      <h2>Most of it is already written.</h2>
+      <p class="sub">Meridian has a full autopilot stack architected with a hardware-abstraction layer. The simulator runs the same code that runs on the chip — just substituting one HAL implementation for another. The compiler does the rest.</p>
+    </div>
+
+    <div class="grid-stats">
+      <div class="stat"><div class="stat-num">83 k</div><div class="stat-label">Lines of Rust</div>
+        <div class="stat-detail">Across 49 crates: EKF, modes, mission, drivers, MAVLink, control loops.</div></div>
+      <div class="stat"><div class="stat-num">1,386</div><div class="stat-label">Automated tests</div>
+        <div class="stat-detail">Including SITL scenarios for GPS dropout, fence breach, failsafe cascade.</div></div>
+      <div class="stat"><div class="stat-num">14</div><div class="stat-label">HAL traits</div>
+        <div class="stat-detail">Abstract interfaces for UART, SPI, I²C, CAN, GPIO, ADC, RC, scheduler.</div></div>
+      <div class="stat"><div class="stat-num">451</div><div class="stat-label">Lines of jet-boat physics</div>
+        <div class="stat-detail">Specifically modelling Vanguard's nozzle-thrust dynamics, drag, hull speed.</div></div>
+    </div>
+
+    <h3 style="margin-top:8px">Coverage of what the firmware needs</h3>
+    <div class="bars">
+      <div class="bar-row done"><span class="name">EKF (24-state)</span>
+        <div class="bar-track"><div class="bar-fill" style="width:100%">DONE · 6,821 lines</div></div>
+        <span class="val">100 %</span></div>
+      <div class="bar-row done"><span class="name">Flight modes</span>
+        <div class="bar-track"><div class="bar-fill" style="width:100%">DONE · 4,700 lines</div></div>
+        <span class="val">100 %</span></div>
+      <div class="bar-row done"><span class="name">Sensor drivers</span>
+        <div class="bar-track"><div class="bar-fill" style="width:100%">DONE · 14,524 lines · 44 files</div></div>
+        <span class="val">100 %</span></div>
+      <div class="bar-row done"><span class="name">Control loops · PID</span>
+        <div class="bar-track"><div class="bar-fill" style="width:100%">DONE · 3,704 lines</div></div>
+        <span class="val">100 %</span></div>
+      <div class="bar-row done"><span class="name">MAVLink protocol</span>
+        <div class="bar-track"><div class="bar-fill" style="width:100%">DONE · 3,531 lines</div></div>
+        <span class="val">100 %</span></div>
+      <div class="bar-row done"><span class="name">Mission · waypoints</span>
+        <div class="bar-track"><div class="bar-fill" style="width:100%">DONE · 1,466 lines</div></div>
+        <span class="val">100 %</span></div>
+      <div class="bar-row done"><span class="name">Failsafe</span>
+        <div class="bar-track"><div class="bar-fill" style="width:100%">DONE · 2,594 lines</div></div>
+        <span class="val">100 %</span></div>
+      <div class="bar-row done"><span class="name">GPS drivers · NMEA · uBlox · DroneCAN</span>
+        <div class="bar-track"><div class="bar-fill" style="width:100%">DONE</div></div>
+        <span class="val">100 %</span></div>
+      <div class="bar-row"><span class="name">H7 binary integration glue</span>
+        <div class="bar-track"><div class="bar-fill todo" style="width:18%">TO WIRE</div></div>
+        <span class="val">~ 1 d</span></div>
+      <div class="bar-row"><span class="name">USB CDC + reboot handler</span>
+        <div class="bar-track"><div class="bar-fill gap" style="width:55%">IN FLIGHT</div></div>
+        <span class="val">~ 2 d</span></div>
+      <div class="bar-row"><span class="name">Hardware bring-up + tuning</span>
+        <div class="bar-track"><div class="bar-fill todo" style="width:30%">PENDING CHIP</div></div>
+        <span class="val">~ 5 d</span></div>
+    </div>
+  </section>
+
+  <!-- ======================== SLIDE 4 ========================== -->
+  <section class="slide" data-num="04 / 06">
+    <div>
+      <h3>The Pattern</h3>
+      <h2>Same code, different chip.</h2>
+      <p class="sub">The autopilot stack is hardware-blind. It calls abstract trait interfaces — <code style="font-family:var(--mono);color:var(--cyan);background:var(--paper);padding:2px 6px;border-radius:4px">UartDriver</code>, <code style="font-family:var(--mono);color:var(--cyan);background:var(--paper);padding:2px 6px;border-radius:4px">SpiDevice</code>, <code style="font-family:var(--mono);color:var(--cyan);background:var(--paper);padding:2px 6px;border-radius:4px">I2cDevice</code>, etc. The simulator and the chip each provide their own implementations. Switching is one line: <code style="font-family:var(--mono);color:var(--cyan);background:var(--paper);padding:2px 6px;border-radius:4px">SitlHal::new()</code> becomes <code style="font-family:var(--mono);color:var(--cyan);background:var(--paper);padding:2px 6px;border-radius:4px">Stm32Hal::new()</code>.</p>
+    </div>
+
+    <div class="split">
+      <div>
+        <h3>Why this matters</h3>
+        <ul>
+          <li><strong>Risk is bounded.</strong> The code that flew in simulator across 1,300+ scenarios is the same code that runs on the chip. We're not rewriting flight logic — only providing a new platform shim.</li>
+          <li><strong>Tests transfer.</strong> Every SITL scenario keeps validating the autopilot logic during integration. Regression catches happen instantly.</li>
+          <li><strong>Iteration is fast.</strong> Tweak a control loop in the laptop simulator, prove it under wind/disturbance, then flash the same change to the boat.</li>
+          <li><strong>Future-proof.</strong> Same pattern lets us swap to Pixhawk 6X, Cube Black, or a custom flight controller later — single platform crate per board, autopilot logic untouched.</li>
+        </ul>
+      </div>
+      <div class="arch-card" style="background:var(--paper)">
+        <div class="arch-card-title"><h3>The HAL boundary</h3></div>
+        <svg viewBox="0 0 400 320" style="width:100%;min-height:280px">
+          <g font-family="JetBrains Mono,monospace" font-size="11" fill="#7a8a9f">
+            <rect x="50" y="20" width="300" height="80" rx="8" fill="rgba(34,184,206,.08)" stroke="#22b8ce"/>
+            <text x="200" y="48" text-anchor="middle" fill="#22b8ce" font-size="13" font-weight="700">AUTOPILOT LOGIC</text>
+            <text x="200" y="70" text-anchor="middle" fill="#e6edf6" font-size="11">EKF · modes · mission · failsafe · control · MAVLink</text>
+            <text x="200" y="88" text-anchor="middle" fill="#22b8ce" font-size="10">83 k lines · hardware-blind</text>
+
+            <line x1="80" y1="120" x2="320" y2="120" stroke="#0e6a78" stroke-dasharray="4 4"/>
+            <text x="200" y="138" text-anchor="middle" fill="#0e6a78" font-size="10" letter-spacing=".2em">— HAL TRAIT BOUNDARY —</text>
+
+            <rect x="50" y="160" width="140" height="60" rx="8" fill="#11161f" stroke="#3b3f4a"/>
+            <text x="120" y="184" text-anchor="middle" fill="#7a8a9f" font-size="12" font-weight="600">SitlHal</text>
+            <text x="120" y="202" text-anchor="middle" fill="#7a8a9f" font-size="10">simulated peripherals</text>
+
+            <rect x="210" y="160" width="140" height="60" rx="8" fill="#11161f" stroke="#22b8ce"/>
+            <text x="280" y="184" text-anchor="middle" fill="#22b8ce" font-size="12" font-weight="600">Stm32Hal</text>
+            <text x="280" y="202" text-anchor="middle" fill="#7a8a9f" font-size="10">real H7 peripherals</text>
+
+            <rect x="50" y="240" width="140" height="56" rx="8" fill="rgba(0,0,0,.3)" stroke="#3b3f4a"/>
+            <text x="120" y="262" text-anchor="middle" fill="#7a8a9f" font-size="11">jet-boat physics</text>
+            <text x="120" y="278" text-anchor="middle" fill="#7a8a9f" font-size="11">simulator</text>
+
+            <rect x="210" y="240" width="140" height="56" rx="8" fill="rgba(34,184,206,.05)" stroke="#0e6a78"/>
+            <text x="280" y="262" text-anchor="middle" fill="#22b8ce" font-size="11" font-weight="600">Vanguard</text>
+            <text x="280" y="278" text-anchor="middle" fill="#22b8ce" font-size="11" font-weight="600">on the water</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================== SLIDE 5 ========================== -->
+  <section class="slide" data-num="05 / 06">
+    <div>
+      <h3>The Plan</h3>
+      <h2>Day-by-day to a flying autopilot.</h2>
+      <p class="sub">Honest schedule. Day 1 is the integration glue — that's the new code. Days 2–7 are hardware bring-up: catching the surprises that the simulator can't see. Day 8 onwards is mission rehearsal.</p>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-row"><div class="tl-day">Day 1</div>
+        <div class="tl-card"><div class="what">Integration glue</div>
+          <div class="why">Write <code style="font-family:var(--mono)">main.rs</code> wiring EKF, modes, mission, failsafe, drivers into the H7 binary. ~300 lines, follows the existing simulator main.rs pattern.</div></div></div>
+
+      <div class="tl-row"><div class="tl-day">Day 2</div>
+        <div class="tl-card"><div class="what">Compile + first boot</div>
+          <div class="why">Linker fixes, missing trait impls, sensor pin assignments for the Cube. First boot on real chip. Establish the iteration loop.</div></div></div>
+
+      <div class="tl-row"><div class="tl-day">Day 3</div>
+        <div class="tl-card alt"><div class="what">USB CDC continued</div>
+          <div class="why">Continue from tonight's session. Without USB, every iteration costs a bench-power cycle. With it, fully remote.</div></div></div>
+
+      <div class="tl-row"><div class="tl-day">Day 4–5</div>
+        <div class="tl-card"><div class="what">Sensor bring-up</div>
+          <div class="why">IMU streaming at 1 kHz. Baro at 50 Hz. Compass calibrating. Each driver is unit-tested already, but real hardware always has surprises (clock skew, bus contention).</div></div></div>
+
+      <div class="tl-row"><div class="tl-day">Day 6</div>
+        <div class="tl-card"><div class="what">Orca live · GPS healthy</div>
+          <div class="why">Wire Orca's NMEA 0183 output to a Cube UART. EKF gets first GPS-fused state. Watch position lock on the dock.</div></div></div>
+
+      <div class="tl-row"><div class="tl-day">Day 7</div>
+        <div class="tl-card"><div class="what">PWM out · rudder calibration</div>
+          <div class="why">Drive the rudder from MANUAL mode via the tablet. Verify direction and travel. This is the first time the autopilot moves a real surface.</div></div></div>
+
+      <div class="tl-row"><div class="tl-day">Day 8–10</div>
+        <div class="tl-card"><div class="what">Modes · failsafe · mission</div>
+          <div class="why">MANUAL, HOLD, AUTO, RTL working end-to-end. Failsafe verified by yanking the GPS feed mid-mission. Mission engine drives a rectangular waypoint loop on the bench.</div></div></div>
+
+      <div class="tl-row"><div class="tl-day">Day 11+</div>
+        <div class="tl-card alt"><div class="what">Wet test</div>
+          <div class="why">Boat in the water at the slip. Tablet connected over the radio. First on-water mission.</div></div></div>
+    </div>
+  </section>
+
+  <!-- ======================== SLIDE 6 ========================== -->
+  <section class="slide" data-num="06 / 06">
+    <div class="split" style="grid-template-columns:1fr 1fr">
+      <div>
+        <h3>The Outcome</h3>
+        <h2>One firmware. Your boat. No middleware.</h2>
+        <p class="lede" style="margin-top:18px">When this lands, the Vanguard is the first boat running a single Rust autopilot stack that handles the entire mission — from depth-chart matching during a GPS jam, to the operator's tablet, to the actuator. Same chip you flashed today. Same wires.</p>
+
+        <div class="big" style="margin-top:32px">10–14<small>Days from start to deployable</small></div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <div class="arch-card">
+          <h3>What Tristan keeps</h3>
+          <ul style="list-style:none;display:flex;flex-direction:column;gap:10px;margin-top:8px">
+            <li style="padding-left:22px;position:relative;font-size:14px"><span style="position:absolute;left:0;color:var(--safe)">✓</span> The Cube Plus he already has</li>
+            <li style="padding-left:22px;position:relative;font-size:14px"><span style="position:absolute;left:0;color:var(--safe)">✓</span> The Orca Core 2 he already has</li>
+            <li style="padding-left:22px;position:relative;font-size:14px"><span style="position:absolute;left:0;color:var(--safe)">✓</span> The RFD 900 radio link</li>
+            <li style="padding-left:22px;position:relative;font-size:14px"><span style="position:absolute;left:0;color:var(--safe)">✓</span> Mission Planner as a backup tool</li>
+            <li style="padding-left:22px;position:relative;font-size:14px"><span style="position:absolute;left:0;color:var(--safe)">✓</span> A bit-perfect path back to ArduPilot any time</li>
+          </ul>
+        </div>
+
+        <div class="arch-card">
+          <h3>What goes away</h3>
+          <ul style="list-style:none;display:flex;flex-direction:column;gap:10px;margin-top:8px">
+            <li style="padding-left:22px;position:relative;font-size:14px;color:var(--dim)"><span style="position:absolute;left:0;color:var(--fail)">✕</span> The bridge daemon on a laptop / Pi</li>
+            <li style="padding-left:22px;position:relative;font-size:14px;color:var(--dim)"><span style="position:absolute;left:0;color:var(--fail)">✕</span> Three power rails to keep alive</li>
+            <li style="padding-left:22px;position:relative;font-size:14px;color:var(--dim)"><span style="position:absolute;left:0;color:var(--fail)">✕</span> Protocol translation between MAVLink and N2K</li>
+            <li style="padding-left:22px;position:relative;font-size:14px;color:var(--dim)"><span style="position:absolute;left:0;color:var(--fail)">✕</span> Two firmwares to maintain</li>
+            <li style="padding-left:22px;position:relative;font-size:14px;color:var(--dim)"><span style="position:absolute;left:0;color:var(--fail)">✕</span> Latency from cross-component handoffs</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <span>Vanguard + Meridian · Route B · scroll or arrow-key to navigate</span>
+  <span id="slide-pos">01 / 06</span>
+</footer>
+
+<button class="arrow prev" onclick="nav(-1)" aria-label="previous">‹</button>
+<button class="arrow next" onclick="nav(1)" aria-label="next">›</button>
+
+<div class="nav" id="dots"></div>
+
+<script>
+  const deck = document.getElementById('deck');
+  const dotsEl = document.getElementById('dots');
+  const posEl = document.getElementById('slide-pos');
+  const slides = deck.querySelectorAll('.slide');
+  slides.forEach((_, i) => {
+    const b = document.createElement('button');
+    b.onclick = () => deck.scrollTo({left: i * window.innerWidth, behavior:'smooth'});
+    dotsEl.appendChild(b);
+  });
+  function update(){
+    const idx = Math.round(deck.scrollLeft / window.innerWidth);
+    dotsEl.querySelectorAll('button').forEach((b,i)=>b.classList.toggle('active', i===idx));
+    posEl.textContent = String(idx+1).padStart(2,'0') + ' / ' + String(slides.length).padStart(2,'0');
+  }
+  deck.addEventListener('scroll', update);
+  function nav(d){
+    const idx = Math.round(deck.scrollLeft / window.innerWidth) + d;
+    if(idx >= 0 && idx < slides.length){
+      deck.scrollTo({left: idx * window.innerWidth, behavior:'smooth'});
+    }
+  }
+  document.addEventListener('keydown', e => {
+    if(e.key==='ArrowRight') nav(1);
+    else if(e.key==='ArrowLeft') nav(-1);
+  });
+  update();
+</script>
+
+</body>
+</html>

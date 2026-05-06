@@ -7,7 +7,7 @@
 <p align="center">
   <strong>A modern autopilot, written from scratch in Rust.</strong><br>
   Full ArduPilot-class capability. No legacy code. No technical debt.<br>
-  78,000 lines of Rust. 47 crates. 28,000 lines of browser-based GCS.<br>
+  82,000 lines of Rust. 47 crates. 28,000 lines of browser-based GCS.<br>
   Open a URL and fly.
 </p>
 
@@ -124,7 +124,7 @@ meridian/
 │   ├── meridian-control/       # PID controllers, sqrt_controller
 │   ├── meridian-nav/           # Waypoint navigation, spline paths
 │   ├── meridian-mission/       # Mission execution (55 commands)
-│   ├── meridian-modes/         # Flight modes (22 copter, 24 plane)
+│   ├── meridian-modes/         # Flight modes (44 total: copter, plane, rover, boat, sub)
 │   ├── meridian-mixing/        # Motor output mixing
 │   ├── meridian-drivers/       # Sensor drivers
 │   ├── meridian-rc/            # RC input protocols
@@ -693,17 +693,17 @@ cargo check -p meridian-sync --no-default-features
 
 | Metric | Count |
 |--------|-------|
-| Rust source lines | 78,000 |
+| Rust source lines | 82,000 |
 | Crates | 47 |
 | GCS source lines | 28,000 |
 | GCS files | 105 |
 | Vehicle profiles | 10 |
 | Board targets | 5 (Tier 1) |
 | MAVLink messages | 90+ |
-| Flight modes | 46 (22 copter + 24 plane) |
+| Flight modes | 44 (20 copter + 24 plane) |
 | Sensor drivers | 20+ |
 | Frame geometries | 38 |
-| Total lines of code | 106,000 |
+| Total lines of code | 110,000 |
 
 ---
 
@@ -718,7 +718,7 @@ Meridian is in active development. The core flight stack, sensor drivers, and gr
 | PID controllers | 2,100 | Complete |
 | Navigation (L1, spline, S-curve) | 2,800 | Complete |
 | Mission engine (55 commands) | 1,900 | Complete |
-| Flight modes (46 total) | 3,400 | Complete |
+| Flight modes (44 total) | 3,400 | Complete |
 | Motor mixing (38 geometries) | 1,600 | Complete |
 | Sensor drivers (20+) | 5,200 | Complete |
 | RC protocols (8 types) | 1,800 | Complete |
@@ -732,7 +732,7 @@ Meridian is in active development. The core flight stack, sensor drivers, and gr
 | SITL platform | 1,400 | Complete |
 | Browser GCS | 28,000 | Complete |
 | Hardware flight test | — | Next milestone |
-| Board support (430 targets) | — | In progress |
+| Board validation (383 targets) | — | In progress (5 Tier 1, 19 Tier 2, 359 auto-converted) |
 
 ### Roadmap
 

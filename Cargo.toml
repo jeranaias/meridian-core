@@ -49,6 +49,7 @@ members = [
     "crates/meridian-winch",
     "crates/meridian-landing-gear",
     "crates/meridian-sprayer",
+    "crates/meridian-dds",
     "bin/meridian-sitl",
     "bin/meridian-linux",
     "bin/meridian-stm32",
@@ -106,6 +107,7 @@ meridian-gripper = { path = "crates/meridian-gripper" }
 meridian-winch = { path = "crates/meridian-winch" }
 meridian-landing-gear = { path = "crates/meridian-landing-gear" }
 meridian-sprayer = { path = "crates/meridian-sprayer" }
+meridian-dds = { path = "crates/meridian-dds" }
 
 # External dependencies — shared versions
 heapless = "0.8"
@@ -163,3 +165,17 @@ wildcard_in_or_patterns = "allow"
 needless_borrow = "allow"
 needless_borrows_for_generic_args = "allow"
 double_parens = "allow"
+
+[patch.crates-io]
+# Vendored stm32h7xx-hal with Meridian patches:
+#  - USB2.HIGH_SPEED set to false (was true) so synopsys-usb-otg runs
+#    its FS init path. Required for the Cube Orange Plus's OTG2_FS
+#    controller on PA11/PA12 — see vendor/stm32h7xx-hal/src/usb_hs.rs.
+stm32h7xx-hal = { path = "vendor/stm32h7xx-hal" }
+
+# AetherWareFoundation fork of synopsys-usb-otg with isb/dsb/dmb
+# barriers inserted before the GRSTCTL.AHBIDL/CSRST polling loop.
+# Cures the documented H7 + Cortex-M7 USB core-reset hang tracked
+# in stm32h7xx-hal#503 — without this, the synopsys enable() can
+# spin forever in the soft-reset wait, preventing USB enumeration.
+synopsys-usb-otg = { git = "https://github.com/AetherWareFoundation/synopsys-usb-otg", branch = "work-h7coreresethang" }

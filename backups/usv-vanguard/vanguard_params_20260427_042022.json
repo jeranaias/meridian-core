@@ -1,0 +1,4879 @@
+{
+  "timestamp": "20260427_042022",
+  "fw_label": "flight_sw=0x040603ff vendor=0x2dae product=0x1058 capabilities=0xf1ef",
+  "param_count_reported": 974,
+  "param_count_received": 974,
+  "elapsed_s": 4.7517077922821045,
+  "params": {
+    "FORMAT_VERSION": {
+      "value": 16.0,
+      "type": 4,
+      "index": 0
+    },
+    "LOG_BITMASK": {
+      "value": 65535.0,
+      "type": 6,
+      "index": 1
+    },
+    "RST_SWITCH_CH": {
+      "value": 0.0,
+      "type": 2,
+      "index": 2
+    },
+    "INITIAL_MODE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 3
+    },
+    "SYSID_THISMAV": {
+      "value": 1.0,
+      "type": 4,
+      "index": 4
+    },
+    "SYSID_MYGCS": {
+      "value": 255.0,
+      "type": 4,
+      "index": 5
+    },
+    "TELEM_DELAY": {
+      "value": 0.0,
+      "type": 2,
+      "index": 6
+    },
+    "GCS_PID_MASK": {
+      "value": 0.0,
+      "type": 4,
+      "index": 7
+    },
+    "AUTO_TRIGGER_PIN": {
+      "value": -1.0,
+      "type": 2,
+      "index": 8
+    },
+    "AUTO_KICKSTART": {
+      "value": 0.0,
+      "type": 9,
+      "index": 9
+    },
+    "CRUISE_SPEED": {
+      "value": 2.0,
+      "type": 9,
+      "index": 10
+    },
+    "CRUISE_THROTTLE": {
+      "value": 50.0,
+      "type": 2,
+      "index": 11
+    },
+    "PILOT_STEER_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 12
+    },
+    "FS_ACTION": {
+      "value": 2.0,
+      "type": 2,
+      "index": 13
+    },
+    "FS_TIMEOUT": {
+      "value": 1.5,
+      "type": 9,
+      "index": 14
+    },
+    "FS_THR_ENABLE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 15
+    },
+    "FS_THR_VALUE": {
+      "value": 910.0,
+      "type": 4,
+      "index": 16
+    },
+    "FS_GCS_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 17
+    },
+    "FS_CRASH_CHECK": {
+      "value": 0.0,
+      "type": 2,
+      "index": 18
+    },
+    "FS_EKF_ACTION": {
+      "value": 1.0,
+      "type": 2,
+      "index": 19
+    },
+    "FS_EKF_THRESH": {
+      "value": 0.800000011920929,
+      "type": 9,
+      "index": 20
+    },
+    "MODE_CH": {
+      "value": 8.0,
+      "type": 2,
+      "index": 21
+    },
+    "MODE1": {
+      "value": 0.0,
+      "type": 2,
+      "index": 22
+    },
+    "MODE2": {
+      "value": 0.0,
+      "type": 2,
+      "index": 23
+    },
+    "MODE3": {
+      "value": 0.0,
+      "type": 2,
+      "index": 24
+    },
+    "MODE4": {
+      "value": 0.0,
+      "type": 2,
+      "index": 25
+    },
+    "MODE5": {
+      "value": 0.0,
+      "type": 2,
+      "index": 26
+    },
+    "MODE6": {
+      "value": 0.0,
+      "type": 2,
+      "index": 27
+    },
+    "COMPASS_OFS_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 28
+    },
+    "COMPASS_OFS_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 29
+    },
+    "COMPASS_OFS_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 30
+    },
+    "COMPASS_DEC": {
+      "value": 0.20590020716190338,
+      "type": 9,
+      "index": 31
+    },
+    "COMPASS_LEARN": {
+      "value": 0.0,
+      "type": 2,
+      "index": 32
+    },
+    "COMPASS_USE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 33
+    },
+    "COMPASS_AUTODEC": {
+      "value": 1.0,
+      "type": 2,
+      "index": 34
+    },
+    "COMPASS_MOTCT": {
+      "value": 0.0,
+      "type": 2,
+      "index": 35
+    },
+    "COMPASS_MOT_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 36
+    },
+    "COMPASS_MOT_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 37
+    },
+    "COMPASS_MOT_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 38
+    },
+    "COMPASS_ORIENT": {
+      "value": 0.0,
+      "type": 2,
+      "index": 39
+    },
+    "COMPASS_EXTERNAL": {
+      "value": 1.0,
+      "type": 2,
+      "index": 40
+    },
+    "COMPASS_OFS2_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 41
+    },
+    "COMPASS_OFS2_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 42
+    },
+    "COMPASS_OFS2_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 43
+    },
+    "COMPASS_MOT2_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 44
+    },
+    "COMPASS_MOT2_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 45
+    },
+    "COMPASS_MOT2_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 46
+    },
+    "COMPASS_OFS3_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 47
+    },
+    "COMPASS_OFS3_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 48
+    },
+    "COMPASS_OFS3_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 49
+    },
+    "COMPASS_MOT3_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 50
+    },
+    "COMPASS_MOT3_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 51
+    },
+    "COMPASS_MOT3_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 52
+    },
+    "COMPASS_DEV_ID": {
+      "value": 97539.0,
+      "type": 6,
+      "index": 53
+    },
+    "COMPASS_DEV_ID2": {
+      "value": 97283.0,
+      "type": 6,
+      "index": 54
+    },
+    "COMPASS_DEV_ID3": {
+      "value": 162819.0,
+      "type": 6,
+      "index": 55
+    },
+    "COMPASS_USE2": {
+      "value": 1.0,
+      "type": 2,
+      "index": 56
+    },
+    "COMPASS_ORIENT2": {
+      "value": 0.0,
+      "type": 2,
+      "index": 57
+    },
+    "COMPASS_EXTERN2": {
+      "value": 1.0,
+      "type": 2,
+      "index": 58
+    },
+    "COMPASS_USE3": {
+      "value": 1.0,
+      "type": 2,
+      "index": 59
+    },
+    "COMPASS_ORIENT3": {
+      "value": 0.0,
+      "type": 2,
+      "index": 60
+    },
+    "COMPASS_EXTERN3": {
+      "value": 1.0,
+      "type": 2,
+      "index": 61
+    },
+    "COMPASS_DIA_X": {
+      "value": 1.0,
+      "type": 9,
+      "index": 62
+    },
+    "COMPASS_DIA_Y": {
+      "value": 1.0,
+      "type": 9,
+      "index": 63
+    },
+    "COMPASS_DIA_Z": {
+      "value": 1.0,
+      "type": 9,
+      "index": 64
+    },
+    "COMPASS_ODI_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 65
+    },
+    "COMPASS_ODI_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 66
+    },
+    "COMPASS_ODI_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 67
+    },
+    "COMPASS_DIA2_X": {
+      "value": 1.0,
+      "type": 9,
+      "index": 68
+    },
+    "COMPASS_DIA2_Y": {
+      "value": 1.0,
+      "type": 9,
+      "index": 69
+    },
+    "COMPASS_DIA2_Z": {
+      "value": 1.0,
+      "type": 9,
+      "index": 70
+    },
+    "COMPASS_ODI2_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 71
+    },
+    "COMPASS_ODI2_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 72
+    },
+    "COMPASS_ODI2_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 73
+    },
+    "COMPASS_DIA3_X": {
+      "value": 1.0,
+      "type": 9,
+      "index": 74
+    },
+    "COMPASS_DIA3_Y": {
+      "value": 1.0,
+      "type": 9,
+      "index": 75
+    },
+    "COMPASS_DIA3_Z": {
+      "value": 1.0,
+      "type": 9,
+      "index": 76
+    },
+    "COMPASS_ODI3_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 77
+    },
+    "COMPASS_ODI3_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 78
+    },
+    "COMPASS_ODI3_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 79
+    },
+    "COMPASS_CAL_FIT": {
+      "value": 16.0,
+      "type": 9,
+      "index": 80
+    },
+    "COMPASS_OFFS_MAX": {
+      "value": 1800.0,
+      "type": 4,
+      "index": 81
+    },
+    "COMPASS_PMOT_EN": {
+      "value": 0.0,
+      "type": 2,
+      "index": 82
+    },
+    "COMPASS_DISBLMSK": {
+      "value": 32.0,
+      "type": 6,
+      "index": 83
+    },
+    "COMPASS_FLTR_RNG": {
+      "value": 0.0,
+      "type": 2,
+      "index": 84
+    },
+    "COMPASS_AUTO_ROT": {
+      "value": 2.0,
+      "type": 2,
+      "index": 85
+    },
+    "COMPASS_PRIO1_ID": {
+      "value": 97539.0,
+      "type": 6,
+      "index": 86
+    },
+    "COMPASS_PRIO2_ID": {
+      "value": 97283.0,
+      "type": 6,
+      "index": 87
+    },
+    "COMPASS_PRIO3_ID": {
+      "value": 162819.0,
+      "type": 6,
+      "index": 88
+    },
+    "COMPASS_ENABLE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 89
+    },
+    "COMPASS_SCALE": {
+      "value": 0.0,
+      "type": 9,
+      "index": 90
+    },
+    "COMPASS_SCALE2": {
+      "value": 0.0,
+      "type": 9,
+      "index": 91
+    },
+    "COMPASS_SCALE3": {
+      "value": 0.0,
+      "type": 9,
+      "index": 92
+    },
+    "COMPASS_OPTIONS": {
+      "value": 0.0,
+      "type": 4,
+      "index": 93
+    },
+    "COMPASS_DEV_ID4": {
+      "value": 1313809.0,
+      "type": 6,
+      "index": 94
+    },
+    "COMPASS_DEV_ID5": {
+      "value": 0.0,
+      "type": 6,
+      "index": 95
+    },
+    "COMPASS_DEV_ID6": {
+      "value": 0.0,
+      "type": 6,
+      "index": 96
+    },
+    "COMPASS_DEV_ID7": {
+      "value": 0.0,
+      "type": 6,
+      "index": 97
+    },
+    "COMPASS_DEV_ID8": {
+      "value": 0.0,
+      "type": 6,
+      "index": 98
+    },
+    "SCHED_DEBUG": {
+      "value": 0.0,
+      "type": 2,
+      "index": 99
+    },
+    "SCHED_LOOP_RATE": {
+      "value": 50.0,
+      "type": 4,
+      "index": 100
+    },
+    "SCHED_OPTIONS": {
+      "value": 0.0,
+      "type": 2,
+      "index": 101
+    },
+    "BARO1_GND_PRESS": {
+      "value": 102600.8359375,
+      "type": 9,
+      "index": 102
+    },
+    "BARO_GND_TEMP": {
+      "value": 0.0,
+      "type": 9,
+      "index": 103
+    },
+    "BARO_ALT_OFFSET": {
+      "value": 0.0,
+      "type": 9,
+      "index": 104
+    },
+    "BARO_PRIMARY": {
+      "value": 0.0,
+      "type": 2,
+      "index": 105
+    },
+    "BARO_EXT_BUS": {
+      "value": -1.0,
+      "type": 2,
+      "index": 106
+    },
+    "BARO2_GND_PRESS": {
+      "value": 102642.2109375,
+      "type": 9,
+      "index": 107
+    },
+    "BARO3_GND_PRESS": {
+      "value": 0.0,
+      "type": 9,
+      "index": 108
+    },
+    "BARO_FLTR_RNG": {
+      "value": 0.0,
+      "type": 2,
+      "index": 109
+    },
+    "BARO_PROBE_EXT": {
+      "value": 0.0,
+      "type": 6,
+      "index": 110
+    },
+    "BARO1_DEVID": {
+      "value": 721442.0,
+      "type": 6,
+      "index": 111
+    },
+    "BARO2_DEVID": {
+      "value": 721674.0,
+      "type": 6,
+      "index": 112
+    },
+    "BARO3_DEVID": {
+      "value": 0.0,
+      "type": 6,
+      "index": 113
+    },
+    "BARO1_WCF_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 114
+    },
+    "BARO2_WCF_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 115
+    },
+    "BARO3_WCF_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 116
+    },
+    "BARO_FIELD_ELV": {
+      "value": 0.0,
+      "type": 9,
+      "index": 117
+    },
+    "RELAY1_FUNCTION": {
+      "value": 0.0,
+      "type": 2,
+      "index": 118
+    },
+    "RELAY2_FUNCTION": {
+      "value": 0.0,
+      "type": 2,
+      "index": 119
+    },
+    "RELAY3_FUNCTION": {
+      "value": 0.0,
+      "type": 2,
+      "index": 120
+    },
+    "RELAY4_FUNCTION": {
+      "value": 0.0,
+      "type": 2,
+      "index": 121
+    },
+    "RELAY5_FUNCTION": {
+      "value": 0.0,
+      "type": 2,
+      "index": 122
+    },
+    "RELAY6_FUNCTION": {
+      "value": 0.0,
+      "type": 2,
+      "index": 123
+    },
+    "RCMAP_ROLL": {
+      "value": 1.0,
+      "type": 2,
+      "index": 124
+    },
+    "RCMAP_PITCH": {
+      "value": 2.0,
+      "type": 2,
+      "index": 125
+    },
+    "RCMAP_THROTTLE": {
+      "value": 3.0,
+      "type": 2,
+      "index": 126
+    },
+    "RCMAP_YAW": {
+      "value": 4.0,
+      "type": 2,
+      "index": 127
+    },
+    "SR0_RAW_SENS": {
+      "value": 2.0,
+      "type": 4,
+      "index": 128
+    },
+    "SR0_EXT_STAT": {
+      "value": 2.0,
+      "type": 4,
+      "index": 129
+    },
+    "SR0_RC_CHAN": {
+      "value": 2.0,
+      "type": 4,
+      "index": 130
+    },
+    "SR0_RAW_CTRL": {
+      "value": 1.0,
+      "type": 4,
+      "index": 131
+    },
+    "SR0_POSITION": {
+      "value": 2.0,
+      "type": 4,
+      "index": 132
+    },
+    "SR0_EXTRA1": {
+      "value": 4.0,
+      "type": 4,
+      "index": 133
+    },
+    "SR0_EXTRA2": {
+      "value": 4.0,
+      "type": 4,
+      "index": 134
+    },
+    "SR0_EXTRA3": {
+      "value": 2.0,
+      "type": 4,
+      "index": 135
+    },
+    "SR0_PARAMS": {
+      "value": 10.0,
+      "type": 4,
+      "index": 136
+    },
+    "SR0_ADSB": {
+      "value": 0.0,
+      "type": 4,
+      "index": 137
+    },
+    "SR1_RAW_SENS": {
+      "value": 2.0,
+      "type": 4,
+      "index": 138
+    },
+    "SR1_EXT_STAT": {
+      "value": 2.0,
+      "type": 4,
+      "index": 139
+    },
+    "SR1_RC_CHAN": {
+      "value": 2.0,
+      "type": 4,
+      "index": 140
+    },
+    "SR1_RAW_CTRL": {
+      "value": 1.0,
+      "type": 4,
+      "index": 141
+    },
+    "SR1_POSITION": {
+      "value": 2.0,
+      "type": 4,
+      "index": 142
+    },
+    "SR1_EXTRA1": {
+      "value": 4.0,
+      "type": 4,
+      "index": 143
+    },
+    "SR1_EXTRA2": {
+      "value": 4.0,
+      "type": 4,
+      "index": 144
+    },
+    "SR1_EXTRA3": {
+      "value": 2.0,
+      "type": 4,
+      "index": 145
+    },
+    "SR1_PARAMS": {
+      "value": 10.0,
+      "type": 4,
+      "index": 146
+    },
+    "SR1_ADSB": {
+      "value": 0.0,
+      "type": 4,
+      "index": 147
+    },
+    "SR2_RAW_SENS": {
+      "value": 1.0,
+      "type": 4,
+      "index": 148
+    },
+    "SR2_EXT_STAT": {
+      "value": 1.0,
+      "type": 4,
+      "index": 149
+    },
+    "SR2_RC_CHAN": {
+      "value": 1.0,
+      "type": 4,
+      "index": 150
+    },
+    "SR2_RAW_CTRL": {
+      "value": 1.0,
+      "type": 4,
+      "index": 151
+    },
+    "SR2_POSITION": {
+      "value": 1.0,
+      "type": 4,
+      "index": 152
+    },
+    "SR2_EXTRA1": {
+      "value": 1.0,
+      "type": 4,
+      "index": 153
+    },
+    "SR2_EXTRA2": {
+      "value": 1.0,
+      "type": 4,
+      "index": 154
+    },
+    "SR2_EXTRA3": {
+      "value": 1.0,
+      "type": 4,
+      "index": 155
+    },
+    "SR2_PARAMS": {
+      "value": 10.0,
+      "type": 4,
+      "index": 156
+    },
+    "SR2_ADSB": {
+      "value": 0.0,
+      "type": 4,
+      "index": 157
+    },
+    "SR3_RAW_SENS": {
+      "value": 1.0,
+      "type": 4,
+      "index": 158
+    },
+    "SR3_EXT_STAT": {
+      "value": 1.0,
+      "type": 4,
+      "index": 159
+    },
+    "SR3_RC_CHAN": {
+      "value": 1.0,
+      "type": 4,
+      "index": 160
+    },
+    "SR3_RAW_CTRL": {
+      "value": 1.0,
+      "type": 4,
+      "index": 161
+    },
+    "SR3_POSITION": {
+      "value": 1.0,
+      "type": 4,
+      "index": 162
+    },
+    "SR3_EXTRA1": {
+      "value": 1.0,
+      "type": 4,
+      "index": 163
+    },
+    "SR3_EXTRA2": {
+      "value": 1.0,
+      "type": 4,
+      "index": 164
+    },
+    "SR3_EXTRA3": {
+      "value": 1.0,
+      "type": 4,
+      "index": 165
+    },
+    "SR3_PARAMS": {
+      "value": 10.0,
+      "type": 4,
+      "index": 166
+    },
+    "SR3_ADSB": {
+      "value": 0.0,
+      "type": 4,
+      "index": 167
+    },
+    "SR4_RAW_SENS": {
+      "value": 1.0,
+      "type": 4,
+      "index": 168
+    },
+    "SR4_EXT_STAT": {
+      "value": 1.0,
+      "type": 4,
+      "index": 169
+    },
+    "SR4_RC_CHAN": {
+      "value": 1.0,
+      "type": 4,
+      "index": 170
+    },
+    "SR4_RAW_CTRL": {
+      "value": 1.0,
+      "type": 4,
+      "index": 171
+    },
+    "SR4_POSITION": {
+      "value": 1.0,
+      "type": 4,
+      "index": 172
+    },
+    "SR4_EXTRA1": {
+      "value": 1.0,
+      "type": 4,
+      "index": 173
+    },
+    "SR4_EXTRA2": {
+      "value": 1.0,
+      "type": 4,
+      "index": 174
+    },
+    "SR4_EXTRA3": {
+      "value": 1.0,
+      "type": 4,
+      "index": 175
+    },
+    "SR4_PARAMS": {
+      "value": 10.0,
+      "type": 4,
+      "index": 176
+    },
+    "SR4_ADSB": {
+      "value": 0.0,
+      "type": 4,
+      "index": 177
+    },
+    "SR5_RAW_SENS": {
+      "value": 1.0,
+      "type": 4,
+      "index": 178
+    },
+    "SR5_EXT_STAT": {
+      "value": 1.0,
+      "type": 4,
+      "index": 179
+    },
+    "SR5_RC_CHAN": {
+      "value": 1.0,
+      "type": 4,
+      "index": 180
+    },
+    "SR5_RAW_CTRL": {
+      "value": 1.0,
+      "type": 4,
+      "index": 181
+    },
+    "SR5_POSITION": {
+      "value": 1.0,
+      "type": 4,
+      "index": 182
+    },
+    "SR5_EXTRA1": {
+      "value": 1.0,
+      "type": 4,
+      "index": 183
+    },
+    "SR5_EXTRA2": {
+      "value": 1.0,
+      "type": 4,
+      "index": 184
+    },
+    "SR5_EXTRA3": {
+      "value": 1.0,
+      "type": 4,
+      "index": 185
+    },
+    "SR5_PARAMS": {
+      "value": 10.0,
+      "type": 4,
+      "index": 186
+    },
+    "SR5_ADSB": {
+      "value": 0.0,
+      "type": 4,
+      "index": 187
+    },
+    "SR6_RAW_SENS": {
+      "value": 1.0,
+      "type": 4,
+      "index": 188
+    },
+    "SR6_EXT_STAT": {
+      "value": 1.0,
+      "type": 4,
+      "index": 189
+    },
+    "SR6_RC_CHAN": {
+      "value": 1.0,
+      "type": 4,
+      "index": 190
+    },
+    "SR6_RAW_CTRL": {
+      "value": 1.0,
+      "type": 4,
+      "index": 191
+    },
+    "SR6_POSITION": {
+      "value": 1.0,
+      "type": 4,
+      "index": 192
+    },
+    "SR6_EXTRA1": {
+      "value": 1.0,
+      "type": 4,
+      "index": 193
+    },
+    "SR6_EXTRA2": {
+      "value": 1.0,
+      "type": 4,
+      "index": 194
+    },
+    "SR6_EXTRA3": {
+      "value": 1.0,
+      "type": 4,
+      "index": 195
+    },
+    "SR6_PARAMS": {
+      "value": 10.0,
+      "type": 4,
+      "index": 196
+    },
+    "SR6_ADSB": {
+      "value": 0.0,
+      "type": 4,
+      "index": 197
+    },
+    "RNGFND1_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 198
+    },
+    "RNGFND2_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 199
+    },
+    "RNGFND3_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 200
+    },
+    "RNGFND4_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 201
+    },
+    "RNGFND5_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 202
+    },
+    "RNGFND6_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 203
+    },
+    "RNGFND7_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 204
+    },
+    "RNGFND8_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 205
+    },
+    "RNGFND9_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 206
+    },
+    "RNGFNDA_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 207
+    },
+    "INS_GYROFFS_X": {
+      "value": 0.004458537325263023,
+      "type": 9,
+      "index": 208
+    },
+    "INS_GYROFFS_Y": {
+      "value": 0.010689496994018555,
+      "type": 9,
+      "index": 209
+    },
+    "INS_GYROFFS_Z": {
+      "value": 0.00263307080604136,
+      "type": 9,
+      "index": 210
+    },
+    "INS_GYR2OFFS_X": {
+      "value": 0.00410505011677742,
+      "type": 9,
+      "index": 211
+    },
+    "INS_GYR2OFFS_Y": {
+      "value": -0.006350613199174404,
+      "type": 9,
+      "index": 212
+    },
+    "INS_GYR2OFFS_Z": {
+      "value": -0.0023432583548128605,
+      "type": 9,
+      "index": 213
+    },
+    "INS_GYR3OFFS_X": {
+      "value": -0.010574406944215298,
+      "type": 9,
+      "index": 214
+    },
+    "INS_GYR3OFFS_Y": {
+      "value": 0.013315482065081596,
+      "type": 9,
+      "index": 215
+    },
+    "INS_GYR3OFFS_Z": {
+      "value": 0.003120619338005781,
+      "type": 9,
+      "index": 216
+    },
+    "INS_ACCSCAL_X": {
+      "value": 1.0,
+      "type": 9,
+      "index": 217
+    },
+    "INS_ACCSCAL_Y": {
+      "value": 1.0,
+      "type": 9,
+      "index": 218
+    },
+    "INS_ACCSCAL_Z": {
+      "value": 1.0,
+      "type": 9,
+      "index": 219
+    },
+    "INS_ACCOFFS_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 220
+    },
+    "INS_ACCOFFS_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 221
+    },
+    "INS_ACCOFFS_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 222
+    },
+    "INS_ACC2SCAL_X": {
+      "value": 1.0,
+      "type": 9,
+      "index": 223
+    },
+    "INS_ACC2SCAL_Y": {
+      "value": 1.0,
+      "type": 9,
+      "index": 224
+    },
+    "INS_ACC2SCAL_Z": {
+      "value": 1.0,
+      "type": 9,
+      "index": 225
+    },
+    "INS_ACC2OFFS_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 226
+    },
+    "INS_ACC2OFFS_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 227
+    },
+    "INS_ACC2OFFS_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 228
+    },
+    "INS_ACC3SCAL_X": {
+      "value": 1.0,
+      "type": 9,
+      "index": 229
+    },
+    "INS_ACC3SCAL_Y": {
+      "value": 1.0,
+      "type": 9,
+      "index": 230
+    },
+    "INS_ACC3SCAL_Z": {
+      "value": 1.0,
+      "type": 9,
+      "index": 231
+    },
+    "INS_ACC3OFFS_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 232
+    },
+    "INS_ACC3OFFS_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 233
+    },
+    "INS_ACC3OFFS_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 234
+    },
+    "INS_GYRO_FILTER": {
+      "value": 4.0,
+      "type": 4,
+      "index": 235
+    },
+    "INS_ACCEL_FILTER": {
+      "value": 10.0,
+      "type": 4,
+      "index": 236
+    },
+    "INS_USE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 237
+    },
+    "INS_USE2": {
+      "value": 1.0,
+      "type": 2,
+      "index": 238
+    },
+    "INS_USE3": {
+      "value": 1.0,
+      "type": 2,
+      "index": 239
+    },
+    "INS_STILL_THRESH": {
+      "value": 0.10000000149011612,
+      "type": 9,
+      "index": 240
+    },
+    "INS_GYR_CAL": {
+      "value": 1.0,
+      "type": 2,
+      "index": 241
+    },
+    "INS_TRIM_OPTION": {
+      "value": 1.0,
+      "type": 2,
+      "index": 242
+    },
+    "INS_ACC_BODYFIX": {
+      "value": 2.0,
+      "type": 2,
+      "index": 243
+    },
+    "INS_POS1_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 244
+    },
+    "INS_POS1_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 245
+    },
+    "INS_POS1_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 246
+    },
+    "INS_POS2_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 247
+    },
+    "INS_POS2_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 248
+    },
+    "INS_POS2_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 249
+    },
+    "INS_POS3_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 250
+    },
+    "INS_POS3_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 251
+    },
+    "INS_POS3_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 252
+    },
+    "INS_GYR_ID": {
+      "value": 3867682.0,
+      "type": 6,
+      "index": 253
+    },
+    "INS_GYR2_ID": {
+      "value": 3867938.0,
+      "type": 6,
+      "index": 254
+    },
+    "INS_GYR3_ID": {
+      "value": 3867658.0,
+      "type": 6,
+      "index": 255
+    },
+    "INS_ACC_ID": {
+      "value": 3867682.0,
+      "type": 6,
+      "index": 256
+    },
+    "INS_ACC2_ID": {
+      "value": 3867938.0,
+      "type": 6,
+      "index": 257
+    },
+    "INS_ACC3_ID": {
+      "value": 3867658.0,
+      "type": 6,
+      "index": 258
+    },
+    "INS_FAST_SAMPLE": {
+      "value": 7.0,
+      "type": 2,
+      "index": 259
+    },
+    "INS_LOG_BAT_CNT": {
+      "value": 1024.0,
+      "type": 4,
+      "index": 260
+    },
+    "INS_LOG_BAT_MASK": {
+      "value": 0.0,
+      "type": 2,
+      "index": 261
+    },
+    "INS_LOG_BAT_OPT": {
+      "value": 0.0,
+      "type": 2,
+      "index": 262
+    },
+    "INS_LOG_BAT_LGIN": {
+      "value": 20.0,
+      "type": 2,
+      "index": 263
+    },
+    "INS_LOG_BAT_LGCT": {
+      "value": 32.0,
+      "type": 4,
+      "index": 264
+    },
+    "INS_ENABLE_MASK": {
+      "value": 127.0,
+      "type": 2,
+      "index": 265
+    },
+    "INS_HNTCH_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 266
+    },
+    "INS_HNTC2_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 267
+    },
+    "INS_GYRO_RATE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 268
+    },
+    "INS_TCAL1_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 269
+    },
+    "INS_TCAL2_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 270
+    },
+    "INS_TCAL3_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 271
+    },
+    "INS_ACC1_CALTEMP": {
+      "value": -300.0,
+      "type": 9,
+      "index": 272
+    },
+    "INS_GYR1_CALTEMP": {
+      "value": 23.5,
+      "type": 9,
+      "index": 273
+    },
+    "INS_ACC2_CALTEMP": {
+      "value": -300.0,
+      "type": 9,
+      "index": 274
+    },
+    "INS_GYR2_CALTEMP": {
+      "value": 23.875,
+      "type": 9,
+      "index": 275
+    },
+    "INS_ACC3_CALTEMP": {
+      "value": -300.0,
+      "type": 9,
+      "index": 276
+    },
+    "INS_GYR3_CALTEMP": {
+      "value": 27.53125,
+      "type": 9,
+      "index": 277
+    },
+    "INS_TCAL_OPTIONS": {
+      "value": 0.0,
+      "type": 6,
+      "index": 278
+    },
+    "INS4_USE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 279
+    },
+    "INS4_ACC_ID": {
+      "value": 0.0,
+      "type": 6,
+      "index": 280
+    },
+    "INS4_ACCSCAL_X": {
+      "value": 1.0,
+      "type": 9,
+      "index": 281
+    },
+    "INS4_ACCSCAL_Y": {
+      "value": 1.0,
+      "type": 9,
+      "index": 282
+    },
+    "INS4_ACCSCAL_Z": {
+      "value": 1.0,
+      "type": 9,
+      "index": 283
+    },
+    "INS4_ACCOFFS_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 284
+    },
+    "INS4_ACCOFFS_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 285
+    },
+    "INS4_ACCOFFS_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 286
+    },
+    "INS4_POS_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 287
+    },
+    "INS4_POS_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 288
+    },
+    "INS4_POS_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 289
+    },
+    "INS4_ACC_CALTEMP": {
+      "value": -300.0,
+      "type": 9,
+      "index": 290
+    },
+    "INS4_GYR_ID": {
+      "value": 0.0,
+      "type": 6,
+      "index": 291
+    },
+    "INS4_GYROFFS_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 292
+    },
+    "INS4_GYROFFS_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 293
+    },
+    "INS4_GYROFFS_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 294
+    },
+    "INS4_GYR_CALTEMP": {
+      "value": -300.0,
+      "type": 9,
+      "index": 295
+    },
+    "INS4_TCAL_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 296
+    },
+    "INS5_USE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 297
+    },
+    "INS5_ACC_ID": {
+      "value": 0.0,
+      "type": 6,
+      "index": 298
+    },
+    "INS5_ACCSCAL_X": {
+      "value": 1.0,
+      "type": 9,
+      "index": 299
+    },
+    "INS5_ACCSCAL_Y": {
+      "value": 1.0,
+      "type": 9,
+      "index": 300
+    },
+    "INS5_ACCSCAL_Z": {
+      "value": 1.0,
+      "type": 9,
+      "index": 301
+    },
+    "INS5_ACCOFFS_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 302
+    },
+    "INS5_ACCOFFS_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 303
+    },
+    "INS5_ACCOFFS_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 304
+    },
+    "INS5_POS_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 305
+    },
+    "INS5_POS_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 306
+    },
+    "INS5_POS_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 307
+    },
+    "INS5_ACC_CALTEMP": {
+      "value": -300.0,
+      "type": 9,
+      "index": 308
+    },
+    "INS5_GYR_ID": {
+      "value": 0.0,
+      "type": 6,
+      "index": 309
+    },
+    "INS5_GYROFFS_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 310
+    },
+    "INS5_GYROFFS_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 311
+    },
+    "INS5_GYROFFS_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 312
+    },
+    "INS5_GYR_CALTEMP": {
+      "value": -300.0,
+      "type": 9,
+      "index": 313
+    },
+    "INS5_TCAL_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 314
+    },
+    "INS_RAW_LOG_OPT": {
+      "value": 0.0,
+      "type": 4,
+      "index": 315
+    },
+    "AHRS_GPS_GAIN": {
+      "value": 1.0,
+      "type": 9,
+      "index": 316
+    },
+    "AHRS_GPS_USE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 317
+    },
+    "AHRS_YAW_P": {
+      "value": 0.20000000298023224,
+      "type": 9,
+      "index": 318
+    },
+    "AHRS_RP_P": {
+      "value": 0.20000000298023224,
+      "type": 9,
+      "index": 319
+    },
+    "AHRS_WIND_MAX": {
+      "value": 0.0,
+      "type": 2,
+      "index": 320
+    },
+    "AHRS_TRIM_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 321
+    },
+    "AHRS_TRIM_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 322
+    },
+    "AHRS_TRIM_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 323
+    },
+    "AHRS_ORIENTATION": {
+      "value": 0.0,
+      "type": 2,
+      "index": 324
+    },
+    "AHRS_COMP_BETA": {
+      "value": 0.10000000149011612,
+      "type": 9,
+      "index": 325
+    },
+    "AHRS_GPS_MINSATS": {
+      "value": 6.0,
+      "type": 2,
+      "index": 326
+    },
+    "AHRS_EKF_TYPE": {
+      "value": 3.0,
+      "type": 2,
+      "index": 327
+    },
+    "AHRS_OPTIONS": {
+      "value": 0.0,
+      "type": 4,
+      "index": 328
+    },
+    "CAM_MAX_ROLL": {
+      "value": 0.0,
+      "type": 4,
+      "index": 329
+    },
+    "CAM_AUTO_ONLY": {
+      "value": 0.0,
+      "type": 2,
+      "index": 330
+    },
+    "CAM1_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 331
+    },
+    "CAM2_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 332
+    },
+    "PLND_ENABLED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 333
+    },
+    "MNT1_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 334
+    },
+    "MNT2_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 335
+    },
+    "ARMING_REQUIRE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 336
+    },
+    "ARMING_ACCTHRESH": {
+      "value": 0.75,
+      "type": 9,
+      "index": 337
+    },
+    "ARMING_RUDDER": {
+      "value": 2.0,
+      "type": 2,
+      "index": 338
+    },
+    "ARMING_MIS_ITEMS": {
+      "value": 0.0,
+      "type": 6,
+      "index": 339
+    },
+    "ARMING_CHECK": {
+      "value": 1.0,
+      "type": 6,
+      "index": 340
+    },
+    "ARMING_OPTIONS": {
+      "value": 0.0,
+      "type": 6,
+      "index": 341
+    },
+    "ARMING_MAGTHRESH": {
+      "value": 100.0,
+      "type": 4,
+      "index": 342
+    },
+    "ARMING_CRSDP_IGN": {
+      "value": 0.0,
+      "type": 2,
+      "index": 343
+    },
+    "BATT_MONITOR": {
+      "value": 0.0,
+      "type": 2,
+      "index": 344
+    },
+    "BATT2_MONITOR": {
+      "value": 0.0,
+      "type": 2,
+      "index": 345
+    },
+    "BATT3_MONITOR": {
+      "value": 0.0,
+      "type": 2,
+      "index": 346
+    },
+    "BATT4_MONITOR": {
+      "value": 0.0,
+      "type": 2,
+      "index": 347
+    },
+    "BATT5_MONITOR": {
+      "value": 0.0,
+      "type": 2,
+      "index": 348
+    },
+    "BATT6_MONITOR": {
+      "value": 0.0,
+      "type": 2,
+      "index": 349
+    },
+    "BATT7_MONITOR": {
+      "value": 0.0,
+      "type": 2,
+      "index": 350
+    },
+    "BATT8_MONITOR": {
+      "value": 0.0,
+      "type": 2,
+      "index": 351
+    },
+    "BATT9_MONITOR": {
+      "value": 0.0,
+      "type": 2,
+      "index": 352
+    },
+    "BRD_SER1_RTSCTS": {
+      "value": 2.0,
+      "type": 2,
+      "index": 353
+    },
+    "BRD_SER2_RTSCTS": {
+      "value": 2.0,
+      "type": 2,
+      "index": 354
+    },
+    "BRD_SAFETY_DEFLT": {
+      "value": 1.0,
+      "type": 2,
+      "index": 355
+    },
+    "BRD_SBUS_OUT": {
+      "value": 0.0,
+      "type": 2,
+      "index": 356
+    },
+    "BRD_SERIAL_NUM": {
+      "value": 0.0,
+      "type": 6,
+      "index": 357
+    },
+    "BRD_SAFETY_MASK": {
+      "value": 0.0,
+      "type": 6,
+      "index": 358
+    },
+    "BRD_HEAT_TARG": {
+      "value": 45.0,
+      "type": 2,
+      "index": 359
+    },
+    "BRD_TYPE": {
+      "value": 3.0,
+      "type": 2,
+      "index": 360
+    },
+    "BRD_IO_ENABLE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 361
+    },
+    "BRD_SAFETYOPTION": {
+      "value": 7.0,
+      "type": 4,
+      "index": 362
+    },
+    "BRD_RTC_TYPES": {
+      "value": 1.0,
+      "type": 2,
+      "index": 363
+    },
+    "BRD_RTC_TZ_MIN": {
+      "value": 0.0,
+      "type": 4,
+      "index": 364
+    },
+    "BRD_VBUS_MIN": {
+      "value": 4.300000190734863,
+      "type": 9,
+      "index": 365
+    },
+    "BRD_VSERVO_MIN": {
+      "value": 0.0,
+      "type": 9,
+      "index": 366
+    },
+    "BRD_SD_SLOWDOWN": {
+      "value": 0.0,
+      "type": 2,
+      "index": 367
+    },
+    "BRD_PWM_VOLT_SEL": {
+      "value": 0.0,
+      "type": 2,
+      "index": 368
+    },
+    "BRD_OPTIONS": {
+      "value": 1.0,
+      "type": 6,
+      "index": 369
+    },
+    "BRD_BOOT_DELAY": {
+      "value": 0.0,
+      "type": 4,
+      "index": 370
+    },
+    "BRD_HEAT_P": {
+      "value": 50.0,
+      "type": 9,
+      "index": 371
+    },
+    "BRD_HEAT_I": {
+      "value": 0.07000000029802322,
+      "type": 9,
+      "index": 372
+    },
+    "BRD_HEAT_IMAX": {
+      "value": 70.0,
+      "type": 9,
+      "index": 373
+    },
+    "BRD_ALT_CONFIG": {
+      "value": 0.0,
+      "type": 2,
+      "index": 374
+    },
+    "BRD_HEAT_LOWMGN": {
+      "value": 5.0,
+      "type": 2,
+      "index": 375
+    },
+    "BRD_SD_MISSION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 376
+    },
+    "BRD_SD_FENCE": {
+      "value": 0.0,
+      "type": 4,
+      "index": 377
+    },
+    "BRD_IO_DSHOT": {
+      "value": 0.0,
+      "type": 2,
+      "index": 378
+    },
+    "CAN_P1_DRIVER": {
+      "value": 1.0,
+      "type": 2,
+      "index": 379
+    },
+    "CAN_P1_BITRATE": {
+      "value": 1000000.0,
+      "type": 6,
+      "index": 380
+    },
+    "CAN_P1_FDBITRATE": {
+      "value": 8.0,
+      "type": 6,
+      "index": 381
+    },
+    "CAN_P1_OPTIONS": {
+      "value": 0.0,
+      "type": 6,
+      "index": 382
+    },
+    "CAN_P2_DRIVER": {
+      "value": 0.0,
+      "type": 2,
+      "index": 383
+    },
+    "CAN_D1_PROTOCOL": {
+      "value": 1.0,
+      "type": 2,
+      "index": 384
+    },
+    "CAN_D1_UC_NODE": {
+      "value": 10.0,
+      "type": 2,
+      "index": 385
+    },
+    "CAN_D1_UC_SRV_BM": {
+      "value": 0.0,
+      "type": 6,
+      "index": 386
+    },
+    "CAN_D1_UC_ESC_BM": {
+      "value": 0.0,
+      "type": 6,
+      "index": 387
+    },
+    "CAN_D1_UC_SRV_RT": {
+      "value": 50.0,
+      "type": 4,
+      "index": 388
+    },
+    "CAN_D1_UC_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 389
+    },
+    "CAN_D1_UC_NTF_RT": {
+      "value": 20.0,
+      "type": 4,
+      "index": 390
+    },
+    "CAN_D1_UC_ESC_OF": {
+      "value": 0.0,
+      "type": 2,
+      "index": 391
+    },
+    "CAN_D1_UC_POOL": {
+      "value": 16384.0,
+      "type": 4,
+      "index": 392
+    },
+    "CAN_D1_UC_ESC_RV": {
+      "value": 0.0,
+      "type": 6,
+      "index": 393
+    },
+    "CAN_D1_UC_RLY_RT": {
+      "value": 0.0,
+      "type": 4,
+      "index": 394
+    },
+    "CAN_D1_UC_SER_EN": {
+      "value": 0.0,
+      "type": 2,
+      "index": 395
+    },
+    "CAN_D1_PROTOCOL2": {
+      "value": 0.0,
+      "type": 2,
+      "index": 396
+    },
+    "CAN_D2_PROTOCOL": {
+      "value": 1.0,
+      "type": 2,
+      "index": 397
+    },
+    "CAN_D2_PROTOCOL2": {
+      "value": 0.0,
+      "type": 2,
+      "index": 398
+    },
+    "CAN_SLCAN_CPORT": {
+      "value": 0.0,
+      "type": 2,
+      "index": 399
+    },
+    "CAN_SLCAN_SERNUM": {
+      "value": -1.0,
+      "type": 2,
+      "index": 400
+    },
+    "CAN_SLCAN_TIMOUT": {
+      "value": 0.0,
+      "type": 2,
+      "index": 401
+    },
+    "CAN_SLCAN_SDELAY": {
+      "value": 1.0,
+      "type": 2,
+      "index": 402
+    },
+    "CAN_LOGLEVEL": {
+      "value": 0.0,
+      "type": 2,
+      "index": 403
+    },
+    "GPS_NAVFILTER": {
+      "value": 8.0,
+      "type": 2,
+      "index": 404
+    },
+    "GPS_AUTO_SWITCH": {
+      "value": 1.0,
+      "type": 2,
+      "index": 405
+    },
+    "GPS_SBAS_MODE": {
+      "value": 2.0,
+      "type": 2,
+      "index": 406
+    },
+    "GPS_MIN_ELEV": {
+      "value": -100.0,
+      "type": 2,
+      "index": 407
+    },
+    "GPS_INJECT_TO": {
+      "value": 127.0,
+      "type": 2,
+      "index": 408
+    },
+    "GPS_SBP_LOGMASK": {
+      "value": -256.0,
+      "type": 4,
+      "index": 409
+    },
+    "GPS_RAW_DATA": {
+      "value": 0.0,
+      "type": 2,
+      "index": 410
+    },
+    "GPS_SAVE_CFG": {
+      "value": 2.0,
+      "type": 2,
+      "index": 411
+    },
+    "GPS_AUTO_CONFIG": {
+      "value": 1.0,
+      "type": 2,
+      "index": 412
+    },
+    "GPS_BLEND_MASK": {
+      "value": 5.0,
+      "type": 2,
+      "index": 413
+    },
+    "GPS_DRV_OPTIONS": {
+      "value": 0.0,
+      "type": 4,
+      "index": 414
+    },
+    "GPS_PRIMARY": {
+      "value": 0.0,
+      "type": 2,
+      "index": 415
+    },
+    "GPS1_TYPE": {
+      "value": 9.0,
+      "type": 2,
+      "index": 416
+    },
+    "GPS1_GNSS_MODE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 417
+    },
+    "GPS1_RATE_MS": {
+      "value": 200.0,
+      "type": 4,
+      "index": 418
+    },
+    "GPS1_POS_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 419
+    },
+    "GPS1_POS_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 420
+    },
+    "GPS1_POS_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 421
+    },
+    "GPS1_DELAY_MS": {
+      "value": 0.0,
+      "type": 4,
+      "index": 422
+    },
+    "GPS1_COM_PORT": {
+      "value": 1.0,
+      "type": 2,
+      "index": 423
+    },
+    "GPS1_MB_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 424
+    },
+    "GPS1_CAN_NODEID": {
+      "value": 124.0,
+      "type": 6,
+      "index": 425
+    },
+    "GPS1_CAN_OVRIDE": {
+      "value": 0.0,
+      "type": 6,
+      "index": 426
+    },
+    "GPS2_TYPE": {
+      "value": 9.0,
+      "type": 2,
+      "index": 427
+    },
+    "GPS2_GNSS_MODE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 428
+    },
+    "GPS2_RATE_MS": {
+      "value": 200.0,
+      "type": 4,
+      "index": 429
+    },
+    "GPS2_POS_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 430
+    },
+    "GPS2_POS_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 431
+    },
+    "GPS2_POS_Z": {
+      "value": 0.0,
+      "type": 9,
+      "index": 432
+    },
+    "GPS2_DELAY_MS": {
+      "value": 0.0,
+      "type": 4,
+      "index": 433
+    },
+    "GPS2_COM_PORT": {
+      "value": 1.0,
+      "type": 2,
+      "index": 434
+    },
+    "GPS2_MB_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 435
+    },
+    "GPS2_CAN_NODEID": {
+      "value": 125.0,
+      "type": 6,
+      "index": 436
+    },
+    "GPS2_CAN_OVRIDE": {
+      "value": 0.0,
+      "type": 6,
+      "index": 437
+    },
+    "EK3_ENABLE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 438
+    },
+    "EK3_VELNE_M_NSE": {
+      "value": 0.5,
+      "type": 9,
+      "index": 439
+    },
+    "EK3_VELD_M_NSE": {
+      "value": 0.699999988079071,
+      "type": 9,
+      "index": 440
+    },
+    "EK3_VEL_I_GATE": {
+      "value": 500.0,
+      "type": 4,
+      "index": 441
+    },
+    "EK3_POSNE_M_NSE": {
+      "value": 0.5,
+      "type": 9,
+      "index": 442
+    },
+    "EK3_POS_I_GATE": {
+      "value": 500.0,
+      "type": 4,
+      "index": 443
+    },
+    "EK3_GLITCH_RAD": {
+      "value": 25.0,
+      "type": 2,
+      "index": 444
+    },
+    "EK3_ALT_M_NSE": {
+      "value": 2.0,
+      "type": 9,
+      "index": 445
+    },
+    "EK3_HGT_I_GATE": {
+      "value": 500.0,
+      "type": 4,
+      "index": 446
+    },
+    "EK3_HGT_DELAY": {
+      "value": 60.0,
+      "type": 4,
+      "index": 447
+    },
+    "EK3_MAG_M_NSE": {
+      "value": 0.05000000074505806,
+      "type": 9,
+      "index": 448
+    },
+    "EK3_MAG_CAL": {
+      "value": 2.0,
+      "type": 2,
+      "index": 449
+    },
+    "EK3_MAG_I_GATE": {
+      "value": 300.0,
+      "type": 4,
+      "index": 450
+    },
+    "EK3_EAS_M_NSE": {
+      "value": 1.399999976158142,
+      "type": 9,
+      "index": 451
+    },
+    "EK3_EAS_I_GATE": {
+      "value": 400.0,
+      "type": 4,
+      "index": 452
+    },
+    "EK3_RNG_M_NSE": {
+      "value": 0.5,
+      "type": 9,
+      "index": 453
+    },
+    "EK3_RNG_I_GATE": {
+      "value": 500.0,
+      "type": 4,
+      "index": 454
+    },
+    "EK3_MAX_FLOW": {
+      "value": 2.5,
+      "type": 9,
+      "index": 455
+    },
+    "EK3_FLOW_M_NSE": {
+      "value": 0.25,
+      "type": 9,
+      "index": 456
+    },
+    "EK3_FLOW_I_GATE": {
+      "value": 300.0,
+      "type": 4,
+      "index": 457
+    },
+    "EK3_FLOW_DELAY": {
+      "value": 10.0,
+      "type": 2,
+      "index": 458
+    },
+    "EK3_GYRO_P_NSE": {
+      "value": 0.014999999664723873,
+      "type": 9,
+      "index": 459
+    },
+    "EK3_ACC_P_NSE": {
+      "value": 0.3499999940395355,
+      "type": 9,
+      "index": 460
+    },
+    "EK3_GBIAS_P_NSE": {
+      "value": 0.0010000000474974513,
+      "type": 9,
+      "index": 461
+    },
+    "EK3_ABIAS_P_NSE": {
+      "value": 0.019999999552965164,
+      "type": 9,
+      "index": 462
+    },
+    "EK3_WIND_P_NSE": {
+      "value": 0.10000000149011612,
+      "type": 9,
+      "index": 463
+    },
+    "EK3_WIND_PSCALE": {
+      "value": 1.0,
+      "type": 9,
+      "index": 464
+    },
+    "EK3_GPS_CHECK": {
+      "value": 31.0,
+      "type": 2,
+      "index": 465
+    },
+    "EK3_IMU_MASK": {
+      "value": 7.0,
+      "type": 2,
+      "index": 466
+    },
+    "EK3_CHECK_SCALE": {
+      "value": 100.0,
+      "type": 4,
+      "index": 467
+    },
+    "EK3_NOAID_M_NSE": {
+      "value": 10.0,
+      "type": 9,
+      "index": 468
+    },
+    "EK3_BETA_MASK": {
+      "value": 0.0,
+      "type": 2,
+      "index": 469
+    },
+    "EK3_YAW_M_NSE": {
+      "value": 0.5,
+      "type": 9,
+      "index": 470
+    },
+    "EK3_YAW_I_GATE": {
+      "value": 300.0,
+      "type": 4,
+      "index": 471
+    },
+    "EK3_TAU_OUTPUT": {
+      "value": 25.0,
+      "type": 2,
+      "index": 472
+    },
+    "EK3_MAGE_P_NSE": {
+      "value": 0.0010000000474974513,
+      "type": 9,
+      "index": 473
+    },
+    "EK3_MAGB_P_NSE": {
+      "value": 9.999999747378752e-05,
+      "type": 9,
+      "index": 474
+    },
+    "EK3_RNG_USE_HGT": {
+      "value": -1.0,
+      "type": 2,
+      "index": 475
+    },
+    "EK3_TERR_GRAD": {
+      "value": 0.10000000149011612,
+      "type": 9,
+      "index": 476
+    },
+    "EK3_BCN_M_NSE": {
+      "value": 1.0,
+      "type": 9,
+      "index": 477
+    },
+    "EK3_BCN_I_GTE": {
+      "value": 500.0,
+      "type": 4,
+      "index": 478
+    },
+    "EK3_BCN_DELAY": {
+      "value": 50.0,
+      "type": 2,
+      "index": 479
+    },
+    "EK3_RNG_USE_SPD": {
+      "value": 2.0,
+      "type": 9,
+      "index": 480
+    },
+    "EK3_ACC_BIAS_LIM": {
+      "value": 1.0,
+      "type": 9,
+      "index": 481
+    },
+    "EK3_MAG_MASK": {
+      "value": 0.0,
+      "type": 2,
+      "index": 482
+    },
+    "EK3_OGN_HGT_MASK": {
+      "value": 0.0,
+      "type": 2,
+      "index": 483
+    },
+    "EK3_VIS_VERR_MIN": {
+      "value": 0.10000000149011612,
+      "type": 9,
+      "index": 484
+    },
+    "EK3_VIS_VERR_MAX": {
+      "value": 0.8999999761581421,
+      "type": 9,
+      "index": 485
+    },
+    "EK3_WENC_VERR": {
+      "value": 0.10000000149011612,
+      "type": 9,
+      "index": 486
+    },
+    "EK3_FLOW_USE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 487
+    },
+    "EK3_HRT_FILT": {
+      "value": 2.0,
+      "type": 9,
+      "index": 488
+    },
+    "EK3_MAG_EF_LIM": {
+      "value": 50.0,
+      "type": 4,
+      "index": 489
+    },
+    "EK3_GSF_RUN_MASK": {
+      "value": 3.0,
+      "type": 2,
+      "index": 490
+    },
+    "EK3_GSF_USE_MASK": {
+      "value": 3.0,
+      "type": 2,
+      "index": 491
+    },
+    "EK3_GSF_RST_MAX": {
+      "value": 2.0,
+      "type": 2,
+      "index": 492
+    },
+    "EK3_ERR_THRESH": {
+      "value": 0.20000000298023224,
+      "type": 9,
+      "index": 493
+    },
+    "EK3_AFFINITY": {
+      "value": 0.0,
+      "type": 6,
+      "index": 494
+    },
+    "EK3_SRC1_POSXY": {
+      "value": 3.0,
+      "type": 2,
+      "index": 495
+    },
+    "EK3_SRC1_VELXY": {
+      "value": 3.0,
+      "type": 2,
+      "index": 496
+    },
+    "EK3_SRC1_POSZ": {
+      "value": 1.0,
+      "type": 2,
+      "index": 497
+    },
+    "EK3_SRC1_VELZ": {
+      "value": 3.0,
+      "type": 2,
+      "index": 498
+    },
+    "EK3_SRC1_YAW": {
+      "value": 1.0,
+      "type": 2,
+      "index": 499
+    },
+    "EK3_SRC2_POSXY": {
+      "value": 0.0,
+      "type": 2,
+      "index": 500
+    },
+    "EK3_SRC2_VELXY": {
+      "value": 0.0,
+      "type": 2,
+      "index": 501
+    },
+    "EK3_SRC2_POSZ": {
+      "value": 1.0,
+      "type": 2,
+      "index": 502
+    },
+    "EK3_SRC2_VELZ": {
+      "value": 0.0,
+      "type": 2,
+      "index": 503
+    },
+    "EK3_SRC2_YAW": {
+      "value": 0.0,
+      "type": 2,
+      "index": 504
+    },
+    "EK3_SRC3_POSXY": {
+      "value": 0.0,
+      "type": 2,
+      "index": 505
+    },
+    "EK3_SRC3_VELXY": {
+      "value": 0.0,
+      "type": 2,
+      "index": 506
+    },
+    "EK3_SRC3_POSZ": {
+      "value": 1.0,
+      "type": 2,
+      "index": 507
+    },
+    "EK3_SRC3_VELZ": {
+      "value": 0.0,
+      "type": 2,
+      "index": 508
+    },
+    "EK3_SRC3_YAW": {
+      "value": 0.0,
+      "type": 2,
+      "index": 509
+    },
+    "EK3_SRC_OPTIONS": {
+      "value": 1.0,
+      "type": 4,
+      "index": 510
+    },
+    "EK3_DRAG_BCOEF_X": {
+      "value": 0.0,
+      "type": 9,
+      "index": 511
+    },
+    "EK3_DRAG_BCOEF_Y": {
+      "value": 0.0,
+      "type": 9,
+      "index": 512
+    },
+    "EK3_DRAG_M_NSE": {
+      "value": 0.5,
+      "type": 9,
+      "index": 513
+    },
+    "EK3_DRAG_MCOEF": {
+      "value": 0.0,
+      "type": 9,
+      "index": 514
+    },
+    "EK3_OGNM_TEST_SF": {
+      "value": 2.0,
+      "type": 9,
+      "index": 515
+    },
+    "EK3_GND_EFF_DZ": {
+      "value": 4.0,
+      "type": 9,
+      "index": 516
+    },
+    "EK3_PRIMARY": {
+      "value": 0.0,
+      "type": 2,
+      "index": 517
+    },
+    "EK3_LOG_LEVEL": {
+      "value": 0.0,
+      "type": 2,
+      "index": 518
+    },
+    "EK3_GPS_VACC_MAX": {
+      "value": 0.0,
+      "type": 9,
+      "index": 519
+    },
+    "EK3_OPTIONS": {
+      "value": 0.0,
+      "type": 6,
+      "index": 520
+    },
+    "RPM1_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 521
+    },
+    "RPM2_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 522
+    },
+    "MIS_TOTAL": {
+      "value": 0.0,
+      "type": 4,
+      "index": 523
+    },
+    "MIS_RESTART": {
+      "value": 0.0,
+      "type": 2,
+      "index": 524
+    },
+    "MIS_OPTIONS": {
+      "value": 0.0,
+      "type": 4,
+      "index": 525
+    },
+    "RSSI_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 526
+    },
+    "NTF_LED_BRIGHT": {
+      "value": 3.0,
+      "type": 2,
+      "index": 527
+    },
+    "NTF_BUZZ_TYPES": {
+      "value": 5.0,
+      "type": 2,
+      "index": 528
+    },
+    "NTF_LED_OVERRIDE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 529
+    },
+    "NTF_DISPLAY_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 530
+    },
+    "NTF_OREO_THEME": {
+      "value": 0.0,
+      "type": 2,
+      "index": 531
+    },
+    "NTF_BUZZ_PIN": {
+      "value": -1.0,
+      "type": 2,
+      "index": 532
+    },
+    "NTF_LED_TYPES": {
+      "value": 123079.0,
+      "type": 6,
+      "index": 533
+    },
+    "NTF_BUZZ_ON_LVL": {
+      "value": 1.0,
+      "type": 2,
+      "index": 534
+    },
+    "NTF_BUZZ_VOLUME": {
+      "value": 100.0,
+      "type": 2,
+      "index": 535
+    },
+    "NTF_LED_LEN": {
+      "value": 1.0,
+      "type": 2,
+      "index": 536
+    },
+    "BTN_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 537
+    },
+    "SYSID_ENFORCE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 538
+    },
+    "SERVO1_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 539
+    },
+    "SERVO1_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 540
+    },
+    "SERVO1_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 541
+    },
+    "SERVO1_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 542
+    },
+    "SERVO1_FUNCTION": {
+      "value": 26.0,
+      "type": 4,
+      "index": 543
+    },
+    "SERVO2_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 544
+    },
+    "SERVO2_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 545
+    },
+    "SERVO2_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 546
+    },
+    "SERVO2_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 547
+    },
+    "SERVO2_FUNCTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 548
+    },
+    "SERVO3_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 549
+    },
+    "SERVO3_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 550
+    },
+    "SERVO3_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 551
+    },
+    "SERVO3_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 552
+    },
+    "SERVO3_FUNCTION": {
+      "value": 70.0,
+      "type": 4,
+      "index": 553
+    },
+    "SERVO4_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 554
+    },
+    "SERVO4_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 555
+    },
+    "SERVO4_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 556
+    },
+    "SERVO4_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 557
+    },
+    "SERVO4_FUNCTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 558
+    },
+    "SERVO5_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 559
+    },
+    "SERVO5_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 560
+    },
+    "SERVO5_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 561
+    },
+    "SERVO5_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 562
+    },
+    "SERVO5_FUNCTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 563
+    },
+    "SERVO6_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 564
+    },
+    "SERVO6_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 565
+    },
+    "SERVO6_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 566
+    },
+    "SERVO6_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 567
+    },
+    "SERVO6_FUNCTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 568
+    },
+    "SERVO7_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 569
+    },
+    "SERVO7_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 570
+    },
+    "SERVO7_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 571
+    },
+    "SERVO7_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 572
+    },
+    "SERVO7_FUNCTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 573
+    },
+    "SERVO8_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 574
+    },
+    "SERVO8_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 575
+    },
+    "SERVO8_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 576
+    },
+    "SERVO8_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 577
+    },
+    "SERVO8_FUNCTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 578
+    },
+    "SERVO9_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 579
+    },
+    "SERVO9_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 580
+    },
+    "SERVO9_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 581
+    },
+    "SERVO9_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 582
+    },
+    "SERVO9_FUNCTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 583
+    },
+    "SERVO10_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 584
+    },
+    "SERVO10_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 585
+    },
+    "SERVO10_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 586
+    },
+    "SERVO10_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 587
+    },
+    "SERVO10_FUNCTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 588
+    },
+    "SERVO11_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 589
+    },
+    "SERVO11_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 590
+    },
+    "SERVO11_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 591
+    },
+    "SERVO11_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 592
+    },
+    "SERVO11_FUNCTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 593
+    },
+    "SERVO12_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 594
+    },
+    "SERVO12_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 595
+    },
+    "SERVO12_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 596
+    },
+    "SERVO12_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 597
+    },
+    "SERVO12_FUNCTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 598
+    },
+    "SERVO13_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 599
+    },
+    "SERVO13_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 600
+    },
+    "SERVO13_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 601
+    },
+    "SERVO13_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 602
+    },
+    "SERVO13_FUNCTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 603
+    },
+    "SERVO14_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 604
+    },
+    "SERVO14_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 605
+    },
+    "SERVO14_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 606
+    },
+    "SERVO14_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 607
+    },
+    "SERVO14_FUNCTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 608
+    },
+    "SERVO15_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 609
+    },
+    "SERVO15_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 610
+    },
+    "SERVO15_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 611
+    },
+    "SERVO15_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 612
+    },
+    "SERVO15_FUNCTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 613
+    },
+    "SERVO16_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 614
+    },
+    "SERVO16_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 615
+    },
+    "SERVO16_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 616
+    },
+    "SERVO16_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 617
+    },
+    "SERVO16_FUNCTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 618
+    },
+    "SERVO_RATE": {
+      "value": 50.0,
+      "type": 4,
+      "index": 619
+    },
+    "SERVO_VOLZ_MASK": {
+      "value": 0.0,
+      "type": 6,
+      "index": 620
+    },
+    "SERVO_VOLZ_RANGE": {
+      "value": 200.0,
+      "type": 4,
+      "index": 621
+    },
+    "SERVO_SBUS_RATE": {
+      "value": 50.0,
+      "type": 4,
+      "index": 622
+    },
+    "SERVO_BLH_MASK": {
+      "value": 0.0,
+      "type": 6,
+      "index": 623
+    },
+    "SERVO_BLH_AUTO": {
+      "value": 0.0,
+      "type": 2,
+      "index": 624
+    },
+    "SERVO_BLH_TEST": {
+      "value": 0.0,
+      "type": 2,
+      "index": 625
+    },
+    "SERVO_BLH_TMOUT": {
+      "value": 0.0,
+      "type": 4,
+      "index": 626
+    },
+    "SERVO_BLH_TRATE": {
+      "value": 10.0,
+      "type": 4,
+      "index": 627
+    },
+    "SERVO_BLH_DEBUG": {
+      "value": 0.0,
+      "type": 2,
+      "index": 628
+    },
+    "SERVO_BLH_OTYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 629
+    },
+    "SERVO_BLH_PORT": {
+      "value": 0.0,
+      "type": 2,
+      "index": 630
+    },
+    "SERVO_BLH_POLES": {
+      "value": 14.0,
+      "type": 2,
+      "index": 631
+    },
+    "SERVO_BLH_3DMASK": {
+      "value": 0.0,
+      "type": 6,
+      "index": 632
+    },
+    "SERVO_BLH_RVMASK": {
+      "value": 0.0,
+      "type": 6,
+      "index": 633
+    },
+    "SERVO_ROB_POSMIN": {
+      "value": 0.0,
+      "type": 6,
+      "index": 634
+    },
+    "SERVO_ROB_POSMAX": {
+      "value": 4095.0,
+      "type": 6,
+      "index": 635
+    },
+    "SERVO_FTW_MASK": {
+      "value": 0.0,
+      "type": 6,
+      "index": 636
+    },
+    "SERVO_FTW_RVMASK": {
+      "value": 0.0,
+      "type": 6,
+      "index": 637
+    },
+    "SERVO_FTW_POLES": {
+      "value": 14.0,
+      "type": 2,
+      "index": 638
+    },
+    "SERVO_DSHOT_RATE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 639
+    },
+    "SERVO_DSHOT_ESC": {
+      "value": 0.0,
+      "type": 2,
+      "index": 640
+    },
+    "SERVO_GPIO_MASK": {
+      "value": 0.0,
+      "type": 6,
+      "index": 641
+    },
+    "SERVO_RC_FS_MSK": {
+      "value": 0.0,
+      "type": 6,
+      "index": 642
+    },
+    "SERVO_32_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 643
+    },
+    "RC1_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 644
+    },
+    "RC1_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 645
+    },
+    "RC1_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 646
+    },
+    "RC1_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 647
+    },
+    "RC1_DZ": {
+      "value": 30.0,
+      "type": 4,
+      "index": 648
+    },
+    "RC1_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 649
+    },
+    "RC2_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 650
+    },
+    "RC2_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 651
+    },
+    "RC2_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 652
+    },
+    "RC2_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 653
+    },
+    "RC2_DZ": {
+      "value": 0.0,
+      "type": 4,
+      "index": 654
+    },
+    "RC2_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 655
+    },
+    "RC3_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 656
+    },
+    "RC3_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 657
+    },
+    "RC3_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 658
+    },
+    "RC3_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 659
+    },
+    "RC3_DZ": {
+      "value": 30.0,
+      "type": 4,
+      "index": 660
+    },
+    "RC3_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 661
+    },
+    "RC4_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 662
+    },
+    "RC4_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 663
+    },
+    "RC4_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 664
+    },
+    "RC4_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 665
+    },
+    "RC4_DZ": {
+      "value": 30.0,
+      "type": 4,
+      "index": 666
+    },
+    "RC4_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 667
+    },
+    "RC5_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 668
+    },
+    "RC5_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 669
+    },
+    "RC5_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 670
+    },
+    "RC5_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 671
+    },
+    "RC5_DZ": {
+      "value": 0.0,
+      "type": 4,
+      "index": 672
+    },
+    "RC5_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 673
+    },
+    "RC6_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 674
+    },
+    "RC6_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 675
+    },
+    "RC6_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 676
+    },
+    "RC6_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 677
+    },
+    "RC6_DZ": {
+      "value": 0.0,
+      "type": 4,
+      "index": 678
+    },
+    "RC6_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 679
+    },
+    "RC7_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 680
+    },
+    "RC7_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 681
+    },
+    "RC7_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 682
+    },
+    "RC7_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 683
+    },
+    "RC7_DZ": {
+      "value": 0.0,
+      "type": 4,
+      "index": 684
+    },
+    "RC7_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 685
+    },
+    "RC8_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 686
+    },
+    "RC8_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 687
+    },
+    "RC8_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 688
+    },
+    "STAT_RUNTIME": {
+      "value": 477843.0,
+      "type": 6,
+      "index": 935
+    },
+    "RC8_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 689
+    },
+    "RC8_DZ": {
+      "value": 0.0,
+      "type": 4,
+      "index": 690
+    },
+    "RC8_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 691
+    },
+    "RC9_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 692
+    },
+    "RC9_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 693
+    },
+    "RC9_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 694
+    },
+    "RC9_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 695
+    },
+    "RC9_DZ": {
+      "value": 0.0,
+      "type": 4,
+      "index": 696
+    },
+    "RC9_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 697
+    },
+    "RC10_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 698
+    },
+    "RC10_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 699
+    },
+    "RC10_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 700
+    },
+    "RC10_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 701
+    },
+    "RC10_DZ": {
+      "value": 0.0,
+      "type": 4,
+      "index": 702
+    },
+    "RC10_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 703
+    },
+    "RC11_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 704
+    },
+    "RC11_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 705
+    },
+    "RC11_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 706
+    },
+    "RC11_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 707
+    },
+    "RC11_DZ": {
+      "value": 0.0,
+      "type": 4,
+      "index": 708
+    },
+    "RC11_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 709
+    },
+    "RC12_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 710
+    },
+    "RC12_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 711
+    },
+    "RC12_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 712
+    },
+    "RC12_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 713
+    },
+    "RC12_DZ": {
+      "value": 0.0,
+      "type": 4,
+      "index": 714
+    },
+    "RC12_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 715
+    },
+    "RC13_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 716
+    },
+    "RC13_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 717
+    },
+    "RC13_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 718
+    },
+    "RC13_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 719
+    },
+    "RC13_DZ": {
+      "value": 0.0,
+      "type": 4,
+      "index": 720
+    },
+    "RC13_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 721
+    },
+    "RC14_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 722
+    },
+    "RC14_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 723
+    },
+    "RC14_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 724
+    },
+    "RC14_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 725
+    },
+    "RC14_DZ": {
+      "value": 0.0,
+      "type": 4,
+      "index": 726
+    },
+    "RC14_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 727
+    },
+    "RC15_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 728
+    },
+    "RC15_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 729
+    },
+    "RC15_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 730
+    },
+    "RC15_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 731
+    },
+    "RC15_DZ": {
+      "value": 0.0,
+      "type": 4,
+      "index": 732
+    },
+    "RC15_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 733
+    },
+    "RC16_MIN": {
+      "value": 1100.0,
+      "type": 4,
+      "index": 734
+    },
+    "RC16_TRIM": {
+      "value": 1500.0,
+      "type": 4,
+      "index": 735
+    },
+    "RC16_MAX": {
+      "value": 1900.0,
+      "type": 4,
+      "index": 736
+    },
+    "RC16_REVERSED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 737
+    },
+    "RC16_DZ": {
+      "value": 0.0,
+      "type": 4,
+      "index": 738
+    },
+    "RC16_OPTION": {
+      "value": 0.0,
+      "type": 4,
+      "index": 739
+    },
+    "RC_OVERRIDE_TIME": {
+      "value": 3.0,
+      "type": 9,
+      "index": 740
+    },
+    "RC_OPTIONS": {
+      "value": 32.0,
+      "type": 6,
+      "index": 741
+    },
+    "RC_PROTOCOLS": {
+      "value": 1.0,
+      "type": 6,
+      "index": 742
+    },
+    "BCN_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 743
+    },
+    "MOT_PWM_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 744
+    },
+    "MOT_PWM_FREQ": {
+      "value": 16.0,
+      "type": 2,
+      "index": 745
+    },
+    "MOT_SAFE_DISARM": {
+      "value": 0.0,
+      "type": 2,
+      "index": 746
+    },
+    "MOT_THR_MIN": {
+      "value": 0.0,
+      "type": 2,
+      "index": 747
+    },
+    "MOT_THR_MAX": {
+      "value": 100.0,
+      "type": 2,
+      "index": 748
+    },
+    "MOT_SLEWRATE": {
+      "value": 100.0,
+      "type": 4,
+      "index": 749
+    },
+    "MOT_THST_EXPO": {
+      "value": 0.0,
+      "type": 9,
+      "index": 750
+    },
+    "MOT_SPD_SCA_BASE": {
+      "value": 1.0,
+      "type": 9,
+      "index": 751
+    },
+    "MOT_STR_THR_MIX": {
+      "value": 0.5,
+      "type": 9,
+      "index": 752
+    },
+    "MOT_VEC_ANGLEMAX": {
+      "value": 0.0,
+      "type": 9,
+      "index": 753
+    },
+    "MOT_THST_ASYM": {
+      "value": 1.0,
+      "type": 9,
+      "index": 754
+    },
+    "WENC_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 755
+    },
+    "ATC_STR_RAT_P": {
+      "value": 0.20000000298023224,
+      "type": 9,
+      "index": 756
+    },
+    "ATC_STR_RAT_I": {
+      "value": 0.20000000298023224,
+      "type": 9,
+      "index": 757
+    },
+    "ATC_STR_RAT_D": {
+      "value": 0.0,
+      "type": 9,
+      "index": 758
+    },
+    "ATC_STR_RAT_FF": {
+      "value": 0.20000000298023224,
+      "type": 9,
+      "index": 759
+    },
+    "ATC_STR_RAT_IMAX": {
+      "value": 1.0,
+      "type": 9,
+      "index": 760
+    },
+    "ATC_STR_RAT_FLTT": {
+      "value": 0.0,
+      "type": 9,
+      "index": 761
+    },
+    "ATC_STR_RAT_FLTE": {
+      "value": 10.0,
+      "type": 9,
+      "index": 762
+    },
+    "ATC_STR_RAT_FLTD": {
+      "value": 0.0,
+      "type": 9,
+      "index": 763
+    },
+    "ATC_STR_RAT_SMAX": {
+      "value": 0.0,
+      "type": 9,
+      "index": 764
+    },
+    "ATC_STR_RAT_PDMX": {
+      "value": 0.0,
+      "type": 9,
+      "index": 765
+    },
+    "ATC_STR_RAT_D_FF": {
+      "value": 0.0,
+      "type": 9,
+      "index": 766
+    },
+    "ATC_STR_RAT_NTF": {
+      "value": 0.0,
+      "type": 2,
+      "index": 767
+    },
+    "ATC_STR_RAT_NEF": {
+      "value": 0.0,
+      "type": 2,
+      "index": 768
+    },
+    "ATC_SPEED_P": {
+      "value": 0.20000000298023224,
+      "type": 9,
+      "index": 769
+    },
+    "ATC_SPEED_I": {
+      "value": 0.20000000298023224,
+      "type": 9,
+      "index": 770
+    },
+    "ATC_SPEED_D": {
+      "value": 0.0,
+      "type": 9,
+      "index": 771
+    },
+    "ATC_SPEED_FF": {
+      "value": 0.0,
+      "type": 9,
+      "index": 772
+    },
+    "ATC_SPEED_IMAX": {
+      "value": 1.0,
+      "type": 9,
+      "index": 773
+    },
+    "ATC_SPEED_FLTT": {
+      "value": 0.0,
+      "type": 9,
+      "index": 774
+    },
+    "ATC_SPEED_FLTE": {
+      "value": 10.0,
+      "type": 9,
+      "index": 775
+    },
+    "ATC_SPEED_FLTD": {
+      "value": 0.0,
+      "type": 9,
+      "index": 776
+    },
+    "ATC_SPEED_SMAX": {
+      "value": 0.0,
+      "type": 9,
+      "index": 777
+    },
+    "ATC_SPEED_PDMX": {
+      "value": 0.0,
+      "type": 9,
+      "index": 778
+    },
+    "ATC_SPEED_D_FF": {
+      "value": 0.0,
+      "type": 9,
+      "index": 779
+    },
+    "ATC_SPEED_NTF": {
+      "value": 0.0,
+      "type": 2,
+      "index": 780
+    },
+    "ATC_SPEED_NEF": {
+      "value": 0.0,
+      "type": 2,
+      "index": 781
+    },
+    "ATC_ACCEL_MAX": {
+      "value": 1.0,
+      "type": 9,
+      "index": 782
+    },
+    "ATC_BRAKE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 783
+    },
+    "ATC_STOP_SPEED": {
+      "value": 0.10000000149011612,
+      "type": 9,
+      "index": 784
+    },
+    "ATC_STR_ANG_P": {
+      "value": 2.0,
+      "type": 9,
+      "index": 785
+    },
+    "ATC_STR_ACC_MAX": {
+      "value": 120.0,
+      "type": 9,
+      "index": 786
+    },
+    "ATC_STR_RAT_MAX": {
+      "value": 120.0,
+      "type": 9,
+      "index": 787
+    },
+    "ATC_DECEL_MAX": {
+      "value": 0.0,
+      "type": 9,
+      "index": 788
+    },
+    "ATC_BAL_P": {
+      "value": 1.7999999523162842,
+      "type": 9,
+      "index": 789
+    },
+    "ATC_BAL_I": {
+      "value": 1.5,
+      "type": 9,
+      "index": 790
+    },
+    "ATC_BAL_D": {
+      "value": 0.029999999329447746,
+      "type": 9,
+      "index": 791
+    },
+    "ATC_BAL_FF": {
+      "value": 0.0,
+      "type": 9,
+      "index": 792
+    },
+    "ATC_BAL_IMAX": {
+      "value": 1.0,
+      "type": 9,
+      "index": 793
+    },
+    "ATC_BAL_FLTT": {
+      "value": 0.0,
+      "type": 9,
+      "index": 794
+    },
+    "ATC_BAL_FLTE": {
+      "value": 10.0,
+      "type": 9,
+      "index": 795
+    },
+    "ATC_BAL_FLTD": {
+      "value": 0.0,
+      "type": 9,
+      "index": 796
+    },
+    "ATC_BAL_SMAX": {
+      "value": 0.0,
+      "type": 9,
+      "index": 797
+    },
+    "ATC_BAL_PDMX": {
+      "value": 0.0,
+      "type": 9,
+      "index": 798
+    },
+    "ATC_BAL_D_FF": {
+      "value": 0.0,
+      "type": 9,
+      "index": 799
+    },
+    "ATC_BAL_NTF": {
+      "value": 0.0,
+      "type": 2,
+      "index": 800
+    },
+    "ATC_BAL_NEF": {
+      "value": 0.0,
+      "type": 2,
+      "index": 801
+    },
+    "ATC_BAL_PIT_FF": {
+      "value": 0.4000000059604645,
+      "type": 9,
+      "index": 802
+    },
+    "ATC_SAIL_P": {
+      "value": 1.0,
+      "type": 9,
+      "index": 803
+    },
+    "ATC_SAIL_I": {
+      "value": 0.10000000149011612,
+      "type": 9,
+      "index": 804
+    },
+    "ATC_SAIL_D": {
+      "value": 0.0,
+      "type": 9,
+      "index": 805
+    },
+    "ATC_SAIL_FF": {
+      "value": 0.0,
+      "type": 9,
+      "index": 806
+    },
+    "ATC_SAIL_IMAX": {
+      "value": 1.0,
+      "type": 9,
+      "index": 807
+    },
+    "ATC_SAIL_FLTT": {
+      "value": 0.0,
+      "type": 9,
+      "index": 808
+    },
+    "ATC_SAIL_FLTE": {
+      "value": 10.0,
+      "type": 9,
+      "index": 809
+    },
+    "ATC_SAIL_FLTD": {
+      "value": 0.0,
+      "type": 9,
+      "index": 810
+    },
+    "ATC_SAIL_SMAX": {
+      "value": 0.0,
+      "type": 9,
+      "index": 811
+    },
+    "ATC_SAIL_PDMX": {
+      "value": 0.0,
+      "type": 9,
+      "index": 812
+    },
+    "ATC_SAIL_D_FF": {
+      "value": 0.0,
+      "type": 9,
+      "index": 813
+    },
+    "ATC_SAIL_NTF": {
+      "value": 0.0,
+      "type": 2,
+      "index": 814
+    },
+    "ATC_SAIL_NEF": {
+      "value": 0.0,
+      "type": 2,
+      "index": 815
+    },
+    "ATC_TURN_MAX_G": {
+      "value": 0.6000000238418579,
+      "type": 9,
+      "index": 816
+    },
+    "ATC_BAL_LIM_TC": {
+      "value": 0.5,
+      "type": 9,
+      "index": 817
+    },
+    "ATC_BAL_LIM_THR": {
+      "value": 0.6000000238418579,
+      "type": 9,
+      "index": 818
+    },
+    "TURN_RADIUS": {
+      "value": 0.8999999761581421,
+      "type": 9,
+      "index": 819
+    },
+    "ACRO_TURN_RATE": {
+      "value": 180.0,
+      "type": 9,
+      "index": 820
+    },
+    "SRTL_ACCURACY": {
+      "value": 2.0,
+      "type": 9,
+      "index": 821
+    },
+    "SRTL_POINTS": {
+      "value": 300.0,
+      "type": 4,
+      "index": 822
+    },
+    "SRTL_OPTIONS": {
+      "value": 0.0,
+      "type": 6,
+      "index": 823
+    },
+    "RTL_SPEED": {
+      "value": 0.0,
+      "type": 9,
+      "index": 824
+    },
+    "FRAME_CLASS": {
+      "value": 2.0,
+      "type": 2,
+      "index": 825
+    },
+    "PRX_LOG_RAW": {
+      "value": 0.0,
+      "type": 2,
+      "index": 826
+    },
+    "PRX_FILT": {
+      "value": 0.25,
+      "type": 9,
+      "index": 827
+    },
+    "PRX1_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 828
+    },
+    "PRX2_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 829
+    },
+    "PRX3_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 830
+    },
+    "PRX4_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 831
+    },
+    "PRX5_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 832
+    },
+    "AVOID_ENABLE": {
+      "value": 3.0,
+      "type": 2,
+      "index": 833
+    },
+    "AVOID_MARGIN": {
+      "value": 2.0,
+      "type": 9,
+      "index": 834
+    },
+    "AVOID_BEHAVE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 835
+    },
+    "AVOID_BACKUP_SPD": {
+      "value": 0.75,
+      "type": 9,
+      "index": 836
+    },
+    "AVOID_ACCEL_MAX": {
+      "value": 3.0,
+      "type": 9,
+      "index": 837
+    },
+    "AVOID_BACKUP_DZ": {
+      "value": 0.10000000149011612,
+      "type": 9,
+      "index": 838
+    },
+    "AVOID_BACKZ_SPD": {
+      "value": 0.75,
+      "type": 9,
+      "index": 839
+    },
+    "BAL_PITCH_MAX": {
+      "value": 10.0,
+      "type": 9,
+      "index": 840
+    },
+    "CRASH_ANGLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 841
+    },
+    "FOLL_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 842
+    },
+    "FRAME_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 843
+    },
+    "LOIT_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 844
+    },
+    "SPRAY_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 845
+    },
+    "WRC_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 846
+    },
+    "RALLY_TOTAL": {
+      "value": 0.0,
+      "type": 2,
+      "index": 847
+    },
+    "RALLY_LIMIT_KM": {
+      "value": 0.5,
+      "type": 9,
+      "index": 848
+    },
+    "RALLY_INCL_HOME": {
+      "value": 1.0,
+      "type": 2,
+      "index": 849
+    },
+    "SIMPLE_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 850
+    },
+    "LOIT_RADIUS": {
+      "value": 2.0,
+      "type": 9,
+      "index": 851
+    },
+    "WNDVN_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 852
+    },
+    "MIS_DONE_BEHAVE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 853
+    },
+    "BAL_PITCH_TRIM": {
+      "value": 0.0,
+      "type": 9,
+      "index": 854
+    },
+    "STICK_MIXING": {
+      "value": 0.0,
+      "type": 2,
+      "index": 855
+    },
+    "WP_SPEED": {
+      "value": 2.0,
+      "type": 9,
+      "index": 856
+    },
+    "WP_RADIUS": {
+      "value": 2.0,
+      "type": 9,
+      "index": 857
+    },
+    "WP_PIVOT_ANGLE": {
+      "value": 60.0,
+      "type": 4,
+      "index": 858
+    },
+    "WP_PIVOT_RATE": {
+      "value": 60.0,
+      "type": 4,
+      "index": 859
+    },
+    "WP_PIVOT_DELAY": {
+      "value": 0.0,
+      "type": 9,
+      "index": 860
+    },
+    "WP_ACCEL": {
+      "value": 0.0,
+      "type": 9,
+      "index": 861
+    },
+    "WP_JERK": {
+      "value": 0.0,
+      "type": 9,
+      "index": 862
+    },
+    "SAIL_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 863
+    },
+    "OA_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 864
+    },
+    "SPEED_MAX": {
+      "value": 0.0,
+      "type": 9,
+      "index": 865
+    },
+    "LOIT_SPEED_GAIN": {
+      "value": 0.5,
+      "type": 9,
+      "index": 866
+    },
+    "FS_OPTIONS": {
+      "value": 0.0,
+      "type": 6,
+      "index": 867
+    },
+    "TRQ1_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 868
+    },
+    "TRQ2_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 869
+    },
+    "PSC_POS_P": {
+      "value": 0.20000000298023224,
+      "type": 9,
+      "index": 870
+    },
+    "PSC_VEL_P": {
+      "value": 1.0,
+      "type": 9,
+      "index": 871
+    },
+    "PSC_VEL_I": {
+      "value": 0.0,
+      "type": 9,
+      "index": 872
+    },
+    "PSC_VEL_IMAX": {
+      "value": 1.0,
+      "type": 9,
+      "index": 873
+    },
+    "PSC_VEL_FLTE": {
+      "value": 5.0,
+      "type": 9,
+      "index": 874
+    },
+    "PSC_VEL_D": {
+      "value": 0.0,
+      "type": 9,
+      "index": 875
+    },
+    "PSC_VEL_FLTD": {
+      "value": 5.0,
+      "type": 9,
+      "index": 876
+    },
+    "PSC_VEL_FF": {
+      "value": 0.0,
+      "type": 9,
+      "index": 877
+    },
+    "GUID_OPTIONS": {
+      "value": 0.0,
+      "type": 6,
+      "index": 878
+    },
+    "MANUAL_OPTIONS": {
+      "value": 0.0,
+      "type": 6,
+      "index": 879
+    },
+    "DOCK_SPEED": {
+      "value": 0.0,
+      "type": 9,
+      "index": 880
+    },
+    "DOCK_DIR": {
+      "value": -1.0,
+      "type": 9,
+      "index": 881
+    },
+    "DOCK_HDG_CORR_EN": {
+      "value": 0.0,
+      "type": 2,
+      "index": 882
+    },
+    "DOCK_HDG_CORR_WT": {
+      "value": 0.75,
+      "type": 9,
+      "index": 883
+    },
+    "DOCK_STOP_DIST": {
+      "value": 0.30000001192092896,
+      "type": 9,
+      "index": 884
+    },
+    "MANUAL_STR_EXPO": {
+      "value": 0.0,
+      "type": 9,
+      "index": 885
+    },
+    "FS_GCS_TIMEOUT": {
+      "value": 5.0,
+      "type": 9,
+      "index": 886
+    },
+    "CIRC_RADIUS": {
+      "value": 20.0,
+      "type": 9,
+      "index": 887
+    },
+    "CIRC_SPEED": {
+      "value": 0.0,
+      "type": 9,
+      "index": 888
+    },
+    "CIRC_DIR": {
+      "value": 0.0,
+      "type": 2,
+      "index": 889
+    },
+    "OSD_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 890
+    },
+    "FLOW_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 891
+    },
+    "CAM_RC_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 892
+    },
+    "FFT_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 893
+    },
+    "VISO_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 894
+    },
+    "VTX_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 895
+    },
+    "MSP_OSD_NCELLS": {
+      "value": 0.0,
+      "type": 2,
+      "index": 896
+    },
+    "MSP_OPTIONS": {
+      "value": 0.0,
+      "type": 2,
+      "index": 897
+    },
+    "FRSKY_UPLINK_ID": {
+      "value": 13.0,
+      "type": 2,
+      "index": 898
+    },
+    "FRSKY_DNLINK1_ID": {
+      "value": 20.0,
+      "type": 2,
+      "index": 899
+    },
+    "FRSKY_DNLINK2_ID": {
+      "value": 7.0,
+      "type": 2,
+      "index": 900
+    },
+    "FRSKY_DNLINK_ID": {
+      "value": 27.0,
+      "type": 2,
+      "index": 901
+    },
+    "FRSKY_OPTIONS": {
+      "value": 0.0,
+      "type": 2,
+      "index": 902
+    },
+    "GEN_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 903
+    },
+    "EAHRS_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 904
+    },
+    "EFI_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 905
+    },
+    "ARSPD_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 906
+    },
+    "CUST_ROT_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 907
+    },
+    "ESC_TLM_MAV_OFS": {
+      "value": 0.0,
+      "type": 2,
+      "index": 908
+    },
+    "AIS_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 909
+    },
+    "FENCE_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 910
+    },
+    "FENCE_TYPE": {
+      "value": 6.0,
+      "type": 2,
+      "index": 911
+    },
+    "FENCE_ACTION": {
+      "value": 1.0,
+      "type": 2,
+      "index": 912
+    },
+    "FENCE_RADIUS": {
+      "value": 300.0,
+      "type": 9,
+      "index": 913
+    },
+    "FENCE_MARGIN": {
+      "value": 2.0,
+      "type": 9,
+      "index": 914
+    },
+    "FENCE_TOTAL": {
+      "value": 0.0,
+      "type": 2,
+      "index": 915
+    },
+    "NMEA_RATE_MS": {
+      "value": 100.0,
+      "type": 4,
+      "index": 916
+    },
+    "NMEA_MSG_EN": {
+      "value": 3.0,
+      "type": 4,
+      "index": 917
+    },
+    "KDE_NPOLE": {
+      "value": 14.0,
+      "type": 2,
+      "index": 918
+    },
+    "FLTMODE_GCSBLOCK": {
+      "value": 0.0,
+      "type": 6,
+      "index": 919
+    },
+    "NET_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 920
+    },
+    "NET_P1_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 921
+    },
+    "NET_P2_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 922
+    },
+    "NET_P3_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 923
+    },
+    "NET_P4_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 924
+    },
+    "FILT1_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 925
+    },
+    "FILT2_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 926
+    },
+    "FILT3_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 927
+    },
+    "FILT4_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 928
+    },
+    "FILT5_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 929
+    },
+    "FILT6_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 930
+    },
+    "FILT7_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 931
+    },
+    "FILT8_TYPE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 932
+    },
+    "STAT_BOOTCNT": {
+      "value": 11.0,
+      "type": 4,
+      "index": 933
+    },
+    "STAT_FLTTIME": {
+      "value": 0.0,
+      "type": 6,
+      "index": 934
+    },
+    "STAT_RESET": {
+      "value": 1.0,
+      "type": 6,
+      "index": 936
+    },
+    "SCR_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 937
+    },
+    "LOG_BACKEND_TYPE": {
+      "value": 1.0,
+      "type": 2,
+      "index": 938
+    },
+    "LOG_FILE_BUFSIZE": {
+      "value": 200.0,
+      "type": 4,
+      "index": 939
+    },
+    "LOG_DISARMED": {
+      "value": 0.0,
+      "type": 2,
+      "index": 940
+    },
+    "LOG_REPLAY": {
+      "value": 0.0,
+      "type": 2,
+      "index": 941
+    },
+    "LOG_FILE_DSRMROT": {
+      "value": 0.0,
+      "type": 2,
+      "index": 942
+    },
+    "LOG_MAV_BUFSIZE": {
+      "value": 8.0,
+      "type": 2,
+      "index": 943
+    },
+    "LOG_FILE_TIMEOUT": {
+      "value": 5.0,
+      "type": 4,
+      "index": 944
+    },
+    "LOG_FILE_MB_FREE": {
+      "value": 500.0,
+      "type": 4,
+      "index": 945
+    },
+    "LOG_FILE_RATEMAX": {
+      "value": 0.0,
+      "type": 9,
+      "index": 946
+    },
+    "LOG_MAV_RATEMAX": {
+      "value": 0.0,
+      "type": 9,
+      "index": 947
+    },
+    "LOG_DARM_RATEMAX": {
+      "value": 0.0,
+      "type": 9,
+      "index": 948
+    },
+    "LOG_MAX_FILES": {
+      "value": 500.0,
+      "type": 4,
+      "index": 949
+    },
+    "GRIP_ENABLE": {
+      "value": 0.0,
+      "type": 2,
+      "index": 950
+    },
+    "SERIAL0_BAUD": {
+      "value": 115.0,
+      "type": 6,
+      "index": 951
+    },
+    "SERIAL0_PROTOCOL": {
+      "value": 2.0,
+      "type": 2,
+      "index": 952
+    },
+    "SERIAL1_PROTOCOL": {
+      "value": 2.0,
+      "type": 2,
+      "index": 953
+    },
+    "SERIAL1_BAUD": {
+      "value": 57.0,
+      "type": 6,
+      "index": 954
+    },
+    "SERIAL2_PROTOCOL": {
+      "value": 2.0,
+      "type": 2,
+      "index": 955
+    },
+    "SERIAL2_BAUD": {
+      "value": 57.0,
+      "type": 6,
+      "index": 956
+    },
+    "SERIAL3_PROTOCOL": {
+      "value": 5.0,
+      "type": 2,
+      "index": 957
+    },
+    "SERIAL3_BAUD": {
+      "value": 230.0,
+      "type": 6,
+      "index": 958
+    },
+    "SERIAL4_PROTOCOL": {
+      "value": 5.0,
+      "type": 2,
+      "index": 959
+    },
+    "SERIAL4_BAUD": {
+      "value": 230.0,
+      "type": 6,
+      "index": 960
+    },
+    "SERIAL5_PROTOCOL": {
+      "value": 1.0,
+      "type": 2,
+      "index": 961
+    },
+    "SERIAL5_BAUD": {
+      "value": 57.0,
+      "type": 6,
+      "index": 962
+    },
+    "SERIAL6_PROTOCOL": {
+      "value": 22.0,
+      "type": 2,
+      "index": 963
+    },
+    "SERIAL6_BAUD": {
+      "value": 115200.0,
+      "type": 6,
+      "index": 964
+    },
+    "SERIAL1_OPTIONS": {
+      "value": 0.0,
+      "type": 4,
+      "index": 965
+    },
+    "SERIAL2_OPTIONS": {
+      "value": 0.0,
+      "type": 4,
+      "index": 966
+    },
+    "SERIAL3_OPTIONS": {
+      "value": 0.0,
+      "type": 4,
+      "index": 967
+    },
+    "SERIAL4_OPTIONS": {
+      "value": 0.0,
+      "type": 4,
+      "index": 968
+    },
+    "SERIAL5_OPTIONS": {
+      "value": 0.0,
+      "type": 4,
+      "index": 969
+    },
+    "SERIAL6_OPTIONS": {
+      "value": 0.0,
+      "type": 4,
+      "index": 970
+    },
+    "SERIAL_PASS1": {
+      "value": 0.0,
+      "type": 2,
+      "index": 971
+    },
+    "SERIAL_PASS2": {
+      "value": -1.0,
+      "type": 2,
+      "index": 972
+    },
+    "SERIAL_PASSTIMO": {
+      "value": 15.0,
+      "type": 2,
+      "index": 973
+    }
+  }
+}

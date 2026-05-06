@@ -16,9 +16,18 @@ heapless = { workspace = true }
 [target.'cfg(target_arch = "arm")'.dependencies]
 cortex-m = "0.7"
 cortex-m-rt = "0.7"
-stm32h7xx-hal = { version = "0.16", features = ["stm32h743v", "rt"] }
+stm32h7xx-hal = { version = "0.16", features = ["stm32h743v", "rt", "usb_hs"] }
 defmt = "0.3"
 defmt-rtt = "0.4"
+# USB CDC stack — production rescue path. The Cube's USB-C connector
+# routes to OTG2_HS pins (PB14/PB15) on the STM32H757; we use the
+# internal FS PHY so it enumerates as a 12 Mbps full-speed CDC ACM
+# device, identical to the bootloader's enumeration. This is what
+# Mission Planner / uploader.py talks to.
+usb-device = "0.3"
+usbd-serial = "0.2"
+synopsys-usb-otg = { version = "0.4", features = ["cortex-m"] }
+static_cell = "2"
 
 [lints]
 workspace = true

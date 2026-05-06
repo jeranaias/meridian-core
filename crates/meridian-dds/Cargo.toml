@@ -1,0 +1,17 @@
+[package]
+name = "meridian-dds"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "CDR serialization, ROS2 message types, and Meridian↔ROS2 type conversion"
+
+[dependencies]
+meridian-types = { workspace = true }
+meridian-math = { workspace = true }
+
+[features]
+default = []
+std = ["meridian-types/std"]
+
+[lints]
+workspace = true

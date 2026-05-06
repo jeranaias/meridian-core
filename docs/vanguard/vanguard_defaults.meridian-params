@@ -1,0 +1,202 @@
+# Vanguard + Meridian — default parameter bundle
+#
+# Format: one `NAME VALUE` per line, blank lines and `#` comments ignored.
+# Loaded via the tablet's CONFIG → PARAM → IMPORT BUNDLE flow. The tablet
+# sends each line as an MNP PARAM_SET command to the autopilot.
+#
+# Target: Meridian firmware on a CubePilot Cube Plus driving a
+# Vanguard-class jet boat, with an Orca Core 2 providing primary GPS +
+# 9-axis IMU + N2K bridge over Ethernet.
+#
+# Version: 1.0.0 — 2026-04-19
+# Covered in: docs/vanguard/03_zero_external_gps_architecture.md
+
+# =============================================================================
+# Vehicle identity
+# =============================================================================
+FRAME_CLASS          2        # 2 = Boat
+INITIAL_MODE         0        # MANUAL on boot (safest)
+SYSID_THISMAV        1        # MAVLink system id (for the adapter)
+
+# =============================================================================
+# GPS sources — Orca primary, serial puck silent standby
+# =============================================================================
+# GPS1 = sensor stream injected via MNP from the Orca bridge.
+# Meridian treats this identically to a directly-wired GPS for EKF purposes.
+GPS_TYPE             14       # External sensor source
+GPS_AUTO_CONFIG      0        # No auto-config; we trust the Orca's own config
+
+# GPS2 = whatever serial puck is on the Cube's GPS port.
+# Kept as a silent hot-standby via source arbitration below.
+GPS_TYPE2            1        # Auto-detect on serial
+
+# Source arbitration: blend when both healthy, fail over when one drops.
+GPS_AUTO_SWITCH      2        # 0=GPS1 only, 1=failover, 2=blend
+GPS_BLEND_MASK       5        # horizontal position + speed (no altitude)
+
+# Antenna offsets (meters from IMU). Small boat, values don't matter much.
+GPS_POS1_X           0.0
+GPS_POS1_Y           0.0
+GPS_POS1_Z           0.0
+GPS_POS2_X           0.0
+GPS_POS2_Y           0.0
+GPS_POS2_Z           0.0
+
+# Consumer-GPS-friendly thresholds
+GPS_HDOP_GOOD       200        # accept when HDOP × 100 < 200 (i.e. < 2.0)
+GPS_MIN_ELEV       -100        # accept at all elevations (marine horizon)
+
+# =============================================================================
+# EKF sources — source priority for each measurement class
+# =============================================================================
+AHRS_EKF_TYPE        3
+EK3_ENABLE           1
+
+# Primary source set
+EK3_SRC1_POSXY       3         # GPS
+EK3_SRC1_VELXY       3         # GPS
+EK3_SRC1_POSZ        1         # Baro
+EK3_SRC1_VELZ        0         # None (boat doesn't need vert velocity)
+EK3_SRC1_YAW         1         # Compass primary
+
+# Fallback source set (used when primary source is unhealthy)
+EK3_SRC2_POSXY       3         # GPS (other instance)
+EK3_SRC2_VELXY       3
+EK3_SRC2_POSZ        1
+EK3_SRC2_VELZ        0
+EK3_SRC2_YAW         2         # GSF fallback (if compass unavailable)
+
+# =============================================================================
+# Compass — external preferred, boat environment is noisy
+# =============================================================================
+COMPASS_ENABLE       1
+COMPASS_USE          1         # primary enabled
+COMPASS_USE2         1         # secondary enabled
+COMPASS_USE3         0
+COMPASS_OFFS_MAX  1800         # allow large hard-iron offsets (boats need this)
+
+# =============================================================================
+# Serial ports — Cube Plus layout
+# =============================================================================
+# Serial0 = USB console / debug
+# Serial1 = Telem1 = RFD 900 (MNP primary, 57600 baud)
+# Serial2 = Telem2 = companion computer (MNP sensor link, 115200 baud)
+# Serial3 = GPS1 port — unused (Orca bridge injects via Serial2)
+# Serial4 = GPS2 port — serial GPS puck (hot-standby)
+
+SERIAL1_PROTOCOL    14         # MNP primary radio link
+SERIAL1_BAUD        57         # 57600
+
+SERIAL2_PROTOCOL    15         # MNP companion sensor link
+SERIAL2_BAUD       115         # 115200
+
+SERIAL3_PROTOCOL    -1         # off (Orca injects via Serial2)
+
+SERIAL4_PROTOCOL     5         # GPS
+SERIAL4_BAUD       115
+
+# =============================================================================
+# Arming checks — tailored for a USV
+# =============================================================================
+ARMING_CHECK         1         # enable all checks
+ARMING_REQUIRE       1
+ARMING_VOLT_MIN     11.5       # LiFePO4 4S cutoff ≈ 11.5V; adjust per pack
+
+# =============================================================================
+# Failsafes — boat-appropriate
+# =============================================================================
+# RC loss → LOITER (boats hold position; RTL on lost link is usually wrong)
+FS_ACTION            1
+FS_THR_ENABLE        1
+FS_THR_VALUE       975         # PWM threshold
+
+# GCS / telemetry failsafe
+FS_GCS_ENABLE        1
+FS_GCS_TIMEOUT       5.0
+
+# Battery failsafes
+BATT_FS_LOW_ACT      2         # LOITER
+BATT_FS_CRT_ACT      3         # RTL
+BATT_LOW_VOLT       11.8
+BATT_CRT_VOLT       11.4
+
+# EKF failsafe (consumer GPS has higher variance — loosen threshold)
+FS_EKF_ACTION        1         # hold, don't do drastic things
+FS_EKF_THRESH        0.80
+
+# =============================================================================
+# Geofence — off by default, tight radius when enabled
+# =============================================================================
+FENCE_ENABLE         0         # ops team enables per mission
+FENCE_TYPE           7         # circle + altitude + polygon
+FENCE_RADIUS      2000         # 2 km circle default
+FENCE_ACTION         3         # RTL on breach
+
+# =============================================================================
+# Speed / navigation — Vanguard jet boat envelope
+# =============================================================================
+WP_SPEED             3.0       # m/s cruise
+WP_RADIUS            2.0       # m acceptance
+WP_OVERSHOOT         5.0
+CRUISE_SPEED         3.0
+CRUISE_THROTTLE     50         # % PWM for cruise
+NAVL1_PERIOD        17
+NAVL1_DAMPING        0.75
+LOIT_TYPE            0
+LOIT_RADIUS          5.0
+
+# =============================================================================
+# Steering PID (rate loop) — seeded by autotune if run
+# =============================================================================
+ATC_STR_RAT_P        0.20
+ATC_STR_RAT_I        0.10
+ATC_STR_RAT_D        0.005
+ATC_STR_RAT_FF       0.30
+ATC_STR_RAT_MAX    120.0
+ATC_STR_ANG_P        2.5
+
+# =============================================================================
+# Speed PID
+# =============================================================================
+ATC_SPEED_P          0.20
+ATC_SPEED_I          0.10
+ATC_SPEED_D          0.0
+ATC_SPEED_FF         0.40
+
+# =============================================================================
+# Rudder diagnostics — used by bench-test mode
+# =============================================================================
+RUDDER_TRIM_DEG      0.0
+RUDDER_MAX_DEG      20.0
+RUDDER_SIGN          1.0
+
+# =============================================================================
+# Station-keeping (Orca-only arch flagship feature)
+# =============================================================================
+STATION_RADIUS       5.0       # m hold circle
+AVOID_RADIUS        30.0       # m dynamic-threat avoidance radius
+AVOID_TCPA          30.0       # s — time-to-CPA threshold for evasion
+AVOID_GAIN           1.5       # APF repulsion scale
+TERRAIN_AVOID        1.0       # shoreline probe on
+COLREG_LEVEL         2.0       # 0=off, 1=simple, 2=full (rules 13-17)
+
+# =============================================================================
+# AIS simulator (used in bench / demo mode only)
+# =============================================================================
+AIS_SIM_ENABLED      1.0
+AIS_SIM_MAX          8.0
+
+# =============================================================================
+# Logging — full telemetry (trim later if SD card fills)
+# =============================================================================
+LOG_BACKEND_TYPE     1         # SD card
+LOG_BITMASK      65535         # everything
+LOG_FILE_DSRMROT     1         # new log on disarm
+LOG_REPLAY           1         # replay-compatible (needed for EKF tuning)
+LOG_DISARMED         0
+
+# =============================================================================
+# Misc
+# =============================================================================
+SYSID_MYGCS        255
+BRD_SAFETYENABLE     0         # no hardware safety switch on Vanguard; arming via tablet only

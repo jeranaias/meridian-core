@@ -1,0 +1,70 @@
+# meridian-orca-bridge configuration
+#
+# Copy to config.yaml and edit for your deployment.
+
+# --- Orca input ------------------------------------------------
+orca:
+  # Autodetect tries these strategies in order until one succeeds.
+  # On a known deployment, specify the exact strategy + endpoint.
+  autodetect: true
+
+  # Explicit endpoints (used when autodetect=false, or as hint)
+  signalk_ws: "ws://orca.local/signalk/v1/stream?subscribe=all"
+  yacht_devices_raw_udp: "0.0.0.0:1457"       # YD default UDP broadcast
+  yacht_devices_raw_tcp: "orca.local:1457"
+  # Orca native protocol — to be filled in once reverse-engineered:
+  # orca_native: "orca.local:<port>"
+
+# --- MAVLink output (to Cube autopilot) ------------------------
+mavlink:
+  # Serial endpoint when Cube USB is on this companion computer:
+  endpoint: "serial:/dev/ttyACM0:115200"
+  # Windows: "serial:COM10:115200"
+  # UDP out (for testing with MAVProxy / Mission Planner):
+  # endpoint: "udpout:127.0.0.1:14550"
+
+  # MAVLink source system/component (the companion computer's identity)
+  source_system: 251
+  source_component: 1
+
+  # MAVLink target (the Cube)
+  target_system: 1
+  target_component: 1
+
+  # What messages to emit
+  emit:
+    gps_input: true            # GPS_INPUT msg id 232 → the GPS fix for EKF
+    global_position: false     # usually emitted by Cube itself
+    distance_sensor: true      # depth from N2K → DISTANCE_SENSOR
+    wind_cov: true             # wind from N2K → WIND_COV
+    ahrs2: false               # heading/attitude (Orca has 9-axis IMU — optional)
+
+# --- Source mapping (which N2K PGNs feed which MAVLink msgs) ---
+# Default mapping below is correct for most Orca installs.
+source_map:
+  gps:
+    prefer_pgn: 129029         # GNSS Position Data (combined)
+    fallback_pgns: [129025, 129026]  # Position Rapid, COG/SOG Rapid
+  heading:
+    prefer_pgn: 127250         # Vessel Heading
+  depth:
+    prefer_pgn: 128267         # Water Depth
+  wind:
+    prefer_pgn: 130306         # Wind Data
+  ais:
+    class_a_pgn: 129794
+    class_b_pgn: 129039
+
+# --- Logging / telemetry ---------------------------------------
+logging:
+  level: INFO                  # DEBUG | INFO | WARN | ERROR
+  file: "/var/log/meridian-orca-bridge.log"
+  rotate_mb: 50
+
+# --- Operational limits ----------------------------------------
+watchdog:
+  # If no Orca data for this many seconds, mark GPS_INPUT as "no fix"
+  # to trigger ArduPilot's built-in dual-GPS failover to GPS2.
+  stale_timeout_s: 3.0
+  # Max rate at which we emit GPS_INPUT (Orca outputs at 10 Hz, we pass through)
+  max_gps_input_hz: 10

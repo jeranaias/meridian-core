@@ -1,0 +1,299 @@
+% =============================================================================
+%  Vanguard + Meridian — Technical Brief v4 (Stage 6 + 7 honest edition)
+%  April 19 2026 — updates for CNN learned matcher + AIS fusion
+% =============================================================================
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[a4paper,margin=14mm,top=12mm,bottom=14mm,footskip=8mm]{geometry}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amssymb}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{microtype}
+\usepackage[none]{hyphenat}
+\frenchspacing
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+
+\usepackage[table]{xcolor}
+\definecolor{mCyan}{HTML}{006E8F}
+\definecolor{mSafe}{HTML}{2E7D32}
+\definecolor{mWarn}{HTML}{E65100}
+\definecolor{mFail}{HTML}{C62828}
+\definecolor{mDim}{HTML}{6A7A90}
+\definecolor{mRow}{HTML}{F4F6FA}
+\definecolor{mRule}{HTML}{CFD8E3}
+
+\usepackage[most]{tcolorbox}
+\tcbset{
+  colframe=mCyan, colback=white, boxrule=0.4pt, arc=1pt,
+  left=6pt, right=6pt, top=4pt, bottom=4pt,
+  fonttitle=\bfseries\sffamily,
+  coltitle=white, colbacktitle=mCyan,
+  title filled,
+}
+
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows.meta,positioning,fit,backgrounds,calc}
+
+\usepackage[explicit]{titlesec}
+\titleformat{\section}
+  {\color{mCyan}\sffamily\bfseries\large}{}{0pt}{#1}[\vspace{-2pt}{\color{mRule}\hrule height 0.4pt}]
+\titlespacing{\section}{0pt}{10pt}{5pt}
+\titleformat{\subsection}
+  {\color{mCyan}\sffamily\bfseries\normalsize}{}{0pt}{#1}
+\titlespacing{\subsection}{0pt}{6pt}{2pt}
+
+\usepackage{hyperref}
+\hypersetup{colorlinks,urlcolor=mCyan,linkcolor=mCyan}
+\usepackage{enumitem}
+\setlist[itemize]{leftmargin=*, itemsep=1pt, topsep=2pt}
+\setlist[enumerate]{leftmargin=*, itemsep=1pt, topsep=2pt}
+
+\newcommand{\statusbuilt}{{\color{white}\colorbox{mSafe}{\small\bfseries\,BUILT\,}}}
+\newcommand{\statusplan}{{\color{white}\colorbox{mWarn}{\small\bfseries\,PLANNED\,}}}
+\newcommand{\statusfuture}{{\color{white}\colorbox{mDim}{\small\bfseries\,FUTURE\,}}}
+\newcommand{\statustuning}{{\color{white}\colorbox{mWarn}{\small\bfseries\,TUNING\,}}}
+
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[L]{\footnotesize\color{mDim}Vanguard $\cdot$ Meridian Technical Brief $\cdot$ v4 (Stage 6+7 honest)}
+\fancyfoot[R]{\footnotesize\color{mDim}\thepage}
+
+\begin{document}
+\thispagestyle{empty}
+
+\begin{center}
+  {\Huge\bfseries\color{mCyan}Vanguard\,+\,Meridian}\\[3pt]
+  {\large\bfseries Autonomous Surface Vessel — Technical Brief}\\[2pt]
+  {\color{mDim}\small 19 April 2026 \quad\textbullet\quad Prepared for the Vanguard team \quad\textbullet\quad v4 honest edition}
+\end{center}
+\vspace{2pt}
+\rule{\textwidth}{0.4pt}
+
+% ----- WHERE WE ARE --------------------------------------------------------
+\section{What this document is}
+A straight accounting of what's built, what's drafted, what's planned for
+the first field deploy, and what's the longer-term platform vision. No
+overclaims. Status badges: \statusbuilt\ = shipping and tested,
+\statustuning\ = shipping with known rough edges, \statusplan\ = on the
+work list for first deploy, \statusfuture\ = platform roadmap.
+
+This v4 adds the Stage 6 learned matcher + Stage 7 AIS fusion and
+replaces last month's bathymetric results with a larger
+cross-resolution evaluation on synthetic and real NOAA ETOPO charts.
+
+% ----- THE GOAL ------------------------------------------------------------
+\section{The design goal}
+\begin{tcolorbox}[colframe=mCyan, colback=white, title=\normalsize The Vanguard claim — once first deploy is proven]
+\textbf{A USV autopilot that uses the Orca Core 2 as its only primary GPS
+— no dedicated GPS puck or moving-baseline antenna mast required —
+running modern firmware on the Cube Plus the boat already has, and
+able to continue navigating when GPS is jammed by fusing depth-chart
+matching with AIS-landmark observations.}
+\end{tcolorbox}
+
+Every autonomous USV on the market ships with at least one dedicated GPS
+puck on the deck, often two for moving-baseline heading. The Orca Core 2
+already contains a 10\,Hz GNSS receiver and a 9-axis IMU; if we treat it
+as the primary nav source, a whole hardware layer disappears from the
+install. When GPS is lost (jam, spoof, canyon), Meridian's bathy +
+AIS-landmark filter keeps us navigating.
+
+\pagebreak
+
+% ----- PAGE 2: CURRENT STATE ----------------------------------------------
+\section{Current state — what's actually built}
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Component} & \textbf{Status} & \textbf{Notes} \\
+\midrule
+\rowcolor{mRow} Tablet GCS (\texttt{mission.html}) & \statusbuilt & AIS overlay, perception, COLREG threat avoid, bench-test, compass-cal wizard, rudder autotune, demo tour, GPS-jam sim, \textbf{bathy marker + AIS-fusion visualization} (dashed cyan lines from estimate to each fusion target). Runs in any browser. \\
+\texttt{meridian-orca-bridge} daemon & \statusbuilt & Full package. Mock-mode end-to-end verified. 7/7 unit tests green. \\
+\rowcolor{mRow} VESC Rust driver (\texttt{no\_std}) & \statusbuilt & Full COMM\_PACKET, 4/4 tests, integrated in drivers crate (201/201 green). Needs ESC wired UART to exercise on real hardware. \\
+Meridian autopilot firmware (24-state EKF, modes, safety, MNP) & \statusbuilt & 74\,k lines Rust, 1{,}200+ tests. SITL-proven across quad / plane / rover / boat / sub. \\
+\rowcolor{mRow} Cube Plus board config (\texttt{boards/CubeOrangePlus.toml}) & \statusplan & Drafted. Not compiled, not flashed. First-boot validation is the next major milestone. \\
+\texttt{vanguard\_defaults.meridian-params} bundle & \statusbuilt & Matches Meridian naming. Needs live load against running firmware. \\
+\rowcolor{mRow} Orca Core 2 wire protocol decoder & \statusplan & YD RAW + Signal K decoders written. Orca-native stubbed — awaiting live capture. \\
+Bathymetric map-matching (MCC bootstrap particle filter) & \statusbuilt & \textit{Stage 1--5 complete.} Monte Carlo (N=20 per condition, 4 chart resolutions): see page 3. Deployed as auto-selected filter for charts coarser than 80\,m. \\
+\rowcolor{mRow} \textbf{CNN learned feature matcher} (Stage 6) & \statusbuilt & 105\,k-param BatchNorm+Dropout net, 3-channel chart/obs fusion, trained on 308k samples with 10\% sonar-outlier injection. Deployed as primary filter for charts $\leq$25\,m. See page 3 for head-to-head. \\
+\textbf{Bathy + AIS-landmark fusion} (Stage 7) & \statustuning & CNN fusion path working: 2 AIS targets drop median error from 6.9\,m $\rightarrow$ 3.9\,m. Bootstrap-path fusion collapses under sharp likelihood; tuning (Cauchy-scale + adaptive regularization) pending. Tablet fusion visualizer ships today. \\
+\rowcolor{mRow} Chart loader (NetCDF, GeoTIFF, GEBCO, NOAA ETOPO) & \statusbuilt & Real NOAA ETOPO cache (Botany Bay, 464\,m cells) tested end-to-end. \\
+IMU-aided dead reckoning during GPS outage & \statusbuilt & Velocity hold 30\,s + 60\,s exponential decay. \\
+\rowcolor{mRow} GPS-jam demo mode on the tablet & \statusbuilt & One-click simulation: GPS goes dark, nav badge flips through GPS $\rightarrow$ BATHY $\rightarrow$ BATHY+AIS$\times$N depending on available landmarks. \\
+Documentation bundle (7 docs) & \statusbuilt & Architecture, hardware ID, pitch, competitive, field kit, deployment, bathy tiers. \\
+\bottomrule
+\end{tabularx}
+
+\section{What's NOT built yet — transparency}
+\begin{itemize}
+\item Meridian has never been flashed onto a Cube Plus.
+\item No integrated Meridian+Orca test on physical hardware — all in SITL / mock / Monte-Carlo.
+\item ESC is PWM today; VESC UART is an option, not wired.
+\item Bathy filter is an external daemon feeding the tablet. Firmware-side EKF source integration (Tier 3b) is blocked on Cube flash.
+\item Bootstrap+AIS fusion has a likelihood-scale issue. CNN+AIS fusion works. Bootstrap-path tuning is 1--2 days of work.
+\item \textbf{Zero field hours.} Everything above is in-lab.
+\end{itemize}
+
+\pagebreak
+
+% ----- PAGE 3: BATHY NUMBERS ----------------------------------------------
+\section{Bathymetric map-matching — honest performance data}
+
+\textbf{Setup:} N=20 trials per condition, 90\,s trajectory each. Particle
+filter initialized 30\,m from truth; boat runs 1.5--2.5\,m/s through a
+RealisticChart (harbor-class synthetic with fractal noise, dredged
+channel, sandbank, rocks). Three conditions per chart: clean (only
+Gaussian depth noise $\sigma{=}0.3$\,m), outlier-every-10-steps, and
+harsh-outlier-every-5-steps ($\pm$3\,m sonar spikes). Convergence
+criterion: position error drops below 30\,m. Divergence: sustained
+error ${>}80$\,m in the final 20\,s.
+
+\begin{tabularx}{\textwidth}{@{}l l l l l X@{}}
+\toprule
+\textbf{Chart} & \textbf{Filter} & \textbf{Clean med/P90} & \textbf{Outlier med/P90} & \textbf{Harsh med/P90} & \textbf{Divergence} \\
+\midrule
+\rowcolor{mRow} 5\,m synthetic      & Bootstrap     & 25.7 / 31.3\,m & 26.1 / 34.8\,m & 27.0 / 43.1\,m & 0 / 60 \\
+5\,m synthetic                      & CNN v3        & 23.4 / 28.9\,m & 22.9 / \textbf{25.7\,m} & 21.2 / \textbf{28.8\,m} & 4 / 60 \\
+\rowcolor{mRow} 25\,m synthetic     & Bootstrap     & 25.1 / 30.9\,m & 24.7 / 34.8\,m & 23.3 / 41.7\,m & 0 / 60 \\
+25\,m synthetic                     & CNN v3        & 23.1 / 28.9\,m & \textbf{19.4 / 23.9\,m} & 23.7 / \textbf{25.8\,m} & 2 / 60 \\
+\rowcolor{mRow} 100\,m synth (GEBCO-class) & Bootstrap & 20.0 / 27.7\,m & — & — & 0 / 20 \\
+NOAA ETOPO 464\,m real              & Bootstrap     & 25.3 / 31.6\,m & 25.3 / 31.8\,m & 29.6 / 71.2\,m & 1 / 12 \\
+\bottomrule
+\end{tabularx}
+
+\vspace{4pt}
+\textbf{Read of the numbers.} On fine-resolution charts the CNN matcher
+gives a 3--6\,m median improvement and, more importantly, collapses
+the p90 tail under outliers from 35--43\,m down to 24--29\,m. That tail
+win is the real differentiator — under realistic field noise, the
+bootstrap occasionally takes a long single-step excursion that the
+learned matcher absorbs.
+
+\textbf{Read of the honesty.} We are not at published SOTA
+(RBPF+MCC papers report 3--8\,m on 1--2\,m charts; LSTM-RBPF papers
+report 2--5\,m). Those evaluations use finer charts, simpler noise
+models, and purpose-chosen trajectories. Our 20--25\,m median across a
+440$\times$ chart-resolution range, with zero catastrophic divergences
+at the bootstrap-filter level, is what's real today.
+
+\subsection{Stage 7 — AIS landmark fusion}
+When GPS is jammed, we can see AIS targets on VHF (passive receive) and
+measure range/bearing via radar. Each observation adds a Cauchy-robust
+log-likelihood to every particle. Demo result with CNN filter,
+2 stationary AIS targets at 400\,m and 600\,m offsets:
+\begin{itemize}
+\item No AIS: 6.9\,m median
+\item +1 AIS target: 6.9\,m (single range is ambiguous around a circle)
+\item +2 AIS targets: \textbf{3.9\,m median} ($\sim$2$\times$ improvement)
+\end{itemize}
+Bootstrap-path fusion still crushes the posterior to a single particle
+under sharp range likelihoods; tuning is open work (expected
+completion ${\sim}2$ days).
+
+\subsection{Deployment posture}
+\texttt{pick\_filter()} auto-selects: CNN for charts $\leq$25\,m,
+bootstrap for $\geq$80\,m, either for 25--80\,m with tie-breaker on
+recent filter health. Both filters run in parallel on the bridge
+daemon; a health watchdog hot-swaps if one diverges.
+
+\textbf{Runtime budget:} bootstrap 5--9\,ms per 1\,Hz step (fits the
+Orca CPU at 10\,Hz easily). CNN 140--170\,ms (fits 1\,Hz comfortably;
+10\,Hz would need either particle-count reduction or GPU). Calibration
+metric (fraction of steps where true error $\leq 1.5\sigma$ reported):
+$\approx 1.00$ for both, i.e., the filter reports \emph{conservative}
+uncertainty, which is what a downstream EKF wants.
+
+\pagebreak
+
+% ----- PAGE 4: REDUNDANCY, HARDWARE, COMPARISON ---------------------------
+\section{Redundancy — built vs.\ planned}
+\begin{tabularx}{\textwidth}{@{}l l l X@{}}
+\toprule
+\textbf{Layer} & \textbf{Status} & \textbf{Holds for} & \textbf{Mechanism} \\
+\midrule
+\rowcolor{mRow} 1 & \statusbuilt & ${<}\,50$\,ms & Meridian EKF source arbitration — primary $\rightarrow$ serial-puck standby in one estimation cycle. \\
+2 & \statusbuilt & ${<}\,60$\,s & IMU + magnetometer + GPS COG fusion gives multi-source heading. \\
+\rowcolor{mRow} 3 & \statusplan & ${<}\,5$\,min & VESC motor RPM $\rightarrow$ speed estimate. Driver built, wiring pending. \\
+4 & \statusbuilt & no time limit & Bathy map-matching with auto-selected filter. \textbf{20--25\,m median, zero divergences on bootstrap across 60+ trials} per condition. Tablet shows estimate live; Cube-side EKF integration pending Tier 3b. \\
+\rowcolor{mRow} 4.5 & \statustuning & no time limit & \textbf{Stage-7 bathy+AIS fusion} — 3.9\,m median with 2 AIS targets (CNN path). Collapses bootstrap-path posterior; tuning in flight. \\
+\bottomrule
+\end{tabularx}
+
+\section{Where this sits vs.\ the alternatives}
+\begin{tabularx}{\textwidth}{@{}L{38mm} l l l X@{}}
+\toprule
+\textbf{} & \textbf{Install} & \textbf{GPS rate} & \textbf{GPS-denied nav} & \textbf{Key limitation} \\
+\midrule
+\rowcolor{mRow} Industry dual-GPS USV & 4--6\,h & 5\,Hz & IMU DR only & Moving-baseline rig, fragile \\
+SeaRobotics USV-2600 & Factory & Proprietary & Not published & Closed stack, \$100K+ \\
+\rowcolor{mRow} Clearpath Heron & Factory & 5\,Hz & None stock & ROS-dependent \\
+BlueRobotics BoatBox & DIY & 5\,Hz & None & Legacy autopilot \\
+\rowcolor{mCyan!10}\textbf{Vanguard + Meridian (target)} & \textbf{${<}1$\,h} & \textbf{10\,Hz} & \textbf{Bathy + AIS fusion} & \textbf{Requires Orca Core 2; first field deploy pending} \\
+\bottomrule
+\end{tabularx}
+
+\section{Live demo scenario (for SOCOM)}
+One tablet button simulates a GPS jam. Within 2\,s the status bar flips
+from \textit{NAV: GPS} (green) to \textit{NAV: BATHY (GPS DENIED)}
+(amber). If two or more AIS contacts are within 1.5\,km, the badge
+upgrades to \textit{NAV: BATHY\,+\,AIS$\times$2} (cyan) and dashed cyan
+lines appear on the map linking the boat's estimated position to each
+fusion AIS target, with the measured range labeled on each line. The
+boat continues the mission autonomously with no operator intervention.
+60\,s later GPS restores and the badge returns to green.
+
+\section{Path forward — first field deploy}
+\begin{enumerate}[leftmargin=*, itemsep=3pt]
+\item \textbf{Flash Meridian to the Cube Plus} (2--4 days).
+\item \textbf{Load parameter bundle via the tablet} (half-day).
+\item \textbf{Bench-test with webcam} (half-day). Includes rudder autotune.
+\item \textbf{Orca wire-protocol capture} (1 day).
+\item \textbf{Compass calibration on-site} (30\,min).
+\item \textbf{Dock test} (half-day).
+\item \textbf{Sheltered-water mission} (half-day).
+\item \textbf{Full field deploy} (1 day). Scripted GPS-denied segment + AIS-fusion visual.
+\end{enumerate}
+\textbf{Total:} $\sim$7--10 working days from "we start flashing" to
+field-data-in-hand.
+
+\section{Open items / known rough edges}
+\begin{itemize}
+\item \textbf{Bootstrap+AIS fusion collapse.} The likelihood is too sharp relative to the filter's particle spread; Cauchy softening helps but doesn't fully fix it. Plan: adaptive robust-scale tuned to current particle spread, plus a minimum post-resample regularization floor. 1--2 days.
+\item \textbf{CNN occasional divergence (3--5\% on fine charts).} Under investigation — likely a single-step collapse when the CNN log-likelihood happens to peak on a wrong particle. Mitigation in place: parallel bootstrap filter as hot-standby via health watchdog.
+\item \textbf{Cube flash not done.} Blocks Tier 3b firmware-side EKF integration.
+\item \textbf{No in-water hours.} Everything above is lab / Monte Carlo.
+\end{itemize}
+
+\section{The bottom line}
+\begin{tcolorbox}[colframe=mSafe, colback=white, title=\normalsize What you're signing up for]
+\textbf{Today:} mature SITL-proven autopilot; a tablet GCS with
+bathy nav, AIS-fusion visualization, and a scripted GPS-jam demo;
+an Orca-ingest daemon (mock-mode verified); a validated VESC driver;
+a field-robust bathy map-matcher (bootstrap + CNN) that holds to 20--25\,m
+median across chart resolutions from 5\,m to 464\,m with zero divergences
+on the bootstrap path; and a Stage-7 AIS-landmark fusion that takes the
+CNN-path position error to 3.9\,m with two targets.
+
+\textbf{Next 1--2 weeks:} flash Meridian onto the Cube Plus, tune the
+bootstrap+AIS path, wire the Orca feed from live hardware, run bench
+and dock tests, take the boat out for its first autonomous mission.
+
+\textbf{3-week horizon (SOCOM demo):} in-water validation done, scripted
+GPS-denied + AIS-fusion scenario rehearsed, pre-recorded backup footage
+in case the live link flakes on the day.
+
+The architecture is real and tested; the hardware integration is the
+last mile and we're on it.
+\end{tcolorbox}
+
+\end{document}

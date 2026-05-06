@@ -323,20 +323,29 @@
 
     // Failsafe alert system
     const alertBanner = document.getElementById('alert-banner');
+    const mapArea = document.getElementById('map-area');
     meridian.events.on('failsafe', function (data) {
         if (!alertBanner) return;
         alertBanner.className = 'alert-banner active emergency';
+        if (mapArea) mapArea.classList.add('has-emergency');
+        var label;
         if (data.type === 'disarm_in_flight') {
-            alertBanner.textContent = '\u26A0 DISARMED IN FLIGHT \u2014 ' + data.alt.toFixed(0) + 'm';
+            label = '⚠ DISARMED IN FLIGHT — ' + data.alt.toFixed(0) + 'm';
+        } else if (data.type === 'battery_critical') {
+            label = '⚠ BATTERY CRITICAL — ' + data.pct + '%';
+        } else if (data.type === 'fence_breach') {
+            label = '⚠ GEOFENCE BREACH';
         } else {
-            alertBanner.textContent = '\u26A0 FAILSAFE: ' + data.mode;
+            label = '⚠ FAILSAFE: ' + data.mode;
         }
+        alertBanner.textContent = label;
         // T0-6: Require explicit acknowledgment — NO auto-dismiss
         alertBanner.onclick = function () {
             alertBanner.classList.remove('active');
+            if (mapArea) mapArea.classList.remove('has-emergency');
             meridian.log('Alert acknowledged', 'info');
         };
-        // Banner stays until pilot clicks it
+        // Banner stays until pilot taps it
     });
 
     // T0-14: Battery critical fires failsafe event + banner

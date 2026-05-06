@@ -1,0 +1,266 @@
+# CubeOrangePlus — CubePilot flagship H7 flight controller.
+#
+# Used by the Vanguard USV (Tristan's build). Meridian targets H7 already
+# via MatekH743, so this is a sibling config — same MCU family, different
+# carrier/peripheral layout.
+#
+# Source: ArduPilot hwdef/CubeOrangePlus/hwdef.dat
+# Reference: https://docs.cubepilot.org/user-guides/autopilot/the-cube-orange-plus-overview
+#
+# MCU: STM32H757II, dual-core (Cortex-M7 @ 480 MHz + Cortex-M4 @ 240 MHz).
+# Meridian runs on the M7 core. The M4 co-processor is unused at present.
+#
+# Key features:
+# - Triple-redundant IMU (3× ICM42688 / ICM20948)
+# - Dual redundant barometer (2× MS5611)
+# - External magnetometer via I2C or DroneCAN
+# - IOMCU (STM32F103) for PWM output + RC input
+# - 2× CAN interfaces (for DroneCAN GPS/ESC)
+# - Safety switch, buzzer, PPM/SBUS input
+
+[board]
+name = "CubeOrangePlus"
+board_id = 1063            # AP_HW_CUBEORANGEPLUS — verified 2026-04-26 against ArduPilot Tools/AP_Bootloader/board_types.txt and against the live Cube's running 4.6.3 firmware on the Vanguard USV (git 3fc7011a)
+mcu = "STM32H757"          # H757 = dual-core (M7 + M4); Meridian runs on M7 only, M4 idle
+clock_hz = 480000000
+oscillator_hz = 16000000
+flash_size_kb = 2048       # Useable firmware region: 1.875 MB. ArduRover 4.6.3 uses 1.72 MB.
+ram_size_kb = 1024
+
+[usb]
+manufacturer = "CubePilot"
+product = "CubeOrangePlus"
+vid = "0x2DAE"             # CubePilot VID
+pid = "0x1058"             # Cube Orange+ PID — verified from live Cube enumeration
+
+[serial]
+# Matching ArduPilot Cube Orange+ port order:
+# SERIAL0 = USB (OTG1)
+# SERIAL1 = Telem1 (UART2) — default RFD900
+# SERIAL2 = Telem2 (UART3) — default companion computer
+# SERIAL3 = GPS1 (UART1)
+# SERIAL4 = GPS2 (UART8)
+# SERIAL5 = console (UART4) — debug
+# SERIAL6 = UART6 — spare
+# SERIAL7 = UART7 — spare
+order = ["OTG1", "USART2", "USART3", "USART1", "UART8", "UART4", "USART6", "UART7"]
+
+[features]
+sdcard = true
+iomcu = true               # Cube has a dedicated IOMCU chip for PWM/RC
+ethernet = false           # Base Cube has MAC but no PHY
+can = true
+can_bus_count = 2
+
+# --- SPI buses ---
+[[spi_bus]]
+index = 1                  # SPI1 = primary IMU bus (ICM42688 ×1)
+sck = "A5"
+miso = "A6"
+mosi = "D7"
+af = 5
+dma_noshare = true
+
+[[spi_bus]]
+index = 2                  # SPI2 = IMU2
+sck = "I1"
+miso = "I2"
+mosi = "I3"
+af = 5
+dma_noshare = true
+
+[[spi_bus]]
+index = 4                  # SPI4 = IMU3 + LSM303D compass
+sck = "E2"
+miso = "E5"
+mosi = "E6"
+af = 5
+dma_noshare = true
+
+[[spi_bus]]
+index = 5                  # SPI5 = baro ×2
+sck = "F7"
+miso = "F8"
+mosi = "F9"
+af = 5
+dma_noshare = false
+
+# --- SPI devices ---
+[[spi_device]]
+name = "icm42688"          # Primary IMU
+bus = 1
+cs = "C2"
+mode = 3
+low_speed_hz = 2000000
+high_speed_hz = 16000000
+
+[[spi_device]]
+name = "icm20948_imu2"
+bus = 2
+cs = "H5"
+mode = 3
+low_speed_hz = 1000000
+high_speed_hz = 8000000
+
+[[spi_device]]
+name = "icm42688_imu3"
+bus = 4
+cs = "C15"
+mode = 3
+low_speed_hz = 2000000
+high_speed_hz = 16000000
+
+[[spi_device]]
+name = "ms5611"            # Baro1
+bus = 5
+cs = "F10"
+mode = 3
+low_speed_hz = 1000000
+high_speed_hz = 20000000
+
+[[spi_device]]
+name = "ms5611_ext"        # Baro2
+bus = 5
+cs = "F4"
+mode = 3
+low_speed_hz = 1000000
+high_speed_hz = 20000000
+
+# --- I2C buses ---
+[[i2c_bus]]
+index = 1                  # I2C1 = external mag (on carrier GPS connector)
+scl = "B8"
+sda = "B9"
+speed_khz = 400
+
+[[i2c_bus]]
+index = 2                  # I2C2 = internal baro alt path (unused on Orange+ typically)
+scl = "H4"
+sda = "H5"
+speed_khz = 400
+
+[[i2c_bus]]
+index = 4                  # I2C4 = spare / GPS1 external compass
+scl = "F14"
+sda = "F15"
+speed_khz = 400
+
+# --- CAN buses (DroneCAN GPS / ESC) ---
+[[can_bus]]
+index = 1
+rx = "D0"
+tx = "D1"
+af = 9
+
+[[can_bus]]
+index = 2
+rx = "B12"
+tx = "B13"
+af = 9
+
+# --- IMU probes in priority order ---
+[[imu]]
+driver = "icm42688"
+device = "icm42688"
+rotation = "none"
+
+[[imu]]
+driver = "icm42688"
+device = "icm42688_imu3"
+rotation = "pitch_180"
+
+[[imu]]
+driver = "icm20948"
+device = "icm20948_imu2"
+rotation = "yaw_270"
+
+# --- Baros ---
+[[baro]]
+driver = "ms5611"
+device = "ms5611"
+
+[[baro]]
+driver = "ms5611"
+device = "ms5611_ext"
+
+# --- Compass (external only — Cube's internal compass is not reliable) ---
+[[compass]]
+driver = "external_i2c"
+bus = 1
+address = 0x1E             # LIS3MDL / HMC5883 typical
+rotation = "none"
+external = true
+
+# --- LEDs / buzzer ---
+[leds]
+red = "E3"
+blue = "E4"
+green = "E5"               # Note: some carriers have different LED pinout
+
+[buzzer]
+pin = "E11"
+timer = 1
+channel = 2
+
+[safety]
+switch_pin = "F3"
+led_pin = "E10"
+
+# --- PWM outputs ---
+# On the Cube, PWM 1-8 go through the IOMCU (STM32F103 co-processor).
+# PWM 9-14 are "Aux" outputs on the H7 main MCU directly.
+# For a boat we typically use:
+#   PWM1 = steering servo or left jet nozzle
+#   PWM3 = throttle to ESC (main propulsion)
+[[pwm_output]]
+channel = 1
+timer = 1
+pin = "E9"
+source = "iomcu"
+
+[[pwm_output]]
+channel = 2
+timer = 1
+pin = "E11"
+source = "iomcu"
+
+[[pwm_output]]
+channel = 3
+timer = 1
+pin = "E13"
+source = "iomcu"
+
+[[pwm_output]]
+channel = 4
+timer = 1
+pin = "E14"
+source = "iomcu"
+
+[[pwm_output]]
+channel = 5                # Aux 1
+timer = 4
+pin = "D13"
+source = "main"
+
+[[pwm_output]]
+channel = 6
+timer = 4
+pin = "D14"
+source = "main"
+
+# --- ADC (battery monitoring) ---
+[adc]
+# Default Cube power module: voltage on A0, current on B1
+vbat_pin = "A0"
+vbat_scale = 1.0
+current_pin = "B1"
+current_scale = 1.0
+vservo_pin = "A4"
+
+# --- Deployment notes for Vanguard ---
+# After flashing Meridian firmware to this board:
+#   1. Import vanguard_meridian_defaults.param to set GPS_TYPE=14 etc.
+#   2. Wire RFD900 to SERIAL1 (USART2) @ 57600
+#   3. Wire companion computer USB to OTG1 (SERIAL0)
+#   4. Run compass calibration from the tablet
+#   5. Run bench test autotune to seed ATC_STR_RAT_* gains

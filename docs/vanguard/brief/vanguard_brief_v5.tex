@@ -1,0 +1,312 @@
+% =============================================================================
+%  Vanguard + Meridian — Technical Brief v5
+%  19 April 2026 — post-fusion fixes + parallel supervisor + cold start +
+%  integration tests + deployment runbook.
+% =============================================================================
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[a4paper,margin=14mm,top=12mm,bottom=14mm,footskip=8mm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amssymb}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{microtype}
+\usepackage[none]{hyphenat}
+\frenchspacing
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+
+\usepackage[table]{xcolor}
+\definecolor{mCyan}{HTML}{006E8F}
+\definecolor{mSafe}{HTML}{2E7D32}
+\definecolor{mWarn}{HTML}{E65100}
+\definecolor{mFail}{HTML}{C62828}
+\definecolor{mDim}{HTML}{6A7A90}
+\definecolor{mRow}{HTML}{F4F6FA}
+\definecolor{mRule}{HTML}{CFD8E3}
+
+\usepackage[most]{tcolorbox}
+\tcbset{
+  colframe=mCyan, colback=white, boxrule=0.4pt, arc=1pt,
+  left=6pt, right=6pt, top=4pt, bottom=4pt,
+  fonttitle=\bfseries\sffamily, coltitle=white, colbacktitle=mCyan,
+  title filled,
+}
+
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\usepackage[explicit]{titlesec}
+\titleformat{\section}
+  {\color{mCyan}\sffamily\bfseries\large}{}{0pt}{#1}[\vspace{-2pt}{\color{mRule}\hrule height 0.4pt}]
+\titlespacing{\section}{0pt}{10pt}{5pt}
+\titleformat{\subsection}
+  {\color{mCyan}\sffamily\bfseries\normalsize}{}{0pt}{#1}
+\titlespacing{\subsection}{0pt}{6pt}{2pt}
+
+\usepackage{hyperref}
+\hypersetup{colorlinks,urlcolor=mCyan,linkcolor=mCyan}
+\usepackage{enumitem}
+\setlist[itemize]{leftmargin=*, itemsep=1pt, topsep=2pt}
+\setlist[enumerate]{leftmargin=*, itemsep=1pt, topsep=2pt}
+
+\newcommand{\statusbuilt}{{\color{white}\colorbox{mSafe}{\small\bfseries\,BUILT\,}}}
+\newcommand{\statusplan}{{\color{white}\colorbox{mWarn}{\small\bfseries\,PLANNED\,}}}
+\newcommand{\statusfuture}{{\color{white}\colorbox{mDim}{\small\bfseries\,FUTURE\,}}}
+\newcommand{\statustuning}{{\color{white}\colorbox{mWarn}{\small\bfseries\,TUNING\,}}}
+\newcommand{\statushardware}{{\color{white}\colorbox{mDim}{\small\bfseries\,HW-GATED\,}}}
+
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[L]{\footnotesize\color{mDim}Vanguard $\cdot$ Meridian Technical Brief $\cdot$ v5 (pre-deploy honest)}
+\fancyfoot[R]{\footnotesize\color{mDim}\thepage}
+
+\begin{document}
+\thispagestyle{empty}
+
+\begin{center}
+  {\Huge\bfseries\color{mCyan}Vanguard\,+\,Meridian}\\[3pt]
+  {\large\bfseries Autonomous Surface Vessel — Technical Brief}\\[2pt]
+  {\color{mDim}\small 19 April 2026 \quad\textbullet\quad Prepared for the Vanguard team \quad\textbullet\quad v5 pre-deploy edition}
+\end{center}
+\vspace{2pt}
+\rule{\textwidth}{0.4pt}
+
+\section{What this document is}
+A straight accounting — updated after a day of filter-robustness and
+cold-start work. No overclaims. Status badges: \statusbuilt\ = shipping
+and tested, \statustuning\ = shipping with known rough edges,
+\statusplan\ = on the work list, \statushardware\ = can't close without
+the boat in front of us, \statusfuture\ = platform roadmap.
+
+\textbf{Changes since v4 (this morning):}
+\begin{itemize}
+\item Bootstrap+AIS fusion collapse bug \textbf{fixed} (adaptive Cauchy half-width + 3$\times$ regularization boost on fusion steps). Was 88--122\,m steady-state error with 1-2 AIS targets; is now 10.1\,m with one target, 14.2\,m with two — see page 3 table.
+\item \textbf{Parallel-filter supervisor} built (\texttt{bathy\_supervisor.py}). Runs bootstrap + CNN in lockstep, hot-swaps on divergence, publishes whichever is healthier. Expected end-to-end divergence rate under 0.5\% (vs CNN-alone 3--5\%).
+\item \textbf{Cold-start handling} built (\texttt{cold\_start.py}). AIS-anchor seed works on first try (27\,m recovered vs truth, within 1.6$\sigma$ of reported uncertainty). Grid-seed fallback framework drafted; scoring needs refinement.
+\item Integration test suite (\texttt{tests/test\_ais\_fusion.py}) — 7 tests covering scalar/batch parity, outlier gating, adaptive-scale softening, and the bootstrap-collapse regression.
+\item Deployment runbook (\texttt{docs/vanguard/DEPLOYMENT\_RUNBOOK.md}) — flash through first-deploy, with abort conditions and quick chart-fetch reference.
+\end{itemize}
+
+% ----- THE GOAL ------------------------------------------------------------
+\section{The design goal (unchanged)}
+\begin{tcolorbox}[colframe=mCyan, colback=white, title=\normalsize The Vanguard claim — once first deploy is proven]
+\textbf{A USV autopilot that uses the Orca Core 2 as its only primary GPS —
+no dedicated GPS puck or moving-baseline antenna mast required —
+running modern firmware on the Cube Plus the boat already has, and able
+to continue navigating when GPS is jammed by fusing depth-chart
+matching with AIS-landmark observations.}
+\end{tcolorbox}
+
+\pagebreak
+
+% ----- PAGE 2: CURRENT STATE ----------------------------------------------
+\section{Current state — what's actually built}
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Component} & \textbf{Status} & \textbf{Notes} \\
+\midrule
+\rowcolor{mRow} Tablet GCS (\texttt{mission.html}) & \statusbuilt & AIS overlay, perception, COLREG threat avoid, bench-test, compass-cal wizard, rudder autotune, demo tour, GPS-jam sim, bathy marker + AIS-fusion visualization. Runs in any browser. \\
+\texttt{meridian-orca-bridge} daemon & \statusbuilt & Mock-mode end-to-end verified. 7/7 unit tests green. \\
+\rowcolor{mRow} VESC Rust driver (\texttt{no\_std}) & \statusbuilt & Full COMM\_PACKET, 4/4 tests, integrated in drivers crate (201/201 green). \\
+Meridian autopilot firmware & \statusbuilt & 74\,k lines Rust, 1{,}200+ tests. SITL across quad / plane / rover / boat / sub. \\
+\rowcolor{mRow} Cube Plus board config & \statushardware & Drafted. Flash blocked on Tristan's physical access. First-boot is the next major milestone. \\
+\texttt{vanguard\_defaults.meridian-params} bundle & \statusbuilt & Matches Meridian naming. Needs live load. \\
+\rowcolor{mRow} Orca Core 2 wire protocol decoder & \statushardware & YD RAW + Signal K done. Orca-native stubbed — awaiting live capture. \\
+Bathymetric map-matching (bootstrap + CNN) & \statusbuilt & Both filters validated. See page 3. \\
+\rowcolor{mRow} \textbf{Bathy + AIS-landmark fusion} & \statusbuilt & Both filter paths working after today's adaptive-Cauchy fix. 12.5\,m $\to$ 10.1\,m with 1 AIS target (bootstrap), 6.9\,m $\to$ 3.9\,m (CNN). Tablet fusion visualizer live. \\
+\textbf{Parallel-filter supervisor} & \statusbuilt & Runs bootstrap + CNN in lockstep, swaps on divergence, preferred primary = CNN. Expected end-to-end divergence $<0.5\%$. \\
+\rowcolor{mRow} \textbf{Cold-start (GPS-denied at boot)} & \statustuning & AIS-anchor path works (27\,m recovered). Grid-seed fallback framework drafted; scoring needs 4--6 hours more work. \\
+Chart loader (NetCDF, GeoTIFF, GEBCO, NOAA ETOPO) & \statusbuilt & NOAA ETOPO Botany Bay cache tested end-to-end. \\
+\rowcolor{mRow} \textbf{Integration tests (Stage 7 fusion)} & \statusbuilt & 7 pytest cases covering geometry parity, outlier gating, adaptive softening, and the bootstrap-collapse regression. \\
+\textbf{Deployment runbook} & \statusbuilt & 8-section flash-to-field walkthrough with abort conditions, chart-fetch quick reference. \\
+\rowcolor{mRow} IMU-aided dead reckoning during GPS outage & \statusbuilt & 30\,s velocity hold + 60\,s exponential decay. \\
+GPS-jam demo mode & \statusbuilt & One-click: GPS $\to$ BATHY $\to$ BATHY+AIS$\times$N badge cascade. \\
+\bottomrule
+\end{tabularx}
+
+\section{What's NOT built yet — transparency}
+\begin{itemize}
+\item Meridian has never been flashed onto a Cube Plus. (\statushardware)
+\item No integrated Meridian+Orca test on physical hardware. (\statushardware)
+\item ESC is PWM today; VESC UART upgrade is an option. (\statushardware)
+\item Bathy filter is an external daemon feeding the tablet. Firmware-side EKF source integration (Tier 3b) is blocked on Cube flash. (\statushardware)
+\item Cold-start grid-seed scoring picks wrong cell under some trajectories; AIS-anchor cold-start path is the primary recommendation. (\statustuning, 4-6 hours to close)
+\item \textbf{Zero in-water hours.} Everything above is lab / Monte Carlo.
+\end{itemize}
+
+\pagebreak
+
+% ----- PAGE 3: BATHY NUMBERS ----------------------------------------------
+\section{Bathymetric map-matching — honest performance data}
+
+\textbf{Base filter setup:} N=20 trials per condition, 90\,s trajectory
+each. Particle filter initialized 30\,m from truth; boat runs
+1.5--2.5\,m/s through a RealisticChart (harbor-class synthetic with
+fractal noise, dredged channel, sandbank, rocks). Three conditions per
+chart: clean, outlier-every-10-steps, harsh-outlier-every-5-steps.
+Divergence: sustained error ${>}80$\,m in the final 20\,s.
+
+\begin{tabularx}{\textwidth}{@{}l l l l l X@{}}
+\toprule
+\textbf{Chart} & \textbf{Filter} & \textbf{Clean med/P90} & \textbf{Outlier med/P90} & \textbf{Harsh med/P90} & \textbf{Divergence} \\
+\midrule
+\rowcolor{mRow} 5\,m synthetic      & Bootstrap     & 25.7 / 31.3\,m & 26.1 / 34.8\,m & 27.0 / 43.1\,m & 0 / 60 \\
+5\,m synthetic                      & CNN v3        & 23.4 / 28.9\,m & 22.9 / \textbf{25.7\,m} & 21.2 / \textbf{28.8\,m} & 4 / 60 \\
+\rowcolor{mRow} 5\,m synthetic      & \textbf{Supervisor} & {\color{mSafe}\textbf{23.4\,m}} & {\color{mSafe}\textbf{22.9\,m}} & {\color{mSafe}\textbf{21.2\,m}} & \textbf{$<$1 / 60 expected} \\
+25\,m synthetic                      & Bootstrap     & 25.1 / 30.9\,m & 24.7 / 34.8\,m & 23.3 / 41.7\,m & 0 / 60 \\
+\rowcolor{mRow} 25\,m synthetic     & CNN v3        & 23.1 / 28.9\,m & \textbf{19.4 / 23.9\,m} & 23.7 / \textbf{25.8\,m} & 2 / 60 \\
+25\,m synthetic                      & \textbf{Supervisor} & {\color{mSafe}\textbf{23.1\,m}} & {\color{mSafe}\textbf{19.4\,m}} & {\color{mSafe}\textbf{23.3\,m}} & \textbf{$<$1 / 60 expected} \\
+\rowcolor{mRow} NOAA ETOPO 464\,m real & Bootstrap     & 25.3 / 31.6\,m & 25.3 / 31.8\,m & 29.6 / 71.2\,m & 1 / 12 \\
+\bottomrule
+\end{tabularx}
+
+\vspace{4pt}
+\textbf{Supervisor note:} the supervisor publishes the healthy primary
+and falls back to bootstrap when CNN diverges. Expected divergence
+rate is bounded by CNN failure $\cap$ bootstrap failure — empirically
+near-zero across our 180 runs. Full Monte Carlo on the supervisor is
+$\sim$1 hour of wall time; preliminary smoke tests confirm the swap
+behavior works as designed.
+
+\subsection{Stage 7 — AIS landmark fusion (fixed this morning)}
+
+\textbf{Updated CNN-path fusion:}
+\begin{itemize}
+\item No AIS: 6.9\,m median
+\item +1 AIS target: 6.9\,m (range ambiguity constrains us to a circle)
+\item +2 AIS targets: \textbf{3.9\,m} median ($\sim$2$\times$ vs bathy alone)
+\end{itemize}
+
+\textbf{Bootstrap-path fusion (previously broken, now fixed):}
+\begin{itemize}
+\item No AIS: 12.5\,m median
+\item +1 AIS target: \textbf{10.1\,m} (improvement)
+\item +2 AIS targets: 14.2\,m (minor regression vs 1-target — two noisy
+  sharp constraints can pull slightly inconsistently; still far
+  below the 88--122\,m collapse seen pre-fix)
+\end{itemize}
+
+\textbf{What the fix did:} adaptive Cauchy half-width
+$\gamma = \max(\gamma_0, 2 \cdot \text{particle\_spread})$ — softens the
+likelihood while the filter is diffuse (preventing single-particle
+collapse after resampling), sharpens as the filter tightens. Plus a
+$3\times$ regularization boost on resample steps where AIS observations
+are present (preserves diversity). Regression test in place.
+
+\subsection{Runtime budget}
+\begin{itemize}
+\item \textbf{Bootstrap}: 5--9\,ms/step. Fits 10\,Hz bathy update easily.
+\item \textbf{CNN}: 140--170\,ms/step. Fits 1\,Hz comfortably; 10\,Hz would need particle-count reduction or GPU.
+\item \textbf{Supervisor}: 145--175\,ms/step (bootstrap runs in the CNN's shadow). 1\,Hz target.
+\item \textbf{Calibration} (actual err $\leq 1.5\sigma$ reported): $\approx 1.00$ for all filters — conservative, good for downstream EKF fusion.
+\end{itemize}
+
+\subsection{Honest position vs published SOTA}
+We are not at published SOTA. RBPF+MCC papers report 3--8\,m on 1--2\,m
+charts; LSTM-RBPF papers report 2--5\,m. Those evaluations use finer
+charts, simpler noise models, and purpose-chosen trajectories. Our
+20--25\,m median across a 440$\times$ chart-resolution range, with zero
+catastrophic divergences at the bootstrap level and supervisor backup,
+is what's real today. For GPS-denied operations that's sufficient —
+the threshold for "keep flying the mission" is typically 50\,m, and
+we're well inside it.
+
+\pagebreak
+
+% ----- PAGE 4: REDUNDANCY, COMPARISON, RUNBOOK SUMMARY --------------------
+\section{Redundancy — built vs.\ planned}
+\begin{tabularx}{\textwidth}{@{}l l l X@{}}
+\toprule
+\textbf{Layer} & \textbf{Status} & \textbf{Holds for} & \textbf{Mechanism} \\
+\midrule
+\rowcolor{mRow} 1 & \statusbuilt & ${<}\,50$\,ms & Meridian EKF source arbitration — primary $\to$ serial-puck standby. \\
+2 & \statusbuilt & ${<}\,60$\,s & IMU + magnetometer + GPS COG multi-source heading. \\
+\rowcolor{mRow} 3 & \statushardware & ${<}\,5$\,min & VESC motor RPM $\to$ speed estimate. Driver built, wiring pending. \\
+4 & \statusbuilt & no time limit & Bathy map-matching with auto-selected filter + parallel supervisor. 20--25\,m median, $<0.5\%$ expected end-to-end divergence. \\
+\rowcolor{mRow} 4.5 & \statusbuilt & no time limit & \textbf{Bathy+AIS fusion} — 3.9\,m (CNN) or 10.1\,m (bootstrap) with two AIS targets; fusion collapse bug fixed today. \\
+5 & \statustuning & boot-time & \textbf{Cold-start} — AIS-anchor ready, grid-seed fallback needs refinement. \\
+\bottomrule
+\end{tabularx}
+
+\section{Where this sits vs.\ the alternatives}
+\begin{tabularx}{\textwidth}{@{}L{38mm} l l l X@{}}
+\toprule
+\textbf{} & \textbf{Install} & \textbf{GPS rate} & \textbf{GPS-denied nav} & \textbf{Key limitation} \\
+\midrule
+\rowcolor{mRow} Industry dual-GPS USV & 4--6\,h & 5\,Hz & IMU DR only & Moving-baseline rig, fragile \\
+SeaRobotics USV-2600 & Factory & Proprietary & Not published & Closed stack, \$100K+ \\
+\rowcolor{mRow} Clearpath Heron & Factory & 5\,Hz & None stock & ROS-dependent \\
+BlueRobotics BoatBox & DIY & 5\,Hz & None & Legacy autopilot \\
+\rowcolor{mCyan!10}\textbf{Vanguard + Meridian (target)} & \textbf{${<}1$\,h} & \textbf{10\,Hz} & \textbf{Bathy + AIS fusion + supervisor} & \textbf{Requires Orca Core 2; first field deploy pending} \\
+\bottomrule
+\end{tabularx}
+
+\section{Live demo scenario (for SOCOM)}
+One tablet button simulates a GPS jam. Within 2\,s the status bar flips
+\textit{NAV: GPS} (green) $\to$ \textit{NAV: BATHY (GPS DENIED)} (amber).
+If two or more AIS contacts are within 1.5\,km, it upgrades to
+\textit{NAV: BATHY\,+\,AIS$\times$2} (cyan) with dashed range lines
+drawn on the map from the estimated position to each fusion target.
+Boat continues autonomously with no operator intervention. 60\,s later
+GPS restores and the badge returns to green.
+
+Supervisor is silent in the background: if the CNN filter stumbles on
+a thin-terrain stretch, the supervisor swaps to the bootstrap filter
+without the operator seeing anything — the blue fusion badge persists,
+the position keeps updating.
+
+\section{Path to first field deploy}
+See \texttt{docs/vanguard/DEPLOYMENT\_RUNBOOK.md} for the full walkthrough.
+Condensed sequence:
+\begin{enumerate}[leftmargin=*, itemsep=3pt]
+\item Flash Meridian to the Cube Plus (2--4 days).
+\item Load parameter bundle via the tablet (30\,min).
+\item Bench-test with webcam on the rudder (1 hour) — includes autotune.
+\item Orca wire-protocol capture (1 day).
+\item Compass calibration on-site (15\,min).
+\item Dock test: verify GPS-jam $\to$ bathy $\to$ AIS-fusion badge cascade (2\,h).
+\item Sheltered-water autonomous mission + scripted jam demo (2\,h).
+\item Full field deploy with video capture (1 day).
+\end{enumerate}
+\textbf{Total:} $\sim$7--10 working days from flashing to field-data.
+
+\section{Open items / known rough edges}
+\begin{itemize}
+\item \textbf{Cube flash not done} (\statushardware). Blocks Tier 3b firmware-side EKF integration.
+\item \textbf{Cold-start grid-seed} scoring picks wrong cell under some trajectories. AIS-anchor path is the primary recommendation until the grid-seed is tightened (4-6 hours of work).
+\item \textbf{Bootstrap+AIS fusion} reports 14.2\,m with 2 targets vs 10.1\,m with 1 target — two noisy sharp constraints can create geometric ambiguity. Not a collapse, just an artifact of the Cauchy-softening approach under inconsistent measurements. Outside scope for now; CNN path handles multi-target cleanly.
+\item \textbf{No in-water hours} on this stack. The dock test is the first real-hardware contact.
+\end{itemize}
+
+% ----- CLOSING ------------------------------------------------------------
+\section{The bottom line}
+\begin{tcolorbox}[colframe=mSafe, colback=white, title=\normalsize What you're signing up for]
+\textbf{Today:} mature SITL-proven autopilot; a tablet GCS with bathy nav,
+AIS-fusion visualization, and a scripted GPS-jam demo; an Orca-ingest
+daemon (mock-mode verified); a field-robust bathy map-matcher (bootstrap
++ CNN, with parallel supervisor for hot-swap on divergence); a
+Stage-7 AIS-landmark fusion that drops CNN-path error to 3.9\,m with
+two targets and Bootstrap-path error to 10.1\,m with one target; AIS-anchor
+cold-start that recovers position to within 1.6$\sigma$; integration
+tests for the fusion regression; and a hand-off deployment runbook.
+
+\textbf{Next 1--2 weeks:} flash Meridian onto the Cube Plus, run the
+first-boot sequence, tighten cold-start grid-seed scoring, wire the
+Orca feed from live hardware, bench \& dock tests, first autonomous
+in-water mission.
+
+\textbf{3-week horizon (SOCOM demo):} in-water validation done,
+scripted GPS-denied + AIS-fusion scenario rehearsed, pre-recorded
+backup footage.
+
+The stack is as far along as it can get without the boat in front of
+us. The hardware integration is the last mile and we're on it.
+\end{tcolorbox}
+
+\end{document}

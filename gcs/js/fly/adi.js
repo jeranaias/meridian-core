@@ -15,9 +15,6 @@ window.ADI = (function () {
 
     const GHOST_DASH = [6, 4];
 
-    // Cached vignette gradient — recreated only on resize
-    let _vignetteGrad = null;
-
     // Dynamic theme colors
     function tc() { return window._themeColors || Theme.CANVAS.light; }
 
@@ -41,11 +38,6 @@ window.ADI = (function () {
         canvas.style.width = w + 'px';
         canvas.style.height = h + 'px';
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-        // Rebuild vignette gradient on resize
-        _vignetteGrad = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.7);
-        _vignetteGrad.addColorStop(0, 'rgba(0,0,0,0)');
-        _vignetteGrad.addColorStop(1, 'rgba(0,0,0,0.3)');
     }
 
     function draw(roll, pitch, targetRoll, targetPitch) {
@@ -200,12 +192,6 @@ window.ADI = (function () {
         ctx.fill();
 
         ctx.restore();
-
-        // --- Edge vignette (depth) — uses cached gradient ---
-        if (_vignetteGrad) {
-            ctx.fillStyle = _vignetteGrad;
-            ctx.fillRect(0, 0, w, h);
-        }
 
         // --- Numeric readouts ---
         ctx.save();

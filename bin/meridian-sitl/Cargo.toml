@@ -27,6 +27,13 @@ meridian-params = { workspace = true, features = ["std"] }
 meridian-rc = { workspace = true, features = ["std"] }
 meridian-sitl = { workspace = true }
 meridian-platform-sitl = { workspace = true }
+meridian-dds = { workspace = true, features = ["std"] }
+ros2-client = { version = "0.8", optional = true }
+rustdds = { version = "0.11", optional = true }
+
+[features]
+default = []
+dds = ["dep:ros2-client", "dep:rustdds"]
 
 [lints]
 workspace = true

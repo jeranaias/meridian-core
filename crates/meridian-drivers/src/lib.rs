@@ -100,3 +100,7 @@ pub mod beacon;
 
 /// InertialLabs, MicroStrain GX5/GQ7, SBG Ellipse external AHRS + shared infra.
 pub mod external_ahrs_extras;
+
+/// VESC brushless ESC driver over UART — Vanguard USV jet-pump propulsion.
+/// COMM_PACKET protocol: setpoint control (duty/RPM/current) + telemetry.
+pub mod esc_vesc;

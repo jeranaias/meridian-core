@@ -1,0 +1,551 @@
+% =============================================================================
+%  Vanguard + Meridian — Deployment Runbook
+%  Hand-off doc for flash through first field deploy.
+% =============================================================================
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[a4paper,margin=16mm,top=14mm,bottom=16mm,footskip=9mm]{geometry}
+
+% ---- fonts ----------------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{helvet}
+\usepackage{inconsolata}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{microtype}
+\usepackage[none]{hyphenat}
+\frenchspacing
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+
+% ---- colors ---------------------------------------------------------------
+\usepackage[table]{xcolor}
+\definecolor{mCyan}{HTML}{006E8F}
+\definecolor{mCyanDark}{HTML}{004D64}
+\definecolor{mSafe}{HTML}{2E7D32}
+\definecolor{mWarn}{HTML}{E65100}
+\definecolor{mFail}{HTML}{C62828}
+\definecolor{mDim}{HTML}{6A7A90}
+\definecolor{mInk}{HTML}{1A2332}
+\definecolor{mPaper}{HTML}{FDFDFD}
+\definecolor{mRow}{HTML}{F4F6FA}
+\definecolor{mRule}{HTML}{CFD8E3}
+\definecolor{mCode}{HTML}{0E1218}
+\definecolor{mCodeInk}{HTML}{D8E0EA}
+\definecolor{mAccent}{HTML}{00BFA5}
+
+% ---- boxes ----------------------------------------------------------------
+\usepackage[most]{tcolorbox}
+\tcbuselibrary{breakable,skins}
+
+% Step block: a numbered procedure card
+\newtcolorbox[auto counter,number within=section]{stepbox}[1][]{
+  enhanced, breakable, sharp corners=downhill,
+  colback=white, colframe=mCyan, boxrule=0.6pt, arc=1pt,
+  leftrule=3pt, left=8pt, right=8pt, top=8pt, bottom=7pt,
+  fonttitle=\bfseries\sffamily\color{white},
+  title=\MakeUppercase{Step \thetcbcounter \quad \textbullet\quad #1},
+  colbacktitle=mCyan, title filled,
+  attach boxed title to top left={yshift=0pt,xshift=-3pt},
+  boxed title style={
+    colback=mCyan, colframe=mCyan, boxrule=0pt,
+    arc=0pt, left=8pt, right=8pt, top=3pt, bottom=3pt
+  },
+  before skip=8pt, after skip=8pt,
+}
+
+% Safety / abort callout — red, loud
+\newtcolorbox{safetybox}[1][Safety]{
+  enhanced, breakable,
+  colback=mFail!6, colframe=mFail, boxrule=0.6pt,
+  leftrule=4pt, arc=1pt, left=8pt, right=8pt, top=7pt, bottom=6pt,
+  fontupper=\color{mInk},
+  title={\bfseries\sffamily\color{mFail}\ding{36}\, #1},
+  coltitle=mFail, colbacktitle=white, title filled=false,
+  fonttitle=\bfseries\sffamily,
+  before skip=6pt, after skip=6pt,
+}
+
+% Warning callout — amber
+\newtcolorbox{warnbox}[1][Heads up]{
+  enhanced, breakable,
+  colback=mWarn!6, colframe=mWarn, boxrule=0.4pt,
+  leftrule=3pt, arc=1pt, left=8pt, right=8pt, top=5pt, bottom=5pt,
+  fontupper=\color{mInk},
+  title={\bfseries\sffamily\color{mWarn}#1},
+  coltitle=mWarn, colbacktitle=white, fonttitle=\bfseries\sffamily,
+  before skip=5pt, after skip=5pt,
+}
+
+% Tip callout — cyan
+\newtcolorbox{tipbox}[1][Tip]{
+  enhanced, breakable,
+  colback=mCyan!6, colframe=mCyan, boxrule=0.4pt,
+  leftrule=3pt, arc=1pt, left=8pt, right=8pt, top=5pt, bottom=5pt,
+  title={\bfseries\sffamily\color{mCyan}#1},
+  coltitle=mCyan, colbacktitle=white, fonttitle=\bfseries\sffamily,
+  before skip=5pt, after skip=5pt,
+}
+
+% ---- lists (enumitem) -----------------------------------------------------
+\usepackage{enumitem}
+\setlist[itemize]{leftmargin=*, itemsep=2pt, topsep=3pt}
+\setlist[enumerate]{leftmargin=*, itemsep=2pt, topsep=3pt}
+\newlist{checklist}{itemize}{1}
+\setlist[checklist]{leftmargin=26pt, itemsep=4pt, topsep=0pt, label=}
+\newlist{abortlist}{itemize}{1}
+\setlist[abortlist]{leftmargin=22pt, itemsep=4pt, topsep=0pt, label=}
+
+% Code block — dark monospace
+\usepackage{listings}
+\lstdefinelanguage{shell}{
+  keywords={systemctl,sudo,tcpdump,cd,ls,pwd,mkdir,chmod,chown,rm,cp,mv,
+           python,pytest,pip,cargo,git,journalctl,curl,wget},
+  sensitive=true,
+  morecomment=[l]{\#},
+  morestring=[b]",
+}
+\lstset{
+  language=shell,
+  basicstyle=\ttfamily\small\color{mCodeInk},
+  backgroundcolor=\color{mCode},
+  keywordstyle=\color{mAccent}\bfseries,
+  stringstyle=\color{mWarn},
+  commentstyle=\color{mDim}\itshape,
+  frame=none,
+  xleftmargin=8pt, xrightmargin=8pt,
+  columns=fullflexible, keepspaces=true,
+  showstringspaces=false, tabsize=2,
+  breaklines=true, breakatwhitespace=false,
+  aboveskip=6pt, belowskip=6pt,
+}
+
+% ---- tables ---------------------------------------------------------------
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% ---- headings -------------------------------------------------------------
+\usepackage[explicit]{titlesec}
+\titleformat{\section}
+  {\color{mCyan}\sffamily\bfseries\Large}
+  {\llap{\color{mCyanDark}\thesection\hspace{10pt}}}
+  {0pt}
+  {#1}
+  [\vspace{-2pt}{\color{mRule}\hrule height 0.5pt}]
+\titlespacing{\section}{0pt}{16pt}{8pt}
+
+\titleformat{\subsection}
+  {\color{mCyanDark}\sffamily\bfseries\normalsize}
+  {}{0pt}{#1}
+\titlespacing{\subsection}{0pt}{8pt}{3pt}
+
+% ---- hyperref -------------------------------------------------------------
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks, urlcolor=mCyan, linkcolor=mCyanDark, citecolor=mCyan,
+  pdftitle={Vanguard + Meridian — Deployment Runbook},
+  pdfauthor={Meridian / Vanguard},
+}
+
+% ---- symbols --------------------------------------------------------------
+\usepackage{pifont}
+\newcommand{\checkbox}{\raisebox{-0.4ex}{\large$\square$}\,}
+\newcommand{\ding}[1]{\text{\pifont{pzd}\symbol{#1}}}
+\newcommand{\badge}[2]{{\small\color{white}\colorbox{#1}{\,\strut\bfseries\sffamily #2\,}}}
+\newcommand{\statusbuilt}{\badge{mSafe}{WORKING}}
+\newcommand{\statustuning}{\badge{mWarn}{POLISHING}}
+\newcommand{\statushw}{\badge{mDim}{NEEDS BOAT}}
+
+% ---- fancy header & footer ------------------------------------------------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\fancyhead[L]{\footnotesize\color{mDim}\textsf{Vanguard + Meridian $\cdot$ Deployment Runbook}}
+\fancyhead[R]{\footnotesize\color{mDim}\textsf{19 April 2026}}
+\fancyfoot[L]{\footnotesize\color{mDim}\textsf{Hand-off v1.1}}
+\fancyfoot[C]{\footnotesize\color{mDim}\textsf{when in doubt, stop and ask}}
+\fancyfoot[R]{\footnotesize\color{mDim}\textsf{\thepage}}
+
+% ---- TOC customization ----------------------------------------------------
+\usepackage{titletoc}
+\titlecontents{section}[0pt]
+  {\vspace{5pt}\sffamily\color{mCyanDark}\bfseries}
+  {\contentslabel{20pt}}
+  {\hspace{20pt}}
+  {\hfill\contentspage}
+
+\usepackage{setspace}
+\usepackage{tikz}
+
+% =============================================================================
+\begin{document}
+\pagestyle{empty}
+
+% ================================ COVER ====================================
+\begin{tikzpicture}[remember picture, overlay]
+  \fill[mCyan] (current page.north west) rectangle
+    ([yshift=-48mm]current page.north east);
+  \fill[mCyanDark] ([yshift=-48mm]current page.north west) rectangle
+    ([yshift=-52mm]current page.north east);
+  \node[anchor=north west, xshift=18mm, yshift=-16mm, text=white]
+    at (current page.north west) {
+      \begin{minipage}{0.78\textwidth}
+        {\Huge\bfseries\sffamily Vanguard + Meridian}\\[8pt]
+        {\LARGE\sffamily Deployment Runbook}\\[4pt]
+        {\normalsize\sffamily\color{white!80!mCyan}From flash to first field mission, with abort conditions}
+      \end{minipage}
+    };
+\end{tikzpicture}
+
+\vspace{54mm}
+
+{\sffamily\color{mInk}\small\setstretch{1.35}
+\textbf{Who this is for.} The person who will actually do the work --- flashing firmware, running the dock test, taking the boat out. It assumes familiarity with the boat itself but \emph{not} with the Meridian autopilot code. When something surprises you, stop and ask before proceeding.\par
+
+\vspace{6pt}
+
+\textbf{Estimated total.} Seven to ten working days from "we start flashing" to "we have field data in hand." Individual sections range from fifteen minutes (compass calibration) to several days (firmware first-boot). Don't skip §\,0.
+}
+
+\vspace{10pt}
+{\color{mRule}\hrule height 0.5pt}
+\vspace{10pt}
+
+{\sffamily\large\bfseries\color{mCyanDark}Contents}
+\vspace{2pt}
+
+\begingroup
+  \renewcommand{\contentsname}{}
+  \tableofcontents
+\endgroup
+
+\vspace{12pt}
+
+\begin{warnbox}[Pre-flight status --- 19 April 2026]
+\setstretch{1.2}
+\begin{tabular}{@{}l@{\hskip 10pt}l@{}}
+Neural-net position filter: & \statusbuilt{}; three-to-five percent divergence on fine charts in harsh conditions \\
+Landmark fusion (fixed 19 April): & \statusbuilt{}, with a regression test to keep it fixed \\
+Parallel-filter supervisor: & \statusbuilt{} --- hot-swaps between filters on divergence \\
+Cold-start, landmark-based: & \statusbuilt{} in simulation (27 m recovered) \\
+Cold-start, blind search: & \statusbuilt{} --- returns a top-5 ranked candidate list; operator picks \\
+Cube Plus firmware flash: & \statushw{} --- the very first step of this runbook \\
+Smart motor-controller wiring: & \statushw{} --- optional; boat runs without it \\
+Hours in the water on this stack: & zero --- §\,6 is the first real-hardware contact \\
+\end{tabular}
+\end{warnbox}
+
+\clearpage
+\pagestyle{fancy}
+\setcounter{page}{1}
+
+% ============================= §0 ===========================================
+\section{Before you touch the boat}
+
+\begin{stepbox}[Pre-flight checklist]
+\begin{checklist}
+\item[\checkbox] Backup of the \emph{current} autopilot firmware on the Cube Plus saved to a USB stick. \textbf{Non-negotiable.} The first boot of new firmware can surprise us, and we need a known-good restore path.
+\item[\checkbox] Tablet app is paired to the long-range radio on the laptop side. Verify the link by reading heartbeat from the boat while the \emph{old} autopilot is still running. This confirms the radio layer works before we change the firmware underneath it.
+\item[\checkbox] The Orca Core 2 marine gateway is flowing data on the boat's sensor network. Verify through the Orca's own web interface --- depth, satellite position, wind all reading.
+\item[\checkbox] The seafloor chart tile for the deploy area is saved on the companion computer at \texttt{/opt/meridian/charts/<area>.npz}. Fetch commands are in §\,10.
+\item[\checkbox] Companion computer has the \texttt{meridian-orca-bridge} service installed \textbf{but not started}.
+\end{checklist}
+\end{stepbox}
+
+\begin{tipbox}[Why all this]
+Every item above is a failure mode we've actually hit in lab dry-runs.
+The five minutes you spend here saves four hours of troubleshooting
+on the dock.
+\end{tipbox}
+
+% ============================= §1 ===========================================
+\section{Flash Meridian onto the Cube Plus}
+\textbf{Estimate:} 2 to 4 days. The board configuration file is drafted
+but has never been compiled. Expect to find missing hardware
+definitions on the first try.
+
+\begin{stepbox}[Build the firmware image]
+\begin{lstlisting}
+cd <meridian repo>
+./tools/build-board CubeOrangePlus --release
+\end{lstlisting}
+\end{stepbox}
+
+\begin{stepbox}[Back up the current autopilot --- do not skip]
+Plug the Cube into the laptop. Pull the existing firmware. Put it on
+the USB stick you prepared in §\,0. If first-boot surprises us, this
+restores the boat to its known-good state in ten minutes instead of an
+open-ended debug session.
+\end{stepbox}
+
+\begin{stepbox}[Flash in firmware-upload mode]
+Hold the BOOT button on the Cube while plugging USB, then:
+\begin{lstlisting}
+./tools/flash.sh CubeOrangePlus build/out/meridian.bin
+\end{lstlisting}
+\end{stepbox}
+
+\begin{stepbox}[First boot --- props physically disconnected]
+Watch the serial console. Expected boot sequence:
+\begin{itemize}
+\item Sensor/driver initialization messages
+\item Sensor probe: motion unit, barometer, compass, SD card
+\item Position estimator initialization
+\item Radio heartbeat starts
+\end{itemize}
+
+If boot fails, diff the console output against a known-working old
+autopilot log. Three most common issues:
+\begin{itemize}
+\item Wrong bus address for the barometer
+\item Wrong pin mapping for the compass
+\item SD card controller mismatch --- \textbf{fatal; must be fixed before proceeding}
+\end{itemize}
+\end{stepbox}
+
+\begin{safetybox}[Do not proceed to §\,2 until you see a stable heartbeat on serial.]
+\end{safetybox}
+
+% ============================= §2 ===========================================
+\section{Load the settings file}
+\textbf{Estimate:} 30 minutes.
+
+\begin{stepbox}[Load via tablet]
+On the tablet: \textbf{Tools $\rightarrow$ Parameters $\rightarrow$ Load from file},
+then select \texttt{vanguard\_defaults.meridian-params}.
+
+The tablet will set every parameter one at a time. Any parameter the
+firmware doesn't recognize will appear as a red "UNKNOWN PARAM" line.
+We expect \textbf{zero}.
+\end{stepbox}
+
+\begin{warnbox}[If you see \emph{any} unknown parameter]
+Stop. That means the settings file is out of sync with the firmware
+version --- continuing would leave the boat in a half-configured
+state. Send Jesse the exact parameter name.
+\end{warnbox}
+
+Expected total parameters: around 180. Confirm the \textbf{verify complete}
+message before moving on.
+
+% ============================= §3 ===========================================
+\section{Bench test}
+\textbf{Estimate:} 1 hour. Boat on jack stands, props free to spin with
+physical clearance. Webcam pointed at the rudder so the tablet can
+watch it move.
+
+\begin{stepbox}[Arm and open Bench Test]
+Arm the boat from the tablet. Confirm dialog. Open the Bench Test
+overlay from the top-right menu.
+\end{stepbox}
+
+\begin{stepbox}[Rudder step test]
+Use the slider, or the \textbf{STEP $\pm50$} pattern. The rudder
+should follow the commanded position with less than 0.3 seconds of lag.
+\end{stepbox}
+
+\begin{stepbox}[Rudder auto-tune]
+Hit \textbf{AUTOTUNE STEER}. The filter runs a step response, measures
+the time constant, and suggests controller gains. \emph{Record them ---
+you'll load them in a moment.}
+\end{stepbox}
+
+\begin{stepbox}[Throttle test]
+Step throttle from 0 to 30\% for two seconds, then back to 0. Confirm
+the prop spins and stops cleanly.
+\end{stepbox}
+
+\begin{safetybox}[Disarm before leaving the boat unattended.]
+\end{safetybox}
+
+% ============================= §4 ===========================================
+\section{Compass calibration}
+\textbf{Estimate:} 15 minutes. Boat on stands, or on a level dock
+surface with no large iron within three metres.
+
+\begin{stepbox}[Run the wizard]
+Tablet $\rightarrow$ \textbf{Tools $\rightarrow$ Compass Cal Wizard}. Follow the
+rotation sequence: nose up, nose down, roll left, roll right, full
+yaw circle. The wizard writes calibration offsets to the autopilot.
+Accept the summary dialog.
+\end{stepbox}
+
+% ============================= §5 ===========================================
+\section{Capture the Orca's wire format}
+\textbf{Estimate:} 1 day worst case --- often ten minutes.
+
+\begin{stepbox}[Record one minute of traffic]
+On the companion computer:
+\begin{lstlisting}
+sudo tcpdump -i eth0 -w /tmp/orca_capture.pcap
+\end{lstlisting}
+Wait 60 seconds with the Orca flowing its normal traffic. \texttt{Ctrl-C}
+to stop.
+\end{stepbox}
+
+\begin{stepbox}[Run the autodetect]
+\begin{lstlisting}
+python -m meridian_orca.protocol.detect /tmp/orca_capture.pcap
+\end{lstlisting}
+If the output says \textbf{Yacht Devices RAW} or \textbf{Signal K},
+start the bridge service and move on:
+\begin{lstlisting}
+systemctl --user start meridian-orca-bridge
+\end{lstlisting}
+\end{stepbox}
+
+\begin{warnbox}[If autodetect says UNKNOWN]
+The Orca is speaking a proprietary variant. Send the capture file to
+Jesse. Expect four to eight hours to add the decoder.
+\end{warnbox}
+
+% ============================= §6 ===========================================
+\section{Dock test}
+\textbf{Estimate:} 2 hours. Boat in the water, tied to the slip with
+at least two lines. The props may engage but cannot meaningfully
+propel the boat.
+
+\begin{stepbox}[Start the bridge and verify the sensor feed]
+Start the bridge service. The tablet should show vessel traffic,
+depth, wind, satellite position, and compass all flowing.
+\end{stepbox}
+
+\begin{stepbox}[Verify the depth-chart filter is live]
+The status bar reads \textbf{NAV: SATELLITE} (green). The depth-chart
+position marker (a dashed amber B) appears on the map within
+30 seconds of the filter getting its first depth samples.
+\end{stepbox}
+
+\begin{stepbox}[Jamming-simulation test]
+Press the \textbf{GPS Jam} button. Within two seconds:
+\begin{itemize}
+\item Badge flips to amber \textbf{DEPTH CHART (SATELLITE JAMMED)}
+\item If two or more nearby vessels are broadcasting positions within
+      1.5 km, the badge upgrades to cyan \textbf{DEPTH CHART + 2 LANDMARKS}
+      with dashed range lines drawn to each landmark
+\item The depth-chart marker takes over as the primary position indicator
+\end{itemize}
+Press again to restore. Badge returns to green within a few seconds.
+\end{stepbox}
+
+\begin{stepbox}[Data-freshness check]
+All status-bar indicators --- satellite, depth, vessel-broadcast ---
+show green dots.
+\end{stepbox}
+
+\begin{safetybox}[If anything shows red or stale, do NOT proceed to §\,7.]
+\end{safetybox}
+
+% ============================= §7 ===========================================
+\section{Sheltered-water autonomous mission}
+\textbf{Estimate:} 2 hours. Open water (sheltered bay or channel),
+chase boat armed, manual takeover ready on the tablet.
+
+\begin{stepbox}[Set waypoints]
+Untie the boat. Long-press the map in three or four places to set a
+waypoint loop.
+\end{stepbox}
+
+\begin{stepbox}[Engage AUTO]
+Expected cross-track error: under 5 metres. If worse, check the
+auto-tune gains from §\,3 were actually loaded.
+\end{stepbox}
+
+\begin{stepbox}[Mid-leg jamming demo]
+Fire the jam button while the boat is tracking between waypoints.
+The boat should continue autonomously using the depth-chart filter
+for 60 seconds. Cross-track may widen to 20--30 m but the boat
+should still follow the line. Restore satellite; tight tracking
+resumes.
+\end{stepbox}
+
+\begin{stepbox}[Return to launch]
+Trigger the return-to-launch command from the tablet. Confirm safe
+return. Disarm on approach to the dock.
+\end{stepbox}
+
+% ============================= §8 ===========================================
+\section{Full field deploy}
+\textbf{Estimate:} 1 day on-site. Repeat §\,7 at full demo scale, with
+video.
+
+\begin{stepbox}[Capture on video]
+\begin{itemize}
+\item Autonomous waypoint loop (green nav)
+\item Jamming segment with landmark-fusion visible (cyan badge, range lines)
+\item Collision-avoidance: spawn a simulated target on collision course; watch the evasion
+\item Station-keeping: drop a virtual station pin; watch the boat hold position
+\end{itemize}
+\end{stepbox}
+
+\begin{stepbox}[Post-flight]
+Pull telemetry logs off the companion computer through the tablet.
+\end{stepbox}
+
+% ============================= ABORT =======================================
+\section{Abort conditions}
+\begin{safetybox}[Stop immediately if any of these happen]
+\begin{abortlist}
+\item[\ding{108}] Motion-sensor vibration warning triples. Possible prop imbalance or motor-mount failure.
+\item[\ding{108}] Any voltage dip below 11.0 V on a 3-cell pack, or 14.8 V on a 4-cell pack.
+\item[\ding{108}] Compass heading drifts more than 30 degrees away from the satellite ground-track direction, sustained for more than five seconds.
+\item[\ding{108}] Tablet loses link for more than 20 seconds. The boat \emph{should} return to launch automatically --- be ready to recover manually.
+\item[\ding{108}] Water inside the hull.
+\item[\ding{108}] Props spinning while the boat is marked \texttt{DISARMED}. That is a safety-interlock bug. \textbf{Kill main power.}
+\end{abortlist}
+\end{safetybox}
+
+% ============================= CHARTS ======================================
+\section{Chart fetching --- quick reference}
+
+\begin{stepbox}[Public US government seafloor data (typical demo area)]
+\begin{lstlisting}
+python -m meridian_orca.chart_loader fetch-etopo \
+  --bounds -34.00 -33.90 151.15 151.25 \
+  --output /opt/meridian/charts/sydney.npz
+\end{lstlisting}
+\end{stepbox}
+
+\begin{stepbox}[Global seafloor fallback (400 m detail, works anywhere)]
+\begin{lstlisting}
+python -m meridian_orca.chart_loader fetch-gebco \
+  --bounds ... \
+  --output /opt/meridian/charts/sydney_gebco.npz
+\end{lstlisting}
+\end{stepbox}
+
+\begin{stepbox}[Inspect a downloaded chart]
+\begin{lstlisting}
+python -m meridian_orca.chart_loader info /opt/meridian/charts/sydney.npz
+\end{lstlisting}
+\end{stepbox}
+
+% ============================= ROUGH EDGES ==================================
+\section{Known rough edges --- current as of 19 April 2026}
+\begin{itemize}
+\item \textbf{Neural-net position filter} has a 3-to-5\% divergence rate on fine charts in harsh conditions. The supervisor runs the classical filter in parallel and hot-swaps on divergence, which drops end-to-end failure rate to under half a percent.
+\item \textbf{Landmark fusion} had a collapse bug on 18 April (the filter would crush itself to one point and stay stuck). Fixed on 19 April with adaptive noise tolerance plus a regularization boost on fusion steps. A regression test lives in \texttt{tests/test\_ais\_fusion.py}. Validate against your own data before trusting in a new environment.
+\item \textbf{Cold-start without any reference} --- no satellite, no nearby landmarks --- returns a top-5 ranked list of candidate cells. In feature-poor terrain the right answer often isn't at position \#1; an operator picks from the list or a follow-up filter converges on the one whose evidence keeps growing.
+\item \textbf{Smart motor-controller upgrade} is optional. The boat runs on simple pulse-width control without it.
+\item \textbf{Zero hours in the water} on this stack. §\,6 is first contact with real hardware.
+\item \textbf{Remote recovery limit.} If the Cube draws power from the boat's bench/main power (not just USB), then cycling the laptop's USB controller \emph{cannot} reset the Cube. We learned this the hard way on 26 April 2026: a Phase-9 stub flashed, the chip went silent on USB, and no software-only recovery worked. Going forward, every Meridian build that touches real hardware must include USB CDC + a reboot-to-bootloader handler before deployment, so the chip is always observable and recoverable from the host. If for any reason a build is deployed without those, recovery requires a physical bench-power cycle by someone at the boat.
+\end{itemize}
+
+% ============================= SUPPORT ======================================
+\section{Getting help}
+For anything weird, ping Jesse. The fastest path to a fix:
+\begin{enumerate}
+\item \texttt{journalctl -u meridian-orca-bridge} --- last 200 lines is usually enough
+\item Tablet screenshot showing the nav-source badge and status bar at the moment of the issue
+\item One sentence: what you expected vs.\ what happened
+\end{enumerate}
+
+Those three things together resolve most issues inside 30 minutes.
+
+\end{document}

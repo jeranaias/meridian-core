@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meridian Test Console — ArduRover</title>
+<style>
+:root {
+    --bg: #0a0e17;
+    --panel: #131a26;
+    --panel-2: #1a2332;
+    --border: #2a3a52;
+    --text: #d8e0ea;
+    --dim: #7b8da3;
+    --accent: #0891b2;
+    --accent-hot: #06b6d4;
+    --ok: #16a34a;
+    --warn: #eab308;
+    --err: #dc2626;
+    --info: #6366f1;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'Barlow', -apple-system, system-ui, sans-serif; font-size: 13px;
+    display: grid; grid-template-rows: auto auto 1fr; min-height: 100vh;
+}
+.bar {
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    padding: 10px 14px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+}
+.bar h1 { margin: 0; font: 700 16px 'Rajdhani', sans-serif; letter-spacing: 0.04em; color: var(--accent-hot); }
+.bar input { background: #07101c; color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; font: inherit; min-width: 280px; }
+.bar button {
+    background: var(--accent); color: white; border: 0; border-radius: 4px;
+    padding: 8px 14px; font: 600 12px inherit; letter-spacing: 0.05em; cursor: pointer; text-transform: uppercase;
+}
+.bar button:hover { background: var(--accent-hot); }
+.bar button.danger { background: var(--err); }
+.bar button.muted { background: #334155; }
+.conn-pill {
+    padding: 5px 12px; border-radius: 100px; font: 700 11px 'DM Mono', monospace; letter-spacing: 0.06em;
+    background: #1e293b; color: var(--dim); border: 1px solid var(--border);
+}
+.conn-pill.connected { background: var(--ok); color: white; }
+.conn-pill.connecting { background: var(--warn); color: black; }
+.conn-pill.disconnected { background: #475569; color: white; }
+
+.telem {
+    display: grid; grid-template-columns: repeat(8, 1fr); gap: 0;
+    background: var(--panel-2); border-bottom: 1px solid var(--border); padding: 8px 14px;
+}
+.tel { padding: 4px 10px; border-right: 1px solid var(--border); }
+.tel:last-child { border-right: 0; }
+.tel-label { font: 500 10px 'DM Mono', monospace; letter-spacing: 0.1em; color: var(--dim); text-transform: uppercase; }
+.tel-val { font: 700 18px 'DM Mono', monospace; color: var(--text); margin-top: 2px; min-height: 22px; }
+.tel-val.armed { color: var(--err); }
+.tel-val.warn { color: var(--warn); }
+
+.main {
+    display: grid; grid-template-columns: 1fr 360px; gap: 0;
+    overflow: hidden; min-height: 0;
+}
+.panels { padding: 12px; overflow-y: auto; }
+.section {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    margin-bottom: 12px; overflow: hidden;
+}
+.section h2 {
+    margin: 0; font: 700 12px 'Rajdhani', sans-serif; letter-spacing: 0.08em; text-transform: uppercase;
+    background: var(--panel-2); padding: 8px 12px; color: var(--accent-hot); border-bottom: 1px solid var(--border);
+}
+.btnrow { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px; }
+.btnrow button {
+    background: #1e293b; color: var(--text); border: 1px solid var(--border); border-radius: 4px;
+    padding: 10px 14px; font: 600 12px inherit; cursor: pointer; min-width: 96px;
+    min-height: 44px; transition: background 0.1s;
+}
+.btnrow button:hover { background: #2c3a52; border-color: var(--accent); }
+.btnrow button.hot { background: var(--err); color: white; border-color: var(--err); }
+.btnrow button.warm { background: var(--warn); color: black; border-color: var(--warn); }
+.btnrow button.go { background: var(--ok); color: white; border-color: var(--ok); }
+
+.servo-row {
+    display: grid; grid-template-columns: 70px 1fr 80px 90px; gap: 8px; align-items: center;
+    padding: 6px 12px; border-top: 1px solid var(--border);
+}
+.servo-row:first-of-type { border-top: 0; }
+.servo-row label { font: 600 12px 'DM Mono', monospace; }
+.servo-row input[type="range"] { width: 100%; }
+.servo-row input[type="number"] {
+    width: 70px; background: #07101c; color: var(--text); border: 1px solid var(--border);
+    border-radius: 3px; padding: 4px 6px; font: inherit;
+}
+.servo-row button { background: var(--accent); color: white; border: 0; border-radius: 3px; padding: 6px 8px; cursor: pointer; font: 600 11px inherit; }
+
+.aside {
+    background: var(--panel); border-left: 1px solid var(--border);
+    display: grid; grid-template-rows: auto 1fr auto 1fr; min-height: 0;
+}
+.aside h3 {
+    margin: 0; font: 700 11px 'Rajdhani', sans-serif; letter-spacing: 0.08em;
+    background: var(--panel-2); padding: 6px 12px; color: var(--accent-hot); text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+}
+.log {
+    overflow-y: auto; padding: 6px 10px; font: 500 11px 'DM Mono', monospace;
+    line-height: 1.55;
+}
+.log-entry { padding: 2px 0; border-bottom: 1px dashed #1e293b; }
+.log-entry .ts { color: var(--dim); margin-right: 6px; }
+.log-entry.ok { color: var(--ok); }
+.log-entry.warn { color: var(--warn); }
+.log-entry.err { color: var(--err); }
+.log-entry.info { color: var(--text); }
+
+#mode-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px; }
+#mode-grid button { min-width: 0; }
+
+.servo-keepalive { display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 12px; color: var(--dim); }
+.servo-keepalive input { transform: scale(1.2); margin-right: 4px; }
+
+@media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; }
+    .aside { border-left: 0; border-top: 1px solid var(--border); }
+    .telem { grid-template-columns: repeat(4, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+    <h1>MERIDIAN TEST CONSOLE</h1>
+    <span class="conn-pill disconnected" id="conn-pill">DISCONNECTED</span>
+    <input type="text" id="ws-url" placeholder="ws://USV-tailscale-ip:5760">
+    <button id="connect-btn">Connect</button>
+    <button id="disconnect-btn" class="muted">Disconnect</button>
+    <span style="flex: 1"></span>
+    <span style="font: 500 11px 'DM Mono', monospace; color: var(--dim);" id="ws-status">no connection</span>
+</div>
+
+<div class="telem">
+    <div class="tel"><div class="tel-label">Heartbeat</div><div class="tel-val" id="t-hb">—</div></div>
+    <div class="tel"><div class="tel-label">Armed</div><div class="tel-val" id="t-armed">—</div></div>
+    <div class="tel"><div class="tel-label">Mode</div><div class="tel-val" id="t-mode">—</div></div>
+    <div class="tel"><div class="tel-label">GPS Fix</div><div class="tel-val" id="t-gps">—</div></div>
+    <div class="tel"><div class="tel-label">Battery</div><div class="tel-val" id="t-batt">—</div></div>
+    <div class="tel"><div class="tel-label">Speed</div><div class="tel-val" id="t-spd">—</div></div>
+    <div class="tel"><div class="tel-label">Heading</div><div class="tel-val" id="t-hdg">—</div></div>
+    <div class="tel"><div class="tel-label">RSSI</div><div class="tel-val" id="t-rssi">—</div></div>
+</div>
+
+<div class="main">
+    <div class="panels">
+
+        <div class="section">
+            <h2>Arming</h2>
+            <div class="btnrow">
+                <button class="warm" data-cmd="arm">ARM</button>
+                <button class="warm" data-cmd="arm-force">ARM (force)</button>
+                <button class="hot" data-cmd="disarm">DISARM</button>
+                <button class="hot" data-cmd="disarm-force">DISARM (force)</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>ArduRover Modes (DO_SET_MODE)</h2>
+            <div id="mode-grid"></div>
+        </div>
+
+        <div class="section">
+            <h2>Servo Outputs (DO_SET_SERVO 1000–2000 µs)</h2>
+            <div id="servo-rows"></div>
+            <div class="servo-keepalive">
+                <label><input type="checkbox" id="servo-keepalive-ck"> Auto-resend every 1 s (keep-alive)</label>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Mission</h2>
+            <div class="btnrow">
+                <button data-cmd="mission-list">REQUEST_LIST</button>
+                <button data-cmd="mission-clear">CLEAR_ALL</button>
+                <button class="go" data-cmd="mission-upload-test">UPLOAD 3-WP TEST</button>
+                <button class="go" data-cmd="mission-start">START AUTO</button>
+                <button data-cmd="mission-pause">PAUSE</button>
+                <button data-cmd="mission-resume">RESUME</button>
+                <button data-cmd="mission-set-current">SET CURRENT WP</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>System</h2>
+            <div class="btnrow">
+                <button data-cmd="param-list">REQUEST PARAMS</button>
+                <button data-cmd="request-home">REQUEST_HOME</button>
+                <button data-cmd="set-home-here">SET HOME = HERE</button>
+                <button data-cmd="reboot">REBOOT FC</button>
+                <button class="hot" data-cmd="reboot-bl">REBOOT → BOOTLOADER</button>
+                <button data-cmd="calibrate-level">CAL LEVEL</button>
+                <button data-cmd="calibrate-pressure">CAL PRESSURE</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Browser-side test (no vehicle round-trip)</h2>
+            <div class="btnrow">
+                <button data-cmd="banner-emergency">FIRE EMERGENCY BANNER</button>
+                <button data-cmd="banner-warn">FIRE WARNING BANNER</button>
+                <button data-cmd="banner-clear">CLEAR BANNER</button>
+                <button data-cmd="audio-failsafe">AUDIO: failsafe</button>
+                <button data-cmd="audio-batt">AUDIO: battery</button>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="aside">
+        <h3>Vehicle ACKs</h3>
+        <div class="log" id="ack-log"></div>
+        <h3>Status Text / Events</h3>
+        <div class="log" id="event-log"></div>
+    </div>
+</div>
+
+<script src="js/state.js"></script>
+<script src="js/messages.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/mavlink.js"></script>
+<script src="js/mnp.js"></script>
+<script src="js/connection.js"></script>
+
+<script>
+'use strict';
+
+// ArduRover mode table — different from copter
+const ROVER_MODES = {
+    'MANUAL':       0,
+    'ACRO':         1,
+    'STEERING':     3,
+    'HOLD':         4,
+    'LOITER':       5,
+    'FOLLOW':       6,
+    'SIMPLE':       7,
+    'AUTO':        10,
+    'RTL':         11,
+    'SMART_RTL':   12,
+    'GUIDED':      15,
+    'INITIALISING':16,
+};
+const ROVER_MODE_NUM_TO_NAME = Object.fromEntries(Object.entries(ROVER_MODES).map(([k,v])=>[v,k]));
+
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+const ackLog = $('#ack-log');
+const eventLog = $('#event-log');
+
+function logTo(el, text, level='info') {
+    const e = document.createElement('div');
+    e.className = 'log-entry ' + level;
+    const now = new Date();
+    const ts = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+    e.innerHTML = `<span class="ts">${ts}</span>${text}`;
+    el.insertBefore(e, el.firstChild);
+    while (el.children.length > 200) el.removeChild(el.lastChild);
+}
+const ack = (t,l) => logTo(ackLog, t, l);
+const evt = (t,l) => logTo(eventLog, t, l);
+
+// ---- Build mode buttons ----
+const modeGrid = $('#mode-grid');
+for (const [name, num] of Object.entries(ROVER_MODES)) {
+    const b = document.createElement('button');
+    b.textContent = name;
+    b.dataset.mode = name;
+    b.dataset.modeNum = num;
+    b.addEventListener('click', () => {
+        Connection.sendSetMode(name);
+        ack(`DO_SET_MODE → ${name} (${num})`, 'info');
+    });
+    modeGrid.appendChild(b);
+}
+
+// ---- Build servo rows ----
+const servoContainer = $('#servo-rows');
+for (let ch = 1; ch <= 10; ch++) {
+    const row = document.createElement('div');
+    row.className = 'servo-row';
+    row.innerHTML = `
+        <label>CH${ch}</label>
+        <input type="range" min="800" max="2200" value="1500" id="srv-r-${ch}">
+        <input type="number" min="800" max="2200" value="1500" id="srv-n-${ch}">
+        <button data-ch="${ch}">SET</button>
+    `;
+    servoContainer.appendChild(row);
+    const r = $('#srv-r-'+ch), n = $('#srv-n-'+ch);
+    r.addEventListener('input', () => n.value = r.value);
+    n.addEventListener('input', () => r.value = n.value);
+    row.querySelector('button').addEventListener('click', () => sendServo(ch, parseInt(n.value)));
+}
+
+// MAV_CMD numbers we use directly
+const MAV_CMD = {
+    DO_SET_SERVO: 183,
+    DO_SET_HOME: 179,
+    PREFLIGHT_REBOOT_SHUTDOWN: 246,
+    PREFLIGHT_CALIBRATION: 241,
+    MISSION_START: 300,
+    DO_PAUSE_CONTINUE: 193,
+    DO_SET_MISSION_CURRENT: 224,
+    GET_HOME_POSITION: 410,
+    REQUEST_MESSAGE: 512,
+    COMPONENT_ARM_DISARM: 400,
+};
+
+// ---- Send helpers ----
+function sendCmd(cmdId, p1=0, p2=0, p3=0, p4=0, p5=0, p6=0, p7=0) {
+    const buf = MAVLink.encodeCommandLong(1, 1, cmdId, p1, p2, p3, p4, p5, p6, p7);
+    if (!Connection.isConnected()) {
+        ack(`MAV_CMD ${cmdId}: NOT CONNECTED`, 'err');
+        return false;
+    }
+    Connection.sendRaw(buf);
+    return true;
+}
+
+function sendServo(ch, pwm) {
+    if (sendCmd(MAV_CMD.DO_SET_SERVO, ch, pwm)) {
+        ack(`DO_SET_SERVO ch${ch} = ${pwm}µs`, 'info');
+    }
+}
+
+// ---- Servo keepalive ----
+let keepaliveTimer = null;
+$('#servo-keepalive-ck').addEventListener('change', (e) => {
+    if (e.target.checked) {
+        keepaliveTimer = setInterval(() => {
+            for (let ch = 1; ch <= 10; ch++) {
+                const v = parseInt($('#srv-n-'+ch).value);
+                if (v !== 1500) sendServo(ch, v);
+            }
+        }, 1000);
+        ack('Servo keep-alive enabled (1 Hz)', 'info');
+    } else {
+        clearInterval(keepaliveTimer); keepaliveTimer = null;
+        ack('Servo keep-alive disabled', 'info');
+    }
+});
+
+// ---- Button dispatch ----
+document.body.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-cmd]');
+    if (!b) return;
+    const cmd = b.dataset.cmd;
+    switch (cmd) {
+        case 'arm':            sendCmd(MAV_CMD.COMPONENT_ARM_DISARM, 1, 0); ack('ARM sent', 'warn'); break;
+        case 'arm-force':      sendCmd(MAV_CMD.COMPONENT_ARM_DISARM, 1, 21196); ack('ARM (force) sent', 'warn'); break;
+        case 'disarm':         sendCmd(MAV_CMD.COMPONENT_ARM_DISARM, 0, 0); ack('DISARM sent', 'warn'); break;
+        case 'disarm-force':   sendCmd(MAV_CMD.COMPONENT_ARM_DISARM, 0, 21196); ack('DISARM (force) sent', 'warn'); break;
+        case 'mission-list':   if (Connection.isConnected()) Connection.sendRaw(MAVLink.encodeMissionRequestList(1)); ack('MISSION_REQUEST_LIST', 'info'); break;
+        case 'mission-clear':  sendCmd(414, 0, 0); ack('MISSION_CLEAR_ALL', 'info'); break; // MAV_CMD 414
+        case 'mission-upload-test': uploadTestMission(); break;
+        case 'mission-start':  sendCmd(MAV_CMD.MISSION_START, 0, 0); ack('MISSION_START', 'info'); break;
+        case 'mission-pause':  sendCmd(MAV_CMD.DO_PAUSE_CONTINUE, 0); ack('PAUSE', 'info'); break;
+        case 'mission-resume': sendCmd(MAV_CMD.DO_PAUSE_CONTINUE, 1); ack('RESUME', 'info'); break;
+        case 'mission-set-current':
+            const seq = parseInt(prompt('Set current WP seq number?', '0') || '0');
+            sendCmd(MAV_CMD.DO_SET_MISSION_CURRENT, seq); ack(`SET_MISSION_CURRENT = ${seq}`, 'info'); break;
+        case 'param-list':     if (Connection.isConnected()) Connection.sendRaw(MAVLink.encodeParamRequestList(1)); ack('PARAM_REQUEST_LIST', 'info'); break;
+        case 'request-home':   sendCmd(MAV_CMD.REQUEST_MESSAGE, 242); ack('REQUEST_MESSAGE 242 (HOME_POSITION)', 'info'); break;
+        case 'set-home-here':  sendCmd(MAV_CMD.DO_SET_HOME, 1, 0, 0, 0, 0, 0, 0); ack('DO_SET_HOME(here)', 'info'); break;
+        case 'reboot':         sendCmd(MAV_CMD.PREFLIGHT_REBOOT_SHUTDOWN, 1, 0); ack('REBOOT', 'warn'); break;
+        case 'reboot-bl':      sendCmd(MAV_CMD.PREFLIGHT_REBOOT_SHUTDOWN, 3, 0); ack('REBOOT → BOOTLOADER', 'err'); break;
+        case 'calibrate-level':    sendCmd(MAV_CMD.PREFLIGHT_CALIBRATION, 0,0,0,0,2); ack('CAL_LEVEL', 'info'); break;
+        case 'calibrate-pressure': sendCmd(MAV_CMD.PREFLIGHT_CALIBRATION, 0,0,3,0,0); ack('CAL_PRESSURE (baro)', 'info'); break;
+        case 'banner-emergency':
+            meridian.events.emit('failsafe', { mode: 'TEST_BANNER' });
+            evt('Browser-side: emergency banner fired', 'err'); break;
+        case 'banner-warn':
+            meridian.events.emit('failsafe', { type: 'battery_critical', pct: 12 });
+            evt('Browser-side: battery_critical fired', 'warn'); break;
+        case 'banner-clear':
+            const ab = document.getElementById('alert-banner'); if (ab) ab.classList.remove('active');
+            const ma = document.getElementById('map-area'); if (ma) ma.classList.remove('has-emergency');
+            evt('Browser-side: banner cleared', 'info'); break;
+        case 'audio-failsafe': if (window.AudioAlerts) AudioAlerts.playFailsafe(); evt('audio: failsafe', 'info'); break;
+        case 'audio-batt':     if (window.AudioAlerts) AudioAlerts.playBatteryCritical(); evt('audio: battery', 'info'); break;
+    }
+});
+
+// ---- Test mission upload (3 WPs in Botany Bay) ----
+function uploadTestMission() {
+    if (!Connection.isConnected()) { ack('upload mission: NOT CONNECTED', 'err'); return; }
+    // Botany Bay 3-waypoint transit
+    const wps = [
+        { seq: 0, lat: -33.97000, lon: 151.20000, alt: 0, command: 16 },  // home (NAV_WAYPOINT)
+        { seq: 1, lat: -33.96900, lon: 151.20100, alt: 0, command: 16 },
+        { seq: 2, lat: -33.96800, lon: 151.20200, alt: 0, command: 16 },
+    ];
+    Connection.sendRaw(MAVLink.encodeMissionCount(wps.length, 1));
+    ack(`MISSION_COUNT = ${wps.length} sent — vehicle should request items`, 'info');
+    // The vehicle requests items via MISSION_REQUEST_INT; state.js dispatches that
+    // event and we respond.
+    let pending = wps;
+    const handler = (msg) => {
+        const seq = msg.seq;
+        const wp = pending.find(w => w.seq === seq);
+        if (wp) {
+            Connection.sendRaw(MAVLink.encodeMissionItemIntFull(wp, 1));
+            ack(`MISSION_ITEM_INT seq=${seq}`, 'info');
+        }
+    };
+    meridian.events.on('mission_request_int', handler);
+    setTimeout(() => meridian.events.off('mission_request_int', handler), 30000);
+}
+
+// ---- Connection wiring ----
+function setPill(state) {
+    const p = $('#conn-pill');
+    p.className = 'conn-pill ' + state;
+    p.textContent = state.toUpperCase();
+}
+$('#connect-btn').addEventListener('click', () => {
+    const url = $('#ws-url').value.trim();
+    if (!url) { ack('enter ws:// URL first', 'err'); return; }
+    setPill('connecting');
+    $('#ws-status').textContent = 'connecting → ' + url;
+    Connection.connect(url, 'mavlink');
+});
+$('#disconnect-btn').addEventListener('click', () => {
+    Connection.disconnect();
+});
+Connection.onStateChange = (st) => {
+    if (st === 2) { setPill('connected'); $('#ws-status').textContent = 'connected'; ack('CONNECTED', 'ok'); }
+    else if (st === 1) { setPill('connecting'); }
+    else { setPill('disconnected'); $('#ws-status').textContent = 'disconnected'; ack('DISCONNECTED', 'warn'); }
+};
+
+// ---- Telemetry update ----
+let hbCount = 0;
+function refreshTelem() {
+    const v = meridian.v;
+    if (!v) return;
+    $('#t-hb').textContent = hbCount > 0 ? hbCount : '—';
+    $('#t-armed').textContent = v.armed ? 'ARMED' : 'DISARMED';
+    $('#t-armed').className = 'tel-val' + (v.armed ? ' armed' : '');
+    $('#t-mode').textContent = ROVER_MODE_NUM_TO_NAME[v.modeNum] || v.modeName || '—';
+    const fixNames = ['NoGPS','NoFix','2D','3D','DGPS','RTKf','RTK'];
+    $('#t-gps').textContent = v.fixType >= 0 ? `${fixNames[v.fixType]||'?'} ${v.satellites}S` : '—';
+    $('#t-batt').textContent = v.batteryPct >= 0 ? `${Math.round(v.batteryPct)}% ${v.voltage.toFixed(1)}V` : '—';
+    $('#t-spd').textContent = v.groundspeed ? `${v.groundspeed.toFixed(1)} m/s` : '—';
+    $('#t-hdg').textContent = v.heading ? `${Math.round(v.heading)}°` : '—';
+    $('#t-rssi').textContent = v.rcRssi ? `${Math.round(v.rcRssi/255*100)}%` : '—';
+}
+meridian.events.on('heartbeat', () => { hbCount++; refreshTelem(); });
+meridian.events.on('telemetry', refreshTelem);
+meridian.events.on('statustext', (m) => evt(`[${m.severity}] ${m.text}`, m.severity <= 3 ? 'err' : (m.severity === 4 ? 'warn' : 'info')));
+meridian.events.on('command_ack', (m) => {
+    const tag = m._resultName || ('R'+m.result);
+    ack(`ACK cmd=${m.command} → ${tag}`, m.result === 0 ? 'ok' : (m.result === 1 ? 'warn' : 'err'));
+});
+meridian.events.on('failsafe', (d) => evt(`FAILSAFE: ${JSON.stringify(d)}`, 'err'));
+
+// Default WS URL — pre-fill with the USV's Tailscale IP (Tristan's side)
+$('#ws-url').value = (localStorage.getItem('test-console-ws') || 'ws://100.72.16.72:5760');
+$('#ws-url').addEventListener('change', (e) => localStorage.setItem('test-console-ws', e.target.value));
+
+// Hidden #alert-banner / #map-area so the browser-side banner test has a target.
+const banner = document.createElement('div');
+banner.id = 'alert-banner'; banner.className = 'alert-banner';
+banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;display:none;padding:14px 24px;font:700 20px Rajdhani,sans-serif;letter-spacing:0.08em;text-align:center;color:white;text-transform:uppercase;cursor:pointer;background:#dc2626;animation:pulse-emergency 0.7s infinite';
+banner.addEventListener('click', () => { banner.style.display='none'; banner.classList.remove('active'); });
+document.body.appendChild(banner);
+const mapArea = document.createElement('div'); mapArea.id = 'map-area'; document.body.appendChild(mapArea);
+const sheet = document.createElement('style');
+sheet.textContent = `
+  #alert-banner.active { display: block !important; }
+  @keyframes pulse-emergency { 0%,100% { background:#dc2626; } 50% { background:#f43f5e; } }
+`;
+document.head.appendChild(sheet);
+meridian.events.on('failsafe', (d) => {
+    let label = '⚠ FAILSAFE: ' + (d.mode || d.type || 'UNKNOWN');
+    if (d.type === 'battery_critical') label = '⚠ BATTERY CRITICAL — ' + d.pct + '%';
+    banner.textContent = label;
+    banner.classList.add('active');
+});
+
+// Init Audio
+if (window.AudioAlerts) AudioAlerts.init();
+
+ack('Test console ready. Set ws URL and Connect.', 'info');
+</script>
+
+</body>
+</html>

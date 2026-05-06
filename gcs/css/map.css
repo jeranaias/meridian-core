@@ -91,41 +91,79 @@
 .ctx-icon { width: 14px; text-align: center; color: var(--c-neutral); font-size: 11px; }
 .context-sep { height: 1px; background: var(--c-border); margin: 3px 0; }
 
-/* Alert banner */
+/* Alert banner — full-width, sunlight-readable, tap to acknowledge */
 .alert-banner {
     position: absolute;
-    top: 8px;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 0;
+    left: 0;
+    right: 0;
     z-index: 2000;
     display: none;
-    padding: 8px 20px;
-    border-radius: var(--r);
+    padding: 14px 24px;
     font-family: var(--f-display);
-    font-size: 14px;
+    font-size: 20px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
     text-align: center;
     pointer-events: auto;
     cursor: pointer;
-    animation: pulse 0.8s ease-in-out infinite;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    border-bottom: 2px solid rgba(255,255,255,0.4);
 }
 
 .alert-banner.active {
     display: block;
 }
 
+.alert-banner::after {
+    content: 'TAP TO ACKNOWLEDGE';
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    opacity: 0.85;
+}
+
 .alert-banner.emergency {
     background: var(--c-emergency);
-    color: white;
-    box-shadow: 0 4px 20px rgba(220, 38, 38, 0.4);
+    box-shadow: 0 6px 24px rgba(220, 38, 38, 0.55);
+    animation: pulse-emergency 0.7s ease-in-out infinite;
 }
 
 .alert-banner.warning {
     background: var(--c-warning);
-    color: white;
-    box-shadow: 0 4px 20px rgba(234, 88, 12, 0.4);
+    box-shadow: 0 6px 24px rgba(234, 88, 12, 0.5);
+    animation: pulse-warning 0.9s ease-in-out infinite;
+}
+
+@keyframes pulse-emergency {
+    0%, 100% { background: #dc2626; box-shadow: 0 6px 24px rgba(220, 38, 38, 0.55); }
+    50%      { background: #f43f5e; box-shadow: 0 6px 32px rgba(244, 63, 94, 0.85); }
+}
+
+@keyframes pulse-warning {
+    0%, 100% { background: #ea580c; }
+    50%      { background: #fb923c; }
+}
+
+/* HUD edge glow when emergency active — peripheral-vision cue per Oborne */
+#map-area.has-emergency::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1900;
+    box-shadow: inset 0 0 0 4px var(--c-emergency),
+                inset 0 0 60px rgba(220, 38, 38, 0.45);
+    animation: hud-edge-pulse 0.7s ease-in-out infinite;
+}
+
+@keyframes hud-edge-pulse {
+    0%, 100% { opacity: 0.75; }
+    50%      { opacity: 1; }
 }
 
 /* Trajectory line */

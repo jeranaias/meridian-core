@@ -5,6 +5,15 @@ edition.workspace = true
 license.workspace = true
 description = "STM32H7 flight controller binary — Phase 9 MVP firmware"
 
+[features]
+default = []
+# Canary build: arms rescue flag, inits IWDG, then loops without feeding
+# the watchdog. Used to empirically prove the IWDG-reset → bootloader-magic
+# → watcher-reflash chain on the same code state we're about to ship for
+# real. If the boat doesn't appear in DFU within ~3 seconds of canary boot,
+# the chain is broken — abort the iteration.
+nettest = []
+
 [dependencies]
 meridian-types = { workspace = true }
 meridian-hal = { workspace = true }

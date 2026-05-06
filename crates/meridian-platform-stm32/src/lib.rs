@@ -56,3 +56,5 @@ pub mod flash;
 pub mod watchdog;
 #[cfg(target_arch = "arm")]
 pub mod rtic_app;
+#[cfg(target_arch = "arm")]
+pub mod rescue;

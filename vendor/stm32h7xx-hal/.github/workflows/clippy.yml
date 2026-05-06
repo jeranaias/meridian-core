@@ -1,0 +1,20 @@
+on:
+  push:
+    branches: [staging, trying, master]
+  pull_request:
+
+name: Clippy
+
+jobs:
+  clippy_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.74.0
+          target: thumbv7em-none-eabihf
+          components: clippy
+      - uses: clechasseur/rs-clippy-check@v3
+        with:
+          args: --examples --target thumbv7em-none-eabihf --features=rt,stm32h743v -- -D warnings

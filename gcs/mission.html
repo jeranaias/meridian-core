@@ -13,6 +13,7 @@
         :root {
             --bg: #0a0e17;
             --bg-raised: #0e1218;
+            --bg-glass: rgba(10, 14, 23, 0.92);
             --border: #1e2a38;
             --text: #d8e0ea;
             --dim: #6a7a90;
@@ -21,6 +22,21 @@
             --warning: #ffa726;
             --emergency: #ff1744;
             --armed: #ff6d00;
+            --tile-filter: none;
+        }
+        html.light {
+            --bg: #f4f6fa;
+            --bg-raised: #ffffff;
+            --bg-glass: rgba(255, 255, 255, 0.92);
+            --border: #cfd8e3;
+            --text: #1a2332;
+            --dim: #6a7a90;
+            --primary: #0277bd;
+            --safe: #2e7d32;
+            --warning: #ef6c00;
+            --emergency: #c62828;
+            --armed: #e65100;
+            --tile-filter: none;
         }
         html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Barlow', sans-serif; overflow: hidden; }
         #map { width: 100%; height: 100%; }
@@ -30,7 +46,7 @@
             position: fixed; top: 0; left: 0; right: 0; z-index: 2000;
             display: flex; align-items: center; gap: 12px;
             padding: 10px 16px; height: 56px;
-            background: rgba(10, 14, 23, 0.92); backdrop-filter: blur(12px);
+            background: var(--bg-glass); backdrop-filter: blur(12px);
             border-bottom: 1px solid var(--border);
         }
         .status-brand { font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 700; color: var(--primary); letter-spacing: 0.06em; }
@@ -55,7 +71,7 @@
         #action-panel {
             position: fixed; bottom: 0; left: 0; right: 0; z-index: 2000;
             padding: 16px; display: flex; flex-direction: column; gap: 12px;
-            background: rgba(10, 14, 23, 0.95); backdrop-filter: blur(12px);
+            background: var(--bg-glass); backdrop-filter: blur(12px);
             border-top: 1px solid var(--border);
         }
         .action-row { display: flex; gap: 10px; }
@@ -131,7 +147,353 @@
         <div class="status-item" id="si-batt"><span class="status-val">--</span><span class="status-label">Batt</span></div>
         <div class="status-item" id="si-hdg"><span class="status-val">--</span><span class="status-label">Hdg</span></div>
         <span class="status-spacer"></span>
+        <span class="gps-source-badge" id="gps-source-badge" onclick="toggleGpsPanel()" style="display:none;font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;padding:4px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:0.04em;background:rgba(0,229,255,0.12);color:var(--primary);border:1px solid var(--primary);cursor:pointer" title="Tap for GPS source details">GPS: —</span>
+        <span class="nav-source-badge" id="nav-source-badge" style="display:none;font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;padding:4px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:0.04em" title="Active navigation source"></span>
+        <span class="station-badge" id="station-badge" style="display:none;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;padding:4px 10px;border-radius:4px;text-transform:uppercase;letter-spacing:0.04em;background:rgba(0,230,118,0.15);color:var(--safe);border:1px solid var(--safe)"></span>
         <span class="status-mode disarmed" id="status-mode">DISARMED</span>
+        <button id="btn-settings" onclick="toggleSettings()" style="background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer;padding:4px 8px" title="Settings">&#9881;</button>
+    </div>
+
+    <style>
+        .station-badge.holding { background:rgba(0,230,118,0.15) !important; color:var(--safe) !important; border-color:var(--safe) !important; }
+        .station-badge.evading { background:rgba(255,23,68,0.15) !important; color:var(--emergency) !important; border-color:var(--emergency) !important; animation:pulse 1.2s ease-in-out infinite; }
+        @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.5 } }
+
+        /* ── Rudder Readout (bench / steering diagnostic) ── */
+        #rudder-readout {
+            position: fixed; top: 62px; left: 50%; transform: translateX(-50%);
+            z-index: 1900; display: none; min-width: 148px;
+            padding: 6px 14px 8px 14px;
+            background: var(--bg-glass); backdrop-filter: blur(12px);
+            border: 1px solid var(--border); border-radius: 10px;
+            font-family: 'Rajdhani', sans-serif;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        #rudder-readout.show { display: block; }
+        #rudder-readout .rdr-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); text-align: center; margin-bottom: 2px; }
+        #rudder-readout .rdr-val { font-family: 'DM Mono', monospace; font-size: 20px; font-weight: 600; color: var(--primary); text-align: center; line-height: 1; }
+        #rudder-readout .rdr-bar { position: relative; height: 6px; margin: 4px 0 0 0; background: var(--bg-raised); border-radius: 3px; overflow: hidden; border: 1px solid var(--border); }
+        #rudder-readout .rdr-tick { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--dim); opacity: 0.6; }
+        #rudder-readout .rdr-fill { position: absolute; top: 0; bottom: 0; background: var(--primary); opacity: 0.75; transition: left 0.1s linear, width 0.1s linear; }
+        #rudder-readout .rdr-fill.saturated { background: var(--emergency); opacity: 0.9; }
+        #rudder-readout .rdr-cmd { font-size: 10px; color: var(--dim); text-align: center; margin-top: 3px; font-family: 'DM Mono', monospace; }
+        #rudder-readout .rdr-resp { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 6px; border-radius: 3px; margin-top: 3px; text-align: center; }
+        #rudder-readout .rdr-resp.ok { background: rgba(0,230,118,0.15); color: var(--safe); border: 1px solid var(--safe); }
+        #rudder-readout .rdr-resp.warn { background: rgba(255,167,38,0.15); color: var(--warning); border: 1px solid var(--warning); }
+
+        /* ── Webcam Pane ── */
+        #webcam-pane {
+            position: fixed; z-index: 1800;
+            background: var(--bg-glass); backdrop-filter: blur(12px);
+            border: 1px solid var(--border); border-radius: 10px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+            display: none; overflow: hidden;
+            user-select: none; -webkit-user-select: none;
+        }
+        #webcam-pane.show { display: block; }
+        #webcam-pane .cam-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid var(--border); cursor: move; background: var(--bg-raised); }
+        #webcam-pane .cam-title { font-family: 'Rajdhani', sans-serif; font-size: 12px; font-weight: 700; color: var(--primary); letter-spacing: 0.06em; text-transform: uppercase; }
+        #webcam-pane .cam-btn { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 14px; padding: 0 4px; }
+        #webcam-pane .cam-btn:hover { color: var(--text); }
+        #webcam-pane .cam-body { width: 240px; height: 180px; background: var(--bg); display: flex; align-items: center; justify-content: center; }
+        #webcam-pane.collapsed .cam-body { display: none; }
+        #webcam-pane img, #webcam-pane video { width: 100%; height: 100%; object-fit: cover; }
+        #webcam-pane .cam-placeholder { color: var(--dim); font-size: 11px; text-align: center; padding: 20px; font-family: 'DM Mono', monospace; }
+
+        /* ── Bench Test Drawer ── */
+        #bench-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 4000; background: var(--bg); overflow: auto;
+        }
+        #bench-overlay.show { display: block; }
+        .bench-slider-wrap { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+        .bench-slider-wrap label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); font-family: 'Rajdhani', sans-serif; font-weight: 600; display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .bench-slider-wrap .val { font-family: 'DM Mono', monospace; color: var(--primary); font-weight: 500; }
+        .bench-slider {
+            -webkit-appearance: none; appearance: none;
+            width: 100%; height: 42px; background: transparent; cursor: pointer;
+        }
+        .bench-slider::-webkit-slider-runnable-track { background: var(--bg-raised); height: 8px; border-radius: 4px; border: 1px solid var(--border); }
+        .bench-slider::-moz-range-track { background: var(--bg-raised); height: 8px; border-radius: 4px; border: 1px solid var(--border); }
+        .bench-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 32px; height: 32px; background: var(--primary); border: 2px solid var(--bg); border-radius: 50%; margin-top: -12px; }
+        .bench-slider::-moz-range-thumb { width: 32px; height: 32px; background: var(--primary); border: 2px solid var(--bg); border-radius: 50%; }
+        .bench-btn {
+            padding: 14px 10px; min-height: 56px; flex: 1;
+            border: 1px solid var(--border); border-radius: 8px;
+            background: var(--bg-raised); color: var(--text);
+            font-family: 'Rajdhani', sans-serif; font-weight: 700;
+            font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em;
+            cursor: pointer;
+        }
+        .bench-btn:active { transform: scale(0.97); }
+        .bench-btn.go { border-color: var(--primary); color: var(--primary); }
+        .bench-btn.active { background: rgba(0,229,255,0.12); border-color: var(--primary); color: var(--primary); }
+        .bench-btn.stop { border-color: var(--emergency); color: var(--emergency); }
+
+        /* ── AIS markers ── */
+        .ais-marker-div { filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5)); }
+        .ais-label {
+            background: var(--bg-glass); color: var(--text);
+            border: 1px solid var(--border); border-radius: 3px;
+            padding: 1px 4px; font-size: 10px;
+            font-family: 'DM Mono', monospace; white-space: nowrap;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+
+        /* ── Perception markers ── */
+        .perc-marker-div { filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5)); }
+
+        /* ── AIS fusion (Stage-7) range labels ── */
+        .leaflet-tooltip.ais-fusion-label {
+            background: rgba(0, 229, 255, 0.18);
+            color: var(--primary);
+            border: 1px solid var(--primary);
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-family: 'DM Mono', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            box-shadow: 0 0 6px rgba(0,229,255,0.4);
+        }
+        .leaflet-tooltip.ais-fusion-label::before { display: none; }
+    </style>
+
+    <!-- Settings Overlay -->
+    <div id="settings-overlay" style="display:none;position:fixed;top:44px;right:8px;z-index:3000;background:var(--bg-raised);border:1px solid var(--border);border-radius:8px;padding:16px;width:280px;box-shadow:0 4px 24px rgba(0,0,0,0.5)">
+        <div style="font-weight:600;margin-bottom:12px;color:var(--primary)">Settings</div>
+        <label style="display:block;margin-bottom:8px;font-size:13px;color:var(--dim)">Theme</label>
+        <div style="display:flex;gap:4px;margin-bottom:12px">
+            <button class="theme-btn active" id="theme-dark" onclick="setTheme('dark')" style="flex:1;padding:8px;border:1px solid var(--primary);border-radius:4px;background:var(--bg);color:var(--text);cursor:pointer;font-size:13px">Dark</button>
+            <button class="theme-btn" id="theme-light" onclick="setTheme('light')" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--dim);cursor:pointer;font-size:13px">Light</button>
+        </div>
+        <label style="display:block;margin-bottom:8px;font-size:13px;color:var(--dim)">Protocol</label>
+        <div style="display:flex;gap:4px;margin-bottom:12px">
+            <button class="proto-btn active" id="proto-mnp" onclick="setProtocol('mnp')" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);cursor:pointer;font-size:13px">MNP</button>
+            <button class="proto-btn" id="proto-mav" onclick="setProtocol('mavlink')" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--dim);cursor:pointer;font-size:13px">MAVLink</button>
+        </div>
+        <label style="display:block;margin-bottom:4px;font-size:13px;color:var(--dim)">WebSocket URL</label>
+        <input type="text" id="ws-url-input" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:13px;margin-bottom:12px" value="ws://localhost:5760">
+        <button onclick="applySettings()" style="width:100%;padding:8px;border:none;border-radius:4px;background:var(--primary);color:var(--bg);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Connect</button>
+        <button onclick="openTuner()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Tune PIDs</button>
+        <button onclick="openBench()" style="width:100%;padding:8px;border:1px solid var(--warning);border-radius:4px;background:var(--bg);color:var(--warning);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Bench Test</button>
+        <button onclick="openMagCal()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Compass Calibration</button>
+        <button onclick="startDemoTour()" style="width:100%;padding:8px;border:1px solid var(--safe);border-radius:4px;background:var(--bg);color:var(--safe);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:12px">Start Demo Tour</button>
+
+        <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px">
+            <label style="display:block;margin-bottom:4px;font-size:13px;color:var(--dim)">Rotor Camera URL</label>
+            <input type="text" id="cam-url-input" placeholder="http://100.72.16.72:8081/stream.mjpg" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:12px;margin-bottom:6px;font-family:DM Mono,monospace">
+            <button onclick="applyCamUrl()" style="width:100%;padding:6px;border:1px solid var(--primary);border-radius:4px;background:var(--bg);color:var(--primary);font-weight:600;cursor:pointer;font-size:12px;margin-bottom:8px">Connect Camera</button>
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px">
+            <label style="display:block;margin-bottom:8px;font-size:13px;color:var(--dim)">Map Layers</label>
+            <button id="layer-ais-btn" onclick="toggleLayer('ais')" style="width:100%;padding:8px;border:1px solid var(--primary);border-radius:4px;background:var(--bg);color:var(--primary);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:6px">AIS Traffic</button>
+            <button id="layer-perc-btn" onclick="toggleLayer('perc')" style="width:100%;padding:8px;border:1px solid var(--primary);border-radius:4px;background:var(--bg);color:var(--primary);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:6px">Perception</button>
+            <button id="layer-rdr-btn" onclick="toggleLayer('rdr')" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--dim);font-weight:600;cursor:pointer;font-size:13px">Rudder HUD</button>
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px">
+            <label style="display:block;margin-bottom:8px;font-size:13px;color:var(--dim)">Demo / Test</label>
+            <button onclick="spawnDemoThreat()" style="width:100%;padding:8px;border:1px solid var(--warning);border-radius:4px;background:var(--bg);color:var(--warning);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:6px">Spawn Threat</button>
+            <button onclick="clearDemoThreats()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--dim);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:6px">Clear Threats</button>
+            <button id="ais-sim-btn" onclick="toggleAisSim()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--dim);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:6px">AIS Sim: —</button>
+            <button onclick="spawnPerception()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--dim);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:6px">Spawn Debris</button>
+            <button id="gps-jam-btn" onclick="toggleGpsJam()" style="width:100%;padding:8px;border:1px solid var(--emergency);border-radius:4px;background:var(--bg);color:var(--emergency);font-weight:600;cursor:pointer;font-size:13px">&#x26A0; Simulate GPS Jam</button>
+        </div>
+        <div style="font-size:11px;color:var(--dim);margin-top:12px;line-height:1.5">
+            <strong>Tip:</strong> Long-press the map to set a station. The boat will hold position and dodge threats automatically.
+        </div>
+    </div>
+
+    <!-- Rudder Readout (bench / steering diagnostic) -->
+    <div id="rudder-readout">
+        <div class="rdr-label">Rudder</div>
+        <div class="rdr-val" id="rdr-val">0.0&deg;</div>
+        <div class="rdr-bar"><span class="rdr-tick"></span><span class="rdr-fill" id="rdr-fill"></span></div>
+        <div class="rdr-cmd" id="rdr-cmd">cmd 0 / act 0</div>
+        <div class="rdr-resp" id="rdr-resp" style="display:none"></div>
+    </div>
+
+    <!-- Webcam Pane -->
+    <div id="webcam-pane">
+        <div class="cam-header" id="cam-header">
+            <span class="cam-title">Rotor Cam</span>
+            <span>
+                <button class="cam-btn" onclick="toggleCamCollapsed()" title="Collapse">_</button>
+                <button class="cam-btn" onclick="hideWebcam()" title="Hide">&times;</button>
+            </span>
+        </div>
+        <div class="cam-body" id="cam-body">
+            <img id="cam-img" style="display:none" alt="Rotor camera">
+            <div class="cam-placeholder" id="cam-placeholder">Set camera URL in Settings</div>
+        </div>
+    </div>
+
+    <!-- Bench Test Overlay -->
+    <div id="bench-overlay">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid var(--border);background:var(--bg-raised)">
+            <div style="font-family:Rajdhani,sans-serif;font-size:20px;font-weight:700;color:var(--primary);letter-spacing:0.04em">BENCH TEST</div>
+            <button onclick="closeBench()" style="background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;padding:4px 12px">&times;</button>
+        </div>
+        <div style="padding:12px 16px;background:rgba(255,167,38,0.08);border-bottom:1px solid var(--border);font-size:12px;color:var(--warning);line-height:1.4">
+            <strong>SAFETY:</strong> commands are sent directly to steering &amp; throttle with no autopilot protection. Verify armed state &amp; physical clearance before throttle input.
+        </div>
+        <div class="bench-slider-wrap">
+            <label><span>Rudder</span><span class="val" id="bench-steer-val">0%</span></label>
+            <input type="range" min="-100" max="100" value="0" step="1" class="bench-slider" id="bench-steer-input" oninput="onBenchSteerInput(this.value)" onchange="onBenchSteerInput(this.value)">
+            <div style="display:flex;gap:8px;margin-top:8px">
+                <button class="bench-btn" onclick="setBenchSteer(-100)">FULL L</button>
+                <button class="bench-btn" onclick="setBenchSteer(0)">CENTER</button>
+                <button class="bench-btn" onclick="setBenchSteer(100)">FULL R</button>
+            </div>
+        </div>
+        <div class="bench-slider-wrap">
+            <label><span>Throttle</span><span class="val" id="bench-thr-val">0%</span></label>
+            <input type="range" min="0" max="100" value="0" step="1" class="bench-slider" id="bench-thr-input" oninput="onBenchThrInput(this.value)" onchange="onBenchThrInput(this.value)">
+        </div>
+        <div class="bench-slider-wrap">
+            <label style="margin-bottom:4px">Test Patterns</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="bench-btn" id="bench-mode-step" onclick="startBenchPattern('step')">STEP &plusmn;50</button>
+                <button class="bench-btn" id="bench-mode-sweep" onclick="startBenchPattern('sweep')">SWEEP</button>
+                <button class="bench-btn" id="bench-mode-square" onclick="startBenchPattern('square')">SQUARE</button>
+                <button class="bench-btn" id="bench-mode-stop" onclick="stopBenchPattern()">STOP PATTERN</button>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+                <button class="bench-btn go" onclick="startAutotune()" style="flex:1">&#x1F3AF; AUTOTUNE STEER</button>
+            </div>
+            <div id="autotune-result" style="display:none;margin-top:12px;padding:10px;border:1px solid var(--primary);border-radius:6px;background:rgba(0,229,255,0.05);font-family:'DM Mono',monospace;font-size:11px;line-height:1.6;color:var(--text)"></div>
+        </div>
+        <div class="bench-slider-wrap">
+            <label><span>Live Rudder Readout</span><span class="val" id="bench-live-val">—</span></label>
+            <div style="height:80px;background:var(--bg-raised);border:1px solid var(--border);border-radius:4px;overflow:hidden">
+                <canvas id="bench-chart" width="600" height="80" style="width:100%;height:80px"></canvas>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--dim);margin-top:4px;font-family:DM Mono,monospace">
+                <span id="bench-live-cmd">cmd —</span>
+                <span id="bench-live-act">act —</span>
+                <span id="bench-live-lag">lag —</span>
+            </div>
+        </div>
+        <div style="display:flex;gap:10px;padding:16px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--bg)">
+            <button class="bench-btn stop" onclick="emergencyStop()">EMERGENCY STOP</button>
+            <button class="bench-btn" onclick="closeBench()">EXIT BENCH</button>
+        </div>
+    </div>
+
+    <!-- GPS Source Panel -->
+    <div id="gps-panel" style="display:none;position:fixed;top:44px;right:8px;z-index:3000;background:var(--bg-raised);border:1px solid var(--border);border-radius:8px;padding:16px;width:300px;box-shadow:0 4px 24px rgba(0,0,0,0.5)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="font-weight:600;color:var(--primary);font-family:Rajdhani,sans-serif;letter-spacing:0.06em">GPS SOURCES</div>
+            <button onclick="toggleGpsPanel()" style="background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer">&times;</button>
+        </div>
+        <div id="gps-panel-body" style="font-size:12px;color:var(--text)">
+            <div style="text-align:center;color:var(--dim);padding:10px">No GPS telemetry yet</div>
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:12px;font-size:10px;color:var(--dim);line-height:1.5">
+            <strong>Architecture:</strong> GPS1 = MAVLink-forwarded from the Orca Core 2 (10 Hz, &lt;3m). GPS2 = serial puck hot-standby if present. ArduPilot auto-blends and fails over instantly.
+        </div>
+    </div>
+
+    <!-- Compass / Magnetometer Calibration Wizard -->
+    <div id="magcal-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:4000;background:var(--bg);overflow:auto">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid var(--border);background:var(--bg-raised)">
+            <div style="font-family:Rajdhani,sans-serif;font-size:20px;font-weight:700;color:var(--primary);letter-spacing:0.04em">COMPASS CALIBRATION</div>
+            <button onclick="closeMagCal()" style="background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;padding:4px 12px">&times;</button>
+        </div>
+        <div style="padding:16px;max-width:600px;margin:0 auto">
+            <div id="magcal-instr" style="color:var(--dim);line-height:1.5;margin-bottom:20px;font-size:13px">
+                <p style="color:var(--text);font-weight:600;margin-bottom:8px">Why calibrate?</p>
+                <p>Boat hulls, motors, cables, and electronics corrupt magnetic heading. Calibration maps those distortions so the EKF's 4-source heading fusion (mag + IMU + GPS COG + gyro) gets a clean magnetometer input at rest.</p>
+                <p style="color:var(--warning);margin-top:12px"><strong>Safety:</strong> Vessel must be in water, far from other metal structures, engine off.</p>
+                <p style="color:var(--text);font-weight:600;margin-top:16px;margin-bottom:8px">What to do:</p>
+                <ol style="padding-left:20px;line-height:1.8">
+                    <li>Press START below</li>
+                    <li>Slowly rotate the boat through <strong>all 6 axes</strong> over 60-90 seconds:
+                        <ul style="padding-left:20px;color:var(--dim);margin-top:4px">
+                            <li>Full 360° turn to port, then to starboard</li>
+                            <li>Nose up / nose down (pitch)</li>
+                            <li>Rock left / right (roll)</li>
+                        </ul>
+                    </li>
+                    <li>Keep turning until the coverage indicator shows &ge;80% in all axes</li>
+                    <li>Press ACCEPT to save</li>
+                </ol>
+            </div>
+            <div id="magcal-progress" style="display:none">
+                <div style="text-align:center;margin-bottom:12px">
+                    <div id="magcal-phase" style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:var(--primary);letter-spacing:0.06em">CALIBRATING...</div>
+                    <div id="magcal-elapsed" style="font-family:DM Mono,monospace;font-size:12px;color:var(--dim);margin-top:4px">00:00</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+                    <div class="axis-card"><div class="axis-label">YAW</div><div class="axis-bar"><span class="axis-fill" id="axis-yaw-fill"></span></div><div class="axis-pct" id="axis-yaw-pct">0%</div></div>
+                    <div class="axis-card"><div class="axis-label">PITCH</div><div class="axis-bar"><span class="axis-fill" id="axis-pitch-fill"></span></div><div class="axis-pct" id="axis-pitch-pct">0%</div></div>
+                    <div class="axis-card"><div class="axis-label">ROLL</div><div class="axis-bar"><span class="axis-fill" id="axis-roll-fill"></span></div><div class="axis-pct" id="axis-roll-pct">0%</div></div>
+                </div>
+                <div style="border:1px solid var(--border);border-radius:6px;padding:12px;background:var(--bg-raised);font-family:DM Mono,monospace;font-size:11px;color:var(--dim);line-height:1.6;max-height:120px;overflow:auto" id="magcal-log">Waiting for MAG_CAL_PROGRESS messages...</div>
+            </div>
+            <div id="magcal-result" style="display:none;margin-top:16px;padding:16px;border:1px solid var(--safe);border-radius:6px;background:rgba(0,230,118,0.05)">
+                <div style="font-weight:700;color:var(--safe);margin-bottom:8px;font-family:Rajdhani,sans-serif;letter-spacing:0.06em">CAL COMPLETE</div>
+                <div id="magcal-result-body" style="font-size:12px;color:var(--text);font-family:DM Mono,monospace"></div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:20px">
+                <button id="magcal-start-btn" onclick="magCalStart()" style="flex:1;padding:14px;border:1px solid var(--primary);border-radius:6px;background:var(--primary);color:var(--bg);font-weight:700;font-size:14px;cursor:pointer">START CAL</button>
+                <button id="magcal-accept-btn" onclick="magCalAccept()" style="flex:1;padding:14px;border:1px solid var(--safe);border-radius:6px;background:var(--bg-raised);color:var(--safe);font-weight:700;font-size:14px;cursor:pointer;display:none">ACCEPT</button>
+                <button onclick="magCalCancel()" style="padding:14px 20px;border:1px solid var(--emergency);border-radius:6px;background:var(--bg-raised);color:var(--emergency);font-weight:700;font-size:14px;cursor:pointer">CANCEL</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Demo Tour Overlay -->
+    <div id="tour-overlay" style="display:none;position:fixed;bottom:180px;left:50%;transform:translateX(-50%);z-index:3500;background:var(--bg-glass);backdrop-filter:blur(12px);border:1px solid var(--primary);border-radius:12px;padding:16px 20px;min-width:320px;max-width:560px;box-shadow:0 4px 32px rgba(0,229,255,0.25)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-family:Rajdhani,sans-serif;font-size:11px;font-weight:700;color:var(--primary);letter-spacing:0.1em" id="tour-step-label">STEP 1 / 7</div>
+            <button onclick="endDemoTour()" style="background:none;border:none;color:var(--dim);font-size:16px;cursor:pointer" title="End tour">&times;</button>
+        </div>
+        <div id="tour-text" style="color:var(--text);font-size:14px;line-height:1.5;margin-bottom:12px"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button id="tour-prev-btn" onclick="tourPrev()" style="padding:8px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg-raised);color:var(--dim);font-weight:600;cursor:pointer;font-size:12px">&larr; BACK</button>
+            <button id="tour-next-btn" onclick="tourNext()" style="padding:8px 14px;border:1px solid var(--primary);border-radius:6px;background:var(--primary);color:var(--bg);font-weight:700;cursor:pointer;font-size:12px">NEXT &rarr;</button>
+        </div>
+    </div>
+
+    <style>
+        .axis-card { background:var(--bg-raised); border:1px solid var(--border); border-radius:6px; padding:12px 8px; text-align:center; }
+        .axis-label { font-family:'Rajdhani',sans-serif; font-size:11px; font-weight:700; color:var(--dim); letter-spacing:0.08em; margin-bottom:8px; }
+        .axis-bar { position:relative; width:100%; height:10px; background:var(--bg); border-radius:5px; overflow:hidden; margin-bottom:6px; border:1px solid var(--border); }
+        .axis-fill { display:block; height:100%; background:var(--primary); transition:width 0.3s; width:0%; }
+        .axis-fill.good { background:var(--safe); }
+        .axis-pct { font-family:'DM Mono',monospace; font-size:13px; font-weight:500; color:var(--text); }
+    </style>
+
+    <!-- PID Tuner Overlay -->
+    <div id="tuner-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:4000;background:var(--bg);overflow:auto">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid var(--border)">
+            <div style="font-family:Rajdhani,sans-serif;font-size:20px;font-weight:700;color:var(--primary);letter-spacing:0.04em">PID TUNING</div>
+            <button onclick="closeTuner()" style="background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;padding:4px 12px">&times;</button>
+        </div>
+        <!-- Tabs -->
+        <div style="display:flex;border-bottom:1px solid var(--border)">
+            <button class="tune-tab active" id="tab-steer" onclick="switchTuneTab('steer')" style="flex:1;padding:14px;background:none;border:none;color:var(--text);cursor:pointer;font-size:14px;font-weight:600;border-bottom:2px solid var(--primary)">STEER</button>
+            <button class="tune-tab" id="tab-speed" onclick="switchTuneTab('speed')" style="flex:1;padding:14px;background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;font-weight:600;border-bottom:2px solid transparent">SPEED</button>
+            <button class="tune-tab" id="tab-nav" onclick="switchTuneTab('nav')" style="flex:1;padding:14px;background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;font-weight:600;border-bottom:2px solid transparent">NAV</button>
+            <button class="tune-tab" id="tab-station" onclick="switchTuneTab('station')" style="flex:1;padding:14px;background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;font-weight:600;border-bottom:2px solid transparent">STATION</button>
+        </div>
+        <!-- Live response chart -->
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em">
+                <span id="chart-label">Yaw Rate (rad/s)</span>
+                <span id="chart-value">--</span>
+            </div>
+            <canvas id="tune-chart" width="600" height="120" style="width:100%;height:120px;background:var(--bg-raised);border:1px solid var(--border);border-radius:4px"></canvas>
+        </div>
+        <!-- Param list -->
+        <div id="tune-params" style="padding:8px 16px"></div>
+        <!-- Action buttons -->
+        <div style="display:flex;gap:10px;padding:16px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--bg)">
+            <button onclick="readParams()" style="flex:1;padding:14px;border:1px solid var(--border);border-radius:6px;background:var(--bg-raised);color:var(--text);font-weight:600;cursor:pointer;font-size:14px">READ FROM VEHICLE</button>
+            <button onclick="applyParams()" style="flex:1;padding:14px;border:none;border-radius:6px;background:var(--primary);color:var(--bg);font-weight:700;cursor:pointer;font-size:14px">APPLY</button>
+        </div>
     </div>
 
     <!-- Map -->
@@ -141,9 +503,10 @@
     <div id="toast"></div>
 
     <!-- Mission Info -->
-    <div id="mission-info">
+    <div id="mission-info" onclick="clearWaypoints()" title="Tap to clear all waypoints">
         <span class="dist" id="mi-dist">--</span> &middot;
         ETA <span class="eta" id="mi-eta">--</span>
+        <span style="margin-left:8px;color:var(--dim);font-size:11px">(tap to clear)</span>
     </div>
 
     <!-- Action Panel -->
@@ -172,12 +535,49 @@
     // ── State ──
     var state = {
         connected: false, armed: false, lat: 0, lon: 0, hdg: 0, spd: 0, batt: 0, volt: 0,
-        mode: 'MANUAL', gps_fix: 0, sats: 0, destination: null, home: null
+        mode: 'MANUAL', gps_fix: 0, sats: 0, destination: null, home: null,
+        roll: 0, pitch: 0, yaw: 0, yaw_rate: 0,  // attitude
+        // Commanded vs actual control outputs (from MSG_CONTROL 0x0E)
+        cmd_thr: 0, act_thr: 0, cmd_steer: 0, act_steer: 0, rudder_deg: 0,
+        rudder_updated_at: 0,
+        // Bench test
+        bench_active: false, bench_thr: 0, bench_steer: 0, bench_pattern: null, bench_pattern_t0: 0,
+        // AIS sim enable state (mirror of server param)
+        ais_sim_enabled: true,
+        // Stage-7 bathy+AIS fusion counter (0 when GPS healthy, otherwise
+        // number of AIS contacts the filter is fusing with)
+        ais_fusion_count: 0,
+        // Layer visibility
+        show_ais: true, show_perc: true, show_rdr: false,
+        // Webcam
+        cam_url: '', cam_visible: false, cam_collapsed: false,
     };
+
+    // ── Telemetry history rings for response charts (~10s @ 10Hz = 100 pts) ──
+    var hist = {
+        yaw_rate: [],   // rad/s (steering)
+        spd: [],        // m/s (speed)
+        wp_dist: [],    // m (navigation cross-track / distance to next WP)
+        rudder_deg: [], // actual rudder angle in degrees
+        rudder_cmd: [], // commanded rudder (normalized -1..+1 scaled to degrees)
+        max: 100,
+    };
+    function pushHist(name, value) {
+        hist[name].push(value);
+        if (hist[name].length > hist.max) hist[name].shift();
+    }
 
     // ── Map ──
     var map = L.map('map', { center: [-33.97, 151.20], zoom: 16, zoomControl: false, attributionControl: false });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 19 }).addTo(map);
+    var tileLayer = null;
+    function setTiles(theme) {
+        if (tileLayer) map.removeLayer(tileLayer);
+        var url = theme === 'light'
+            ? 'https://{s}.basemaps.cartocdn.com/voyager/{z}/{x}/{y}{r}.png'
+            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        tileLayer = L.tileLayer(url, { subdomains: 'abcd', maxZoom: 19 }).addTo(map);
+    }
+    setTiles('dark');
 
     var vehicleMarker = L.marker([0, 0], {
         icon: L.divIcon({
@@ -190,28 +590,294 @@
     vehicleMarker.setOpacity(0);
 
     var trailLine = L.polyline([], { color: '#00e5ff', weight: 2, opacity: 0.4 }).addTo(map);
-    var destMarker = null;
     var trail = [];
 
-    // ── Map click: set destination ──
-    map.on('click', function (e) {
-        if (!state.armed) { toast('Arm the vehicle first'); return; }
-        state.destination = [e.latlng.lat, e.latlng.lng];
-        if (destMarker) map.removeLayer(destMarker);
-        destMarker = L.circleMarker(e.latlng, {
-            radius: 10, color: '#00e5ff', fillColor: '#00e5ff', fillOpacity: 0.3,
-            weight: 2
-        }).addTo(map);
-        // Distance
-        var dist = haversine(state.lat, state.lon, e.latlng.lat, e.latlng.lng);
-        document.getElementById('mi-dist').textContent = dist.toFixed(0) + 'm';
-        var eta = dist / Math.max(state.spd, 2.5); // estimate at 2.5 m/s min
+    // ── Waypoint editor ──
+    // Each waypoint: { lat, lon, marker (Leaflet), label }
+    var waypoints = [];
+    var missionLine = L.polyline([], {
+        color: '#00e5ff', weight: 2, opacity: 0.7,
+        dashArray: '6,4'
+    }).addTo(map);
+
+    function makeWpIcon(idx) {
+        return L.divIcon({
+            className: '',
+            html: '<div style="width:28px;height:28px;border-radius:50%;background:var(--primary);color:var(--bg);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:2px solid var(--bg-raised);box-shadow:0 2px 8px rgba(0,0,0,0.4);font-family:Rajdhani,sans-serif">' + (idx + 1) + '</div>',
+            iconSize: [28, 28], iconAnchor: [14, 14]
+        });
+    }
+
+    function relabelWaypoints() {
+        for (var i = 0; i < waypoints.length; i++) {
+            waypoints[i].marker.setIcon(makeWpIcon(i));
+        }
+    }
+
+    function refreshMissionLine() {
+        var pts = [[state.lat, state.lon]].concat(waypoints.map(function(w) { return [w.lat, w.lon]; }));
+        if (state.lat === 0 && state.lon === 0) pts = waypoints.map(function(w) { return [w.lat, w.lon]; });
+        missionLine.setLatLngs(pts);
+    }
+
+    function updateMissionInfo() {
+        if (waypoints.length === 0) {
+            document.getElementById('mission-info').className = '';
+            document.getElementById('btn-go').disabled = true;
+            return;
+        }
+        // Total distance: vehicle → wp1 → wp2 → ... → wpN
+        var total = 0;
+        var prev = [state.lat, state.lon];
+        if (state.lat === 0 && state.lon === 0) prev = [waypoints[0].lat, waypoints[0].lon];
+        for (var i = 0; i < waypoints.length; i++) {
+            total += haversine(prev[0], prev[1], waypoints[i].lat, waypoints[i].lon);
+            prev = [waypoints[i].lat, waypoints[i].lon];
+        }
+        var label = waypoints.length === 1 ? '1 WP' : waypoints.length + ' WPs';
+        document.getElementById('mi-dist').textContent = label + ' · ' + total.toFixed(0) + 'm';
+        var eta = total / Math.max(state.spd, 2.5);
         var m = Math.floor(eta / 60), s = Math.floor(eta % 60);
         document.getElementById('mi-eta').textContent = m + ':' + String(s).padStart(2, '0');
         document.getElementById('mission-info').className = 'active';
-        document.getElementById('btn-go').disabled = false;
-        toast('Destination set — ' + dist.toFixed(0) + 'm');
+        document.getElementById('btn-go').disabled = !state.armed;
+    }
+
+    function addWaypoint(lat, lon) {
+        var wp = { lat: lat, lon: lon, marker: null };
+        wp.marker = L.marker([lat, lon], {
+            icon: makeWpIcon(waypoints.length),
+            draggable: true,
+            zIndexOffset: 500
+        }).addTo(map);
+
+        wp.marker.on('drag', function() {
+            var ll = wp.marker.getLatLng();
+            wp.lat = ll.lat;
+            wp.lon = ll.lng;
+            refreshMissionLine();
+            updateMissionInfo();
+        });
+
+        wp.marker.on('click', function(e) {
+            L.DomEvent.stopPropagation(e);
+            // Tap to delete: confirm via toast then remove
+            removeWaypoint(wp);
+        });
+
+        waypoints.push(wp);
+        refreshMissionLine();
+        updateMissionInfo();
+        toast('WP ' + waypoints.length + ' added — drag to move, tap to delete');
+    }
+
+    function removeWaypoint(wp) {
+        var i = waypoints.indexOf(wp);
+        if (i < 0) return;
+        map.removeLayer(wp.marker);
+        waypoints.splice(i, 1);
+        relabelWaypoints();
+        refreshMissionLine();
+        updateMissionInfo();
+        toast('Waypoint removed');
+    }
+
+    function clearWaypoints() {
+        waypoints.forEach(function(w) { map.removeLayer(w.marker); });
+        waypoints = [];
+        missionLine.setLatLngs([]);
+        updateMissionInfo();
+    }
+
+    // ── Map click: add waypoint ──
+    // Long-press on map sets station; short tap adds waypoint.
+    var pressTimer = null, pressLatLng = null, pressMoved = false;
+    map.on('mousedown touchstart', function(e) {
+        pressLatLng = e.latlng;
+        pressMoved = false;
+        pressTimer = setTimeout(function() {
+            if (!pressMoved && pressLatLng) {
+                pressTimer = null;
+                setStation(pressLatLng.lat, pressLatLng.lng);
+            }
+        }, 700);
     });
+    map.on('mousemove touchmove', function() { pressMoved = true; });
+    map.on('mouseup touchend', function() {
+        if (pressTimer) {
+            clearTimeout(pressTimer); pressTimer = null;
+        }
+    });
+    map.on('click', function (e) {
+        addWaypoint(e.latlng.lat, e.latlng.lng);
+    });
+
+    // ── Station-Keeping & Threats ──
+    var station = { active: false, lat: 0, lon: 0, radius: 5, holdDist: 0, threatCount: 0 };
+    var stationMarker = null;
+    var stationCircle = null;
+    var threats = {};   // track_id → { lat, lon, course, speed, type, name, marker, vector, circle, lastSeen }
+    var ais = {};       // mmsi    → { ...metadata, marker, vector, label, lastSeen }
+    var perception = {}; // obj_id  → { ...metadata, marker, lastSeen }
+
+    function setStation(lat, lon) {
+        // Send CMD_SET_STATION
+        if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+        var b = new ArrayBuffer(13);
+        var d = new DataView(b);
+        d.setUint8(0, 0x83);
+        d.setInt32(1, Math.round(lat * 1e7), true);
+        d.setInt32(5, Math.round(lon * 1e7), true);
+        d.setFloat32(9, 5.0, true); // 5m station radius default
+        ws.send(cobsEncode(new Uint8Array(b)));
+        toast('Station set — boat will hold position');
+    }
+
+    function clearStation() {
+        // Switch back to MANUAL mode (mode 0)
+        sendMode(0);
+        toast('Station cleared');
+    }
+
+    function onStation(active, lat, lon, radius, holdDist, threatCount) {
+        station.active = active === 1;
+        station.lat = lat;
+        station.lon = lon;
+        station.radius = radius;
+        station.holdDist = holdDist;
+        station.threatCount = threatCount;
+        // Update station marker
+        if (lat !== 0 || lon !== 0) {
+            if (!stationMarker) {
+                stationMarker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        className: '',
+                        html: '<div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:24px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.6))">⚓</div>',
+                        iconSize: [36, 36], iconAnchor: [18, 18]
+                    }),
+                    interactive: true, zIndexOffset: 800
+                }).addTo(map);
+                stationMarker.on('click', function() {
+                    if (confirm('Clear station?')) clearStation();
+                });
+                stationCircle = L.circle([lat, lon], {
+                    radius: radius,
+                    color: '#00e676', weight: 2, opacity: 0.6,
+                    fillColor: '#00e676', fillOpacity: 0.05,
+                    dashArray: '4,4', interactive: false
+                }).addTo(map);
+            } else {
+                stationMarker.setLatLng([lat, lon]);
+                stationCircle.setLatLng([lat, lon]);
+                stationCircle.setRadius(radius);
+            }
+            stationMarker.setOpacity(active ? 1.0 : 0.5);
+        }
+        // Update status display
+        updateStationBadge();
+    }
+
+    function updateStationBadge() {
+        var badge = document.getElementById('station-badge');
+        if (!badge) return;
+        if (station.active) {
+            var cls = station.threatCount > 0 ? 'evading' : 'holding';
+            var txt = station.threatCount > 0
+                ? 'EVADING (' + station.threatCount + ' threats)'
+                : 'HOLD ' + station.holdDist.toFixed(1) + 'm';
+            badge.textContent = txt;
+            badge.className = 'station-badge ' + cls;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    function onTraffic(tid, lat, lon, course, speed, vtype, name) {
+        var t = threats[tid];
+        if (!t) {
+            // Create marker
+            var color = vtype === 4 ? '#ff1744' : '#ff6d00'; // red for power, orange otherwise
+            t = {};
+            t.marker = L.marker([lat, lon], {
+                icon: L.divIcon({
+                    className: '',
+                    html: '<div style="width:30px;height:30px;display:flex;flex-direction:column;align-items:center;justify-content:center;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.6))"><svg viewBox="0 0 24 24" width="22" height="22" fill="' + color + '" style="transform:rotate(' + course + 'deg)"><path d="M12 2 L7 18 L12 15 L17 18 Z"/></svg></div>',
+                    iconSize: [30, 30], iconAnchor: [15, 15]
+                }),
+                zIndexOffset: 600,
+                interactive: true
+            }).addTo(map);
+            t.marker.bindTooltip(name, { permanent: false, direction: 'top' });
+            t.vector = L.polyline([], {
+                color: color, weight: 2, opacity: 0.5, dashArray: '4,4', interactive: false
+            }).addTo(map);
+            t.circle = L.circle([lat, lon], {
+                radius: 30, color: color, weight: 1, opacity: 0.4,
+                fillColor: color, fillOpacity: 0.05, interactive: false
+            }).addTo(map);
+            threats[tid] = t;
+        }
+        t.lat = lat; t.lon = lon;
+        t.course = course; t.speed = speed;
+        t.type = vtype; t.name = name;
+        t.lastSeen = Date.now();
+        // Update marker position + heading
+        t.marker.setLatLng([lat, lon]);
+        var el = t.marker.getElement();
+        if (el) {
+            var svg = el.querySelector('svg');
+            if (svg) svg.style.transform = 'rotate(' + course + 'deg)';
+        }
+        // Project velocity vector 60s ahead
+        var crad = course * Math.PI / 180;
+        var dist = speed * 60; // metres
+        var dlat = dist * Math.cos(crad) / 111320;
+        var dlon = dist * Math.sin(crad) / (111320 * Math.cos(lat * Math.PI / 180));
+        t.vector.setLatLngs([[lat, lon], [lat + dlat, lon + dlon]]);
+        t.circle.setLatLng([lat, lon]);
+    }
+
+    // Prune stale threats (no update in 5s = vanished)
+    setInterval(function() {
+        var now = Date.now();
+        for (var tid in threats) {
+            if (now - threats[tid].lastSeen > 5000) {
+                map.removeLayer(threats[tid].marker);
+                map.removeLayer(threats[tid].vector);
+                map.removeLayer(threats[tid].circle);
+                delete threats[tid];
+            }
+        }
+    }, 1000);
+
+    // Spawn a synthetic threat for demo (button in settings)
+    function spawnDemoThreat() {
+        if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+        // Spawn 200m away, course pointing at boat
+        var bearing = Math.random() * 360;
+        var brad = bearing * Math.PI / 180;
+        var spawnLat = state.lat + (200 * Math.cos(brad)) / 111320;
+        var spawnLon = state.lon + (200 * Math.sin(brad)) / (111320 * Math.cos(state.lat * Math.PI / 180));
+        // Reverse course pointing toward boat
+        var threatCourse = (bearing + 180) % 360;
+        var b = new ArrayBuffer(14);
+        var d = new DataView(b);
+        d.setUint8(0, 0x84);
+        d.setInt32(1, Math.round(spawnLat * 1e7), true);
+        d.setInt32(5, Math.round(spawnLon * 1e7), true);
+        d.setUint16(9, Math.round(threatCourse * 100), true);
+        d.setUint16(11, Math.round(2.5 * 100), true); // 2.5 m/s
+        d.setUint8(13, 4); // power vessel
+        ws.send(cobsEncode(new Uint8Array(b)));
+        toast('Threat spawned — 200m out, closing');
+    }
+
+    function clearDemoThreats() {
+        if (!ws || ws.readyState !== 1) return;
+        ws.send(cobsEncode(new Uint8Array([0x8B])));
+        toast('Threats cleared');
+    }
 
     // ── Actions ──
     function toggleArm() {
@@ -225,14 +891,12 @@
     }
 
     function startMission() {
-        if (!state.destination) { toast('Tap the map to set destination'); return; }
+        if (waypoints.length === 0) { toast('Tap the map to add waypoints'); return; }
         if (!state.armed) { toast('Arm first'); return; }
-        // Send mission: count=1, then the waypoint
-        var d = state.destination;
-        sendMission([d]);
-        // Set AUTO mode
+        var wps = waypoints.map(function(w) { return [w.lat, w.lon]; });
+        sendMission(wps);
         sendMode(4); // AUTO
-        toast('Mission started');
+        toast('Mission started — ' + wps.length + ' WP' + (wps.length > 1 ? 's' : ''));
         document.getElementById('btn-go').disabled = true;
     }
 
@@ -271,7 +935,12 @@
         ws.onerror = function() { ws.close(); };
         ws.onmessage = function(evt) {
             if (!(evt.data instanceof ArrayBuffer)) return;
-            handleMnp(new Uint8Array(evt.data));
+            var bytes = new Uint8Array(evt.data);
+            if (protocol === 'mavlink') {
+                handleMavlink(bytes);
+            } else {
+                handleMnp(bytes);
+            }
         };
     }
 
@@ -327,11 +996,23 @@
             state.armed = p[1] !== 0;
             state.mode = MODES[p[2]] || 'UNKNOWN';
             updateArmUI();
+        } else if (id === 0x02 && p.length >= 25) { // attitude (rpy + rate)
+            state.roll = v.getFloat32(1, true);
+            state.pitch = v.getFloat32(5, true);
+            state.yaw = v.getFloat32(9, true);
+            state.yaw_rate = v.getFloat32(21, true);  // yaw_spd at offset 21
+            pushHist('yaw_rate', state.yaw_rate);
         } else if (id === 0x03 && p.length >= 25) { // position
             state.lat = v.getInt32(1, true) / 1e7;
             state.lon = v.getInt32(5, true) / 1e7;
             state.hdg = v.getUint16(23, true) / 100;
             updateVehicle();
+            if (waypoints.length > 0) {
+                var wp = waypoints[0];
+                pushHist('wp_dist', haversine(state.lat, state.lon, wp.lat, wp.lon));
+            } else {
+                pushHist('wp_dist', 0);
+            }
         } else if (id === 0x04 && p.length >= 6) { // battery
             state.volt = v.getInt16(1, true) / 1000;
             state.batt = p[5];
@@ -340,30 +1021,256 @@
             state.sats = p[18];
         } else if (id === 0x06 && p.length >= 9) { // vfr hud
             state.spd = v.getFloat32(5, true); // groundspeed (offset 5, after airspeed)
+            pushHist('spd', state.spd);
+        } else if (id === 0x09) { // PARAM_VALUE
+            // payload: [0x09, name_len(varint=1B), name_bytes..., f32 value, u8 type, u16 count, u16 index]
+            if (p.length >= 2) {
+                var nlen = p[1];
+                if (p.length >= 2 + nlen + 4) {
+                    var name = '';
+                    for (var ni = 0; ni < nlen; ni++) name += String.fromCharCode(p[2 + ni]);
+                    var value = v.getFloat32(2 + nlen, true);
+                    onParamValue(name, value);
+                }
+            }
+        } else if (id === 0x0A && p.length >= 16) { // TRAFFIC
+            // [id, track_id(u16), lat_e7(i32), lon_e7(i32), course_cdeg(u16), speed_cms(u16), type(u8), name_len(u8), name...]
+            var tid = v.getUint16(1, true);
+            var tlat = v.getInt32(3, true) / 1e7;
+            var tlon = v.getInt32(7, true) / 1e7;
+            var tcourse = v.getUint16(11, true) / 100;
+            var tspeed = v.getUint16(13, true) / 100;
+            var ttype = p[15];
+            var tname = '';
+            if (p.length >= 17) {
+                var tnlen = p[16];
+                for (var ti = 0; ti < tnlen && 17 + ti < p.length; ti++) {
+                    tname += String.fromCharCode(p[17 + ti]);
+                }
+            }
+            onTraffic(tid, tlat, tlon, tcourse, tspeed, ttype, tname);
+        } else if (id === 0x0B && p.length >= 19) { // STATION
+            // [id, active(u8), lat_e7(i32), lon_e7(i32), radius(f32), hold_dist(f32), threat_count(u8)]
+            var sactive = p[1];
+            var slat = v.getInt32(2, true) / 1e7;
+            var slon = v.getInt32(6, true) / 1e7;
+            var sradius = v.getFloat32(10, true);
+            var sholdDist = v.getFloat32(14, true);
+            var sThreatCount = p[18];
+            onStation(sactive, slat, slon, sradius, sholdDist, sThreatCount);
+        } else if (id === 0x0C && p.length >= 24) { // AIS
+            // [id, mmsi(u32), lat_e7(i32), lon_e7(i32), cog(u16), sog(u16), hdg(u16),
+            //  status(u8), class(u8), length(u8), beam(u8), name_len, name, call_len, call]
+            var mmsi = v.getUint32(1, true);
+            var alat = v.getInt32(5, true) / 1e7;
+            var alon = v.getInt32(9, true) / 1e7;
+            var acog = v.getUint16(13, true) / 100;
+            var asog = v.getUint16(15, true) / 100;
+            var ahdg = v.getUint16(17, true) / 100;
+            var astat = p[19];
+            var acls = p[20];
+            var alen = p[21];
+            var abeam = p[22];
+            var nlen = p[23];
+            var aname = '';
+            for (var ai = 0; ai < nlen && 24 + ai < p.length; ai++) aname += String.fromCharCode(p[24 + ai]);
+            var offs = 24 + nlen;
+            var acall = '';
+            if (offs < p.length) {
+                var clen = p[offs];
+                for (var ci = 0; ci < clen && offs + 1 + ci < p.length; ci++) acall += String.fromCharCode(p[offs + 1 + ci]);
+            }
+            onAis(mmsi, alat, alon, acog, asog, ahdg, astat, acls, alen, abeam, aname, acall);
+        } else if (id === 0x0D && p.length >= 21) { // PERCEPTION
+            // [id, obj_id(u16), lat_e7(i32), lon_e7(i32), class(u8), conf(u8),
+            //  heading(u16), speed(u16), length_dm(u16), width_dm(u16), source(u8)]
+            var oid = v.getUint16(1, true);
+            var plat = v.getInt32(3, true) / 1e7;
+            var plon = v.getInt32(7, true) / 1e7;
+            var pcls = p[11];
+            var pconf = p[12] / 100;
+            var phdg = v.getUint16(13, true) / 100;
+            var pspd = v.getUint16(15, true) / 100;
+            var plen = v.getUint16(17, true) / 10;
+            var pwid = v.getUint16(19, true) / 10;
+            var psrc = p.length > 21 ? p[21] : 0;
+            onPerception(oid, plat, plon, pcls, pconf, phdg, pspd, plen, pwid, psrc);
+        } else if (id === 0x0E && p.length >= 21) { // CONTROL
+            // [id, cmd_thr(f32), act_thr(f32), cmd_steer(f32), act_steer(f32), rudder_deg(f32)]
+            state.cmd_thr = v.getFloat32(1, true);
+            state.act_thr = v.getFloat32(5, true);
+            state.cmd_steer = v.getFloat32(9, true);
+            state.act_steer = v.getFloat32(13, true);
+            state.rudder_deg = v.getFloat32(17, true);
+            state.rudder_updated_at = Date.now();
+            pushHist('rudder_deg', state.rudder_deg);
+            pushHist('rudder_cmd', state.cmd_steer * 20); // normalized → ±20° display
+            updateRudderReadout();
+            updateBenchChart();
         }
         updateStatus();
     }
 
-    // ── Send commands ──
+    // ── MAVLink v2 parser (inline — same as gcs/js/mavlink.js core) ──
+    var protocol = 'mnp'; // 'mnp' or 'mavlink'
+    var mavBuf = new Uint8Array(8192);
+    var mavLen = 0;
+    var COPTER_MODE_NAMES = {0:'STABILIZE',1:'ACRO',2:'ALT_HOLD',3:'AUTO',4:'GUIDED',5:'LOITER',6:'RTL',7:'CIRCLE',9:'LAND',11:'DRIFT',13:'SPORT',15:'AUTOTUNE',16:'POSHOLD',17:'BRAKE',21:'SMART_RTL'};
+    var COPTER_MODES = {};
+    for (var k in COPTER_MODE_NAMES) COPTER_MODES[COPTER_MODE_NAMES[k]] = parseInt(k);
+
+    var MAV_CRC_EXTRA = {0:50,1:124,24:24,30:39,33:104,74:20,76:152,77:143,147:154,242:104,253:83};
+
+    function mavCrc16(data, extra) {
+        var crc = 0xFFFF;
+        for (var i = 0; i < data.length; i++) {
+            var tmp = data[i] ^ (crc & 0xFF);
+            tmp = (tmp ^ (tmp << 4)) & 0xFF;
+            crc = (crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4);
+            crc &= 0xFFFF;
+        }
+        if (extra !== undefined) {
+            var tmp2 = extra ^ (crc & 0xFF);
+            tmp2 = (tmp2 ^ (tmp2 << 4)) & 0xFF;
+            crc = (crc >> 8) ^ (tmp2 << 8) ^ (tmp2 << 3) ^ (tmp2 >> 4);
+            crc &= 0xFFFF;
+        }
+        return crc;
+    }
+
+    function handleMavlink(data) {
+        if (mavLen + data.length > 8192) { mavLen = 0; return; }
+        mavBuf.set(data, mavLen);
+        mavLen += data.length;
+        while (true) {
+            var si = -1;
+            for (var i = 0; i < mavLen; i++) { if (mavBuf[i] === 0xFD) { si = i; break; } }
+            if (si < 0) { mavLen = 0; break; }
+            if (si > 0) { mavBuf.copyWithin(0, si, mavLen); mavLen -= si; }
+            if (mavLen < 12) break;
+            var plen = mavBuf[1];
+            var flen = 10 + plen + 2;
+            if (mavLen < flen) break;
+            var msgId = mavBuf[7] | (mavBuf[8] << 8) | (mavBuf[9] << 16);
+            var extra = MAV_CRC_EXTRA[msgId];
+            if (extra === undefined) { mavBuf.copyWithin(0, 1, mavLen); mavLen -= 1; continue; }
+            var crcData = mavBuf.subarray(1, 10 + plen);
+            var expected = mavCrc16(crcData, extra);
+            var actual = mavBuf[10 + plen] | (mavBuf[10 + plen + 1] << 8);
+            if (expected !== actual) { mavBuf.copyWithin(0, 1, mavLen); mavLen -= 1; continue; }
+            var payload = mavBuf.slice(10, 10 + plen);
+            mavBuf.copyWithin(0, flen, mavLen);
+            mavLen -= flen;
+            parseMavMsg(msgId, payload);
+        }
+    }
+
+    function parseMavMsg(id, p) {
+        var dv = new DataView(p.buffer, p.byteOffset, p.byteLength);
+        if (id === 0 && p.length >= 8) { // HEARTBEAT
+            state.armed = (dv.getUint8(6) & 0x80) !== 0;
+            state.mode = COPTER_MODE_NAMES[dv.getUint32(0, true)] || 'MODE_' + dv.getUint32(0, true);
+            updateArmUI();
+        } else if (id === 33 && p.length >= 28) { // GLOBAL_POSITION_INT
+            state.lat = dv.getInt32(4, true) / 1e7;
+            state.lon = dv.getInt32(8, true) / 1e7;
+            state.hdg = dv.getUint16(26, true) / 100;
+            updateVehicle();
+        } else if (id === 1 && p.length >= 31) { // SYS_STATUS
+            state.volt = dv.getUint16(14, true) / 1000;
+            state.batt = dv.getInt8(30);
+        } else if (id === 24 && p.length >= 30) { // GPS_RAW_INT
+            state.gps_fix = dv.getUint8(28);
+            state.sats = dv.getUint8(29);
+        } else if (id === 74 && p.length >= 20) { // VFR_HUD
+            state.spd = dv.getFloat32(4, true); // groundspeed
+        }
+        updateStatus();
+    }
+
+    // ── MAVLink v2 frame encoder ──
+    var mavSeq = 0;
+    function mavEncode(msgId, payload) {
+        var plen = payload.length;
+        var frame = new Uint8Array(10 + plen + 2);
+        frame[0] = 0xFD;
+        frame[1] = plen;
+        frame[2] = 0; // incompat flags
+        frame[3] = 0; // compat flags
+        frame[4] = mavSeq++ & 0xFF;
+        frame[5] = 255; // our sysid
+        frame[6] = 190; // our compid (GCS)
+        frame[7] = msgId & 0xFF;
+        frame[8] = (msgId >> 8) & 0xFF;
+        frame[9] = (msgId >> 16) & 0xFF;
+        frame.set(payload, 10);
+        var extra = MAV_CRC_EXTRA[msgId] || 0;
+        var crc = mavCrc16(frame.subarray(1, 10 + plen), extra);
+        frame[10 + plen] = crc & 0xFF;
+        frame[10 + plen + 1] = (crc >> 8) & 0xFF;
+        return frame;
+    }
+
+    function mavCommandLong(cmd, p1, p2, p3, p4, p5, p6, p7) {
+        var b = new ArrayBuffer(33);
+        var d = new DataView(b);
+        d.setFloat32(0, p1 || 0, true);
+        d.setFloat32(4, p2 || 0, true);
+        d.setFloat32(8, p3 || 0, true);
+        d.setFloat32(12, p4 || 0, true);
+        d.setFloat32(16, p5 || 0, true);
+        d.setFloat32(20, p6 || 0, true);
+        d.setFloat32(24, p7 || 0, true);
+        d.setUint16(28, cmd, true);
+        d.setUint8(30, 1); // target system
+        d.setUint8(31, 1); // target component
+        d.setUint8(32, 0); // confirmation
+        return new Uint8Array(b);
+    }
+
+    // ── Send commands (protocol-aware) ──
     function sendCmd(cmd) {
         if (!ws || ws.readyState !== 1) return;
-        ws.send(cobsEncode(new Uint8Array([cmd])));
+        if (protocol === 'mavlink') {
+            if (cmd === 0x80) { // ARM
+                ws.send(mavEncode(76, mavCommandLong(400, 1, 0, 0, 0, 0, 0, 0)));
+            } else if (cmd === 0x81) { // DISARM
+                ws.send(mavEncode(76, mavCommandLong(400, 0, 0, 0, 0, 0, 0, 21196)));
+            }
+        } else {
+            ws.send(cobsEncode(new Uint8Array([cmd])));
+        }
     }
 
     function sendMode(idx) {
         if (!ws || ws.readyState !== 1) return;
-        ws.send(cobsEncode(new Uint8Array([0x85, idx])));
+        if (protocol === 'mavlink') {
+            // MAV_CMD_DO_SET_MODE: base_mode=209 (armed+custom), custom_mode=mode_number
+            var modeNum = idx;
+            // Map MNP mode indices to ArduPilot mode numbers
+            var modeMap = {0:0, 1:2, 2:5, 3:6, 4:3, 5:9, 6:4}; // MNP→ArduPilot
+            modeNum = modeMap[idx] !== undefined ? modeMap[idx] : idx;
+            ws.send(mavEncode(76, mavCommandLong(176, 209, modeNum, 0, 0, 0, 0, 0)));
+        } else {
+            ws.send(cobsEncode(new Uint8Array([0x85, idx])));
+        }
     }
 
     function sendMission(wps) {
         if (!ws || ws.readyState !== 1) return;
-        // Count
+        if (protocol === 'mavlink') {
+            sendMissionMavlink(wps);
+        } else {
+            sendMissionMnp(wps);
+        }
+    }
+
+    function sendMissionMnp(wps) {
         var buf = new ArrayBuffer(3);
         var dv = new DataView(buf);
         dv.setUint8(0, 0x8A);
         dv.setUint16(1, wps.length, true);
         ws.send(cobsEncode(new Uint8Array(buf)));
-        // Items (15 bytes each: id + seq_u16 + lat_i32 + lon_i32 + alt_f32)
         wps.forEach(function(wp, i) {
             var b = new ArrayBuffer(15);
             var d = new DataView(b);
@@ -371,8 +1278,102 @@
             d.setUint16(1, i, true);
             d.setInt32(3, Math.round(wp[0] * 1e7), true);
             d.setInt32(7, Math.round(wp[1] * 1e7), true);
-            d.setFloat32(11, 0.0, true); // altitude (0 for surface vessel)
+            d.setFloat32(11, 0.0, true);
             ws.send(cobsEncode(new Uint8Array(b)));
+        });
+    }
+
+    // ── Param read/write (protocol-aware) ──
+    function sendGetParam(name) {
+        if (!ws || ws.readyState !== 1) return;
+        if (protocol === 'mavlink') {
+            // PARAM_REQUEST_READ (msgId 20, CRC_EXTRA 214) = target_sys + target_comp + param_id[16] + param_index(i16)
+            MAV_CRC_EXTRA[20] = 214;
+            var b = new ArrayBuffer(20);
+            var d = new DataView(b);
+            // wire layout: param_index(i16) @ 0, target_sys @ 2, target_comp @ 3, param_id[16] @ 4
+            d.setInt16(0, -1, true);  // -1 = use name
+            d.setUint8(2, 1);
+            d.setUint8(3, 1);
+            for (var i = 0; i < 16 && i < name.length; i++) d.setUint8(4 + i, name.charCodeAt(i));
+            ws.send(mavEncode(20, new Uint8Array(b)));
+        } else {
+            // MNP CMD_GET_PARAM (0x88) = id + name_len + name_bytes
+            var nb = new TextEncoder().encode(name);
+            var arr = new Uint8Array(2 + nb.length);
+            arr[0] = 0x88;
+            arr[1] = nb.length;
+            arr.set(nb, 2);
+            ws.send(cobsEncode(arr));
+        }
+    }
+
+    function sendListParams() {
+        if (!ws || ws.readyState !== 1) return;
+        if (protocol === 'mavlink') {
+            // PARAM_REQUEST_LIST (msgId 21, CRC_EXTRA 159) = target_sys + target_comp
+            MAV_CRC_EXTRA[21] = 159;
+            ws.send(mavEncode(21, new Uint8Array([1, 1])));
+        } else {
+            // MNP CMD_GET_PARAM with empty name = list all
+            ws.send(cobsEncode(new Uint8Array([0x88, 0])));
+        }
+    }
+
+    function sendSetParam(name, value) {
+        if (!ws || ws.readyState !== 1) return;
+        if (protocol === 'mavlink') {
+            // PARAM_SET (msgId 23, CRC_EXTRA 168) = param_value(f32) + target_sys + target_comp + param_id[16] + param_type(u8)
+            MAV_CRC_EXTRA[23] = 168;
+            var b = new ArrayBuffer(23);
+            var d = new DataView(b);
+            d.setFloat32(0, value, true);
+            d.setUint8(4, 1);
+            d.setUint8(5, 1);
+            for (var i = 0; i < 16 && i < name.length; i++) d.setUint8(6 + i, name.charCodeAt(i));
+            d.setUint8(22, 9); // MAV_PARAM_TYPE_REAL32
+            ws.send(mavEncode(23, new Uint8Array(b)));
+        } else {
+            // MNP CMD_SET_PARAM (0x87) = id + name_len + name_bytes + f32 value
+            var nb = new TextEncoder().encode(name);
+            var arr = new Uint8Array(2 + nb.length + 4);
+            arr[0] = 0x87;
+            arr[1] = nb.length;
+            arr.set(nb, 2);
+            var dv = new DataView(arr.buffer, 2 + nb.length, 4);
+            dv.setFloat32(0, value, true);
+            ws.send(cobsEncode(arr));
+        }
+    }
+
+    function sendMissionMavlink(wps) {
+        // MAVLink MISSION_COUNT (msgId 44, CRC_EXTRA 221)
+        MAV_CRC_EXTRA[44] = 221;
+        MAV_CRC_EXTRA[73] = 38;
+        var countBuf = new ArrayBuffer(4);
+        var cd = new DataView(countBuf);
+        cd.setUint16(0, wps.length, true); // count
+        cd.setUint8(2, 1);  // target_system
+        cd.setUint8(3, 1);  // target_component
+        ws.send(mavEncode(44, new Uint8Array(countBuf)));
+        // MISSION_ITEM_INT (msgId 73) for each waypoint
+        wps.forEach(function(wp, i) {
+            var b = new ArrayBuffer(37);
+            var d = new DataView(b);
+            d.setFloat32(0, 0, true);  // param1 (hold time)
+            d.setFloat32(4, 2, true);  // param2 (acceptance radius)
+            d.setFloat32(8, 0, true);  // param3 (pass through)
+            d.setFloat32(12, 0, true); // param4 (yaw)
+            d.setInt32(16, Math.round(wp[0] * 1e7), true); // lat
+            d.setInt32(20, Math.round(wp[1] * 1e7), true); // lon
+            d.setFloat32(24, 0, true); // alt (0 for surface)
+            d.setUint16(28, i, true);  // seq
+            d.setUint16(30, 16, true); // MAV_CMD_NAV_WAYPOINT
+            d.setUint8(32, 6);  // frame: MAV_FRAME_GLOBAL_RELATIVE_ALT_INT
+            d.setUint8(33, i === 0 ? 1 : 0); // current
+            d.setUint8(34, 1);  // autocontinue
+            d.setUint8(35, 0);  // mission_type
+            ws.send(mavEncode(73, new Uint8Array(b)));
         });
     }
 
@@ -389,16 +1390,10 @@
         trail.push([state.lat, state.lon]);
         if (trail.length > 500) trail.shift();
         trailLine.setLatLngs(trail);
-
-        // Update distance/ETA if destination set
-        if (state.destination) {
-            var dist = haversine(state.lat, state.lon, state.destination[0], state.destination[1]);
-            document.getElementById('mi-dist').textContent = dist.toFixed(0) + 'm';
-            if (state.spd > 0.3) {
-                var eta = dist / state.spd;
-                var m = Math.floor(eta / 60), s = Math.floor(eta % 60);
-                document.getElementById('mi-eta').textContent = m + ':' + String(s).padStart(2, '0');
-            }
+        // Refresh mission line and ETA against live position
+        if (waypoints.length > 0) {
+            refreshMissionLine();
+            updateMissionInfo();
         }
     }
 
@@ -448,10 +1443,299 @@
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
+    // ── Settings panel ──
+    function toggleSettings() {
+        var el = document.getElementById('settings-overlay');
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
+    // ── PID Tuner ──
+    var TUNE_TABS = {
+        steer: {
+            label: 'Yaw Rate (rad/s)',
+            history: 'yaw_rate',
+            params: [
+                { name: 'ATC_STR_RAT_P',  label: 'P',  step: 0.02 },
+                { name: 'ATC_STR_RAT_I',  label: 'I',  step: 0.02 },
+                { name: 'ATC_STR_RAT_D',  label: 'D',  step: 0.005 },
+                { name: 'ATC_STR_RAT_FF', label: 'FF', step: 0.05 },
+                { name: 'ATC_STR_ANG_P',  label: 'Angle P', step: 0.1 },
+                { name: 'ATC_STR_RAT_MAX',label: 'Max Rate (deg/s)', step: 5 },
+            ],
+        },
+        speed: {
+            label: 'Groundspeed (m/s)',
+            history: 'spd',
+            params: [
+                { name: 'ATC_SPEED_P',     label: 'P',  step: 0.02 },
+                { name: 'ATC_SPEED_I',     label: 'I',  step: 0.02 },
+                { name: 'ATC_SPEED_D',     label: 'D',  step: 0.005 },
+                { name: 'ATC_SPEED_FF',    label: 'FF', step: 0.05 },
+                { name: 'CRUISE_SPEED',    label: 'Cruise (m/s)', step: 0.1 },
+                { name: 'CRUISE_THROTTLE', label: 'Cruise Throttle (%)', step: 5 },
+            ],
+        },
+        nav: {
+            label: 'Distance to next WP (m)',
+            history: 'wp_dist',
+            params: [
+                { name: 'WP_RADIUS',     label: 'WP Radius (m)', step: 0.5 },
+                { name: 'WP_SPEED',      label: 'WP Speed (m/s)', step: 0.1 },
+                { name: 'WP_PIVOT_ANGLE',label: 'Pivot Angle (deg)', step: 5 },
+                { name: 'WP_PIVOT_RATE', label: 'Pivot Rate (deg/s)', step: 5 },
+                { name: 'NAVL1_PERIOD',  label: 'L1 Period', step: 0.5 },
+                { name: 'NAVL1_DAMPING', label: 'L1 Damping', step: 0.05 },
+                { name: 'LOIT_RADIUS',   label: 'Loiter Radius (m)', step: 0.5 },
+                { name: 'ATC_TURN_MAX_G',label: 'Max Turn G', step: 0.05 },
+            ],
+        },
+        station: {
+            label: 'Rudder (deg)',
+            history: 'rudder_deg',
+            params: [
+                { name: 'STATION_RADIUS', label: 'Station Radius (m)', step: 0.5 },
+                { name: 'AVOID_RADIUS',   label: 'Avoid Radius (m)',   step: 2 },
+                { name: 'AVOID_TCPA',     label: 'Avoid TCPA (s)',     step: 2 },
+                { name: 'AVOID_GAIN',     label: 'Avoid Gain',         step: 0.1 },
+                { name: 'TERRAIN_AVOID',  label: 'Terrain Avoid (0/1)', step: 1 },
+                { name: 'COLREG_LEVEL',   label: 'COLREG Level (0-2)', step: 1 },
+                { name: 'RUDDER_TRIM_DEG',label: 'Rudder Trim (deg)',  step: 0.5 },
+                { name: 'RUDDER_MAX_DEG', label: 'Rudder Max (deg)',   step: 1 },
+                { name: 'RUDDER_SIGN',    label: 'Rudder Sign (+1/-1)',step: 2 },
+            ],
+        },
+    };
+    var tuneActive = 'steer';
+    var paramVals = {};   // name → current value (from vehicle)
+    var paramEdits = {};  // name → user-edited value (pending apply)
+    var tunerOpen = false;
+    var tunerAnim = null;
+
+    function openTuner() {
+        document.getElementById('settings-overlay').style.display = 'none';
+        document.getElementById('tuner-overlay').style.display = 'block';
+        tunerOpen = true;
+        renderTuneParams();
+        animateTuner();
+        // Auto-read on first open if we have nothing
+        if (Object.keys(paramVals).length === 0) {
+            setTimeout(readParams, 200);
+        }
+    }
+    function closeTuner() {
+        document.getElementById('tuner-overlay').style.display = 'none';
+        tunerOpen = false;
+        if (tunerAnim) { cancelAnimationFrame(tunerAnim); tunerAnim = null; }
+    }
+    function switchTuneTab(t) {
+        tuneActive = t;
+        ['steer','speed','nav','station'].forEach(function(k) {
+            var el = document.getElementById('tab-' + k);
+            if (!el) return;
+            if (k === t) {
+                el.style.color = 'var(--text)';
+                el.style.borderBottomColor = 'var(--primary)';
+            } else {
+                el.style.color = 'var(--dim)';
+                el.style.borderBottomColor = 'transparent';
+            }
+        });
+        document.getElementById('chart-label').textContent = TUNE_TABS[t].label;
+        renderTuneParams();
+    }
+
+    function renderTuneParams() {
+        var tab = TUNE_TABS[tuneActive];
+        var html = '';
+        tab.params.forEach(function(p) {
+            var current = paramVals[p.name];
+            var edited = paramEdits[p.name];
+            var displayVal = (edited !== undefined) ? edited : current;
+            var hasVal = displayVal !== undefined;
+            var dirty = (edited !== undefined && current !== undefined && Math.abs(edited - current) > 1e-6);
+            var valStr = hasVal ? formatVal(displayVal) : '—';
+            var color = !hasVal ? 'var(--dim)' : (dirty ? 'var(--warning)' : 'var(--text)');
+            html += '<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)">';
+            html += '<div style="flex:1;min-width:0">';
+            html += '<div style="font-size:13px;font-weight:600;color:var(--text)">' + p.label + '</div>';
+            html += '<div style="font-size:10px;color:var(--dim);font-family:DM Mono,monospace">' + p.name + '</div>';
+            html += '</div>';
+            html += '<button onclick="paramAdjust(\'' + p.name + '\', -' + p.step + ')" style="width:44px;height:44px;border:1px solid var(--border);border-radius:6px;background:var(--bg-raised);color:var(--text);font-size:20px;font-weight:700;cursor:pointer">−</button>';
+            html += '<input type="text" id="pinput-' + p.name + '" value="' + valStr + '" onchange="paramSet(\'' + p.name + '\', this.value)" style="width:90px;height:44px;padding:0 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-raised);color:' + color + ';font-family:DM Mono,monospace;font-size:14px;text-align:center">';
+            html += '<button onclick="paramAdjust(\'' + p.name + '\', ' + p.step + ')" style="width:44px;height:44px;border:1px solid var(--border);border-radius:6px;background:var(--bg-raised);color:var(--text);font-size:20px;font-weight:700;cursor:pointer">+</button>';
+            html += '</div>';
+        });
+        document.getElementById('tune-params').innerHTML = html;
+    }
+
+    function formatVal(v) {
+        if (Math.abs(v) >= 100) return v.toFixed(1);
+        if (Math.abs(v) >= 10) return v.toFixed(2);
+        if (Math.abs(v) >= 1) return v.toFixed(3);
+        return v.toFixed(4);
+    }
+
+    function paramAdjust(name, delta) {
+        var current = (paramEdits[name] !== undefined) ? paramEdits[name] : paramVals[name];
+        if (current === undefined) current = 0;
+        paramEdits[name] = current + delta;
+        renderTuneParams();
+    }
+    function paramSet(name, str) {
+        var v = parseFloat(str);
+        if (!isNaN(v)) {
+            paramEdits[name] = v;
+        }
+        renderTuneParams();
+    }
+
+    function readParams() {
+        // Request all params on the current tab
+        var tab = TUNE_TABS[tuneActive];
+        tab.params.forEach(function(p) { sendGetParam(p.name); });
+        toast('Reading ' + tab.params.length + ' params from vehicle...');
+    }
+
+    function applyParams() {
+        var pending = Object.keys(paramEdits);
+        if (pending.length === 0) { toast('No changes'); return; }
+        var sent = 0;
+        pending.forEach(function(name) {
+            var v = paramEdits[name];
+            var current = paramVals[name];
+            if (current === undefined || Math.abs(v - current) > 1e-6) {
+                sendSetParam(name, v);
+                sent++;
+            }
+        });
+        toast('Sent ' + sent + ' param updates');
+    }
+
+    function onParamValue(name, value) {
+        paramVals[name] = value;
+        // If user hasn't edited it (or edited matches), sync edit
+        if (paramEdits[name] === undefined || Math.abs(paramEdits[name] - value) < 1e-6) {
+            paramEdits[name] = value;
+        }
+        if (tunerOpen) renderTuneParams();
+    }
+
+    function animateTuner() {
+        if (!tunerOpen) return;
+        drawTuneChart();
+        tunerAnim = requestAnimationFrame(animateTuner);
+    }
+
+    function drawTuneChart() {
+        var canvas = document.getElementById('tune-chart');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var w = canvas.width, h = canvas.height;
+        // Theme-aware colors
+        var bg = getComputedStyle(document.documentElement).getPropertyValue('--bg-raised').trim();
+        var grid = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+        var line = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
+        var dim = getComputedStyle(document.documentElement).getPropertyValue('--dim').trim();
+
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, w, h);
+
+        var data = hist[TUNE_TABS[tuneActive].history];
+        if (!data || data.length === 0) {
+            ctx.fillStyle = dim;
+            ctx.font = '12px sans-serif';
+            ctx.fillText('Waiting for telemetry...', 12, h / 2);
+            return;
+        }
+
+        // Auto-scale
+        var min = Math.min.apply(null, data);
+        var max = Math.max.apply(null, data);
+        var pad = (max - min) * 0.1 + 0.001;
+        min -= pad; max += pad;
+        if (max - min < 0.01) { min -= 0.5; max += 0.5; }
+
+        // Grid lines (3 horizontal)
+        ctx.strokeStyle = grid;
+        ctx.lineWidth = 1;
+        for (var i = 0; i <= 3; i++) {
+            var y = (h - 8) * i / 3 + 4;
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(w, y);
+            ctx.stroke();
+        }
+        // Zero line if range straddles zero
+        if (min < 0 && max > 0) {
+            var yz = h - 4 - (0 - min) / (max - min) * (h - 8);
+            ctx.strokeStyle = dim;
+            ctx.beginPath();
+            ctx.moveTo(0, yz);
+            ctx.lineTo(w, yz);
+            ctx.stroke();
+        }
+
+        // Plot line
+        ctx.strokeStyle = line;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (var i = 0; i < data.length; i++) {
+            var x = (i / (hist.max - 1)) * w;
+            var y = h - 4 - (data[i] - min) / (max - min) * (h - 8);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Current value
+        var cur = data[data.length - 1];
+        document.getElementById('chart-value').textContent = formatVal(cur);
+    }
+
+    function setTheme(theme) {
+        document.documentElement.className = theme === 'light' ? 'light' : '';
+        document.getElementById('theme-dark').style.borderColor = theme === 'dark' ? 'var(--primary)' : 'var(--border)';
+        document.getElementById('theme-dark').style.color = theme === 'dark' ? 'var(--text)' : 'var(--dim)';
+        document.getElementById('theme-light').style.borderColor = theme === 'light' ? 'var(--primary)' : 'var(--border)';
+        document.getElementById('theme-light').style.color = theme === 'light' ? 'var(--text)' : 'var(--dim)';
+        setTiles(theme);
+        localStorage.setItem('meridian_mission_theme', theme);
+    }
+
+    function setProtocol(proto) {
+        protocol = proto;
+        document.getElementById('proto-mnp').style.color = proto === 'mnp' ? 'var(--text)' : 'var(--dim)';
+        document.getElementById('proto-mnp').style.borderColor = proto === 'mnp' ? 'var(--primary)' : 'var(--border)';
+        document.getElementById('proto-mav').style.color = proto === 'mavlink' ? 'var(--text)' : 'var(--dim)';
+        document.getElementById('proto-mav').style.borderColor = proto === 'mavlink' ? 'var(--primary)' : 'var(--border)';
+        localStorage.setItem('meridian_mission_proto', proto);
+        toast('Protocol: ' + proto.toUpperCase());
+    }
+
+    function applySettings() {
+        var url = document.getElementById('ws-url-input').value.trim();
+        if (url) {
+            wsUrl = url;
+            localStorage.setItem('meridian_mission_ws', url);
+            if (ws) ws.close();
+            connect();
+        }
+        toggleSettings();
+    }
+
     // ── Auto-connect on load ──
-    // Check URL params for ws address
+    // Restore saved settings
+    var savedTheme = localStorage.getItem('meridian_mission_theme');
+    if (savedTheme) setTheme(savedTheme);
+    var savedProto = localStorage.getItem('meridian_mission_proto');
+    if (savedProto) setProtocol(savedProto);
+    var savedWs = localStorage.getItem('meridian_mission_ws');
+    if (savedWs) wsUrl = savedWs;
+    // URL params override saved settings
     var params = new URLSearchParams(window.location.search);
     if (params.get('ws')) wsUrl = params.get('ws');
+    if (params.get('proto')) setProtocol(params.get('proto'));
+    document.getElementById('ws-url-input').value = wsUrl;
     connect();
 
     // Prompt for connection if not connected after 3s
@@ -461,6 +1745,1101 @@
             if (url) { wsUrl = url; connect(); }
         }
     }, 3000);
+
+    // ═════════════════════════════════════════════════════════════
+    //  RUDDER READOUT + CONTROL OUTPUT (bench diagnostic HUD)
+    // ═════════════════════════════════════════════════════════════
+    function updateRudderReadout() {
+        if (!state.show_rdr && !state.bench_active) return;
+        var el = document.getElementById('rudder-readout');
+        if (!el) return;
+        el.classList.add('show');
+        document.getElementById('rdr-val').textContent = state.rudder_deg.toFixed(1) + '\u00B0';
+        // Fill bar: rudder range ±20° mapped to 0-100% of bar width
+        var maxDeg = Math.max(1.0, paramVals.RUDDER_MAX_DEG || 20.0);
+        var norm = Math.max(-1, Math.min(1, state.rudder_deg / maxDeg));
+        var fillEl = document.getElementById('rdr-fill');
+        if (norm >= 0) {
+            fillEl.style.left = '50%';
+            fillEl.style.width = (norm * 50) + '%';
+        } else {
+            fillEl.style.left = (50 + norm * 50) + '%';
+            fillEl.style.width = (-norm * 50) + '%';
+        }
+        fillEl.classList.toggle('saturated', Math.abs(norm) > 0.95);
+        document.getElementById('rdr-cmd').textContent =
+            'cmd ' + Math.round(state.cmd_steer * 100) + '% / act ' + Math.round(state.act_steer * 100) + '%';
+
+        // Response check — is rudder actually tracking command? (bench test use)
+        if (state.bench_active && Math.abs(state.cmd_steer) > 0.1) {
+            var commandedDeg = state.cmd_steer * maxDeg;
+            var err = Math.abs(commandedDeg - state.rudder_deg);
+            var resp = document.getElementById('rdr-resp');
+            resp.style.display = 'block';
+            if (err < 2.0) {
+                resp.textContent = 'RUDDER TRACKING';
+                resp.className = 'rdr-resp ok';
+            } else if (err < 5.0) {
+                resp.textContent = 'LAG ' + err.toFixed(1) + '\u00B0';
+                resp.className = 'rdr-resp warn';
+            } else {
+                resp.textContent = 'DEAD ZONE? ' + err.toFixed(1) + '\u00B0';
+                resp.className = 'rdr-resp warn';
+            }
+        } else {
+            document.getElementById('rdr-resp').style.display = 'none';
+        }
+    }
+
+    // Hide rudder readout if telemetry goes stale
+    setInterval(function() {
+        if (state.rudder_updated_at && Date.now() - state.rudder_updated_at > 3000) {
+            var el = document.getElementById('rudder-readout');
+            if (el && !state.show_rdr && !state.bench_active) el.classList.remove('show');
+        }
+    }, 1000);
+
+    // ═════════════════════════════════════════════════════════════
+    //  AIS LAYER
+    // ═════════════════════════════════════════════════════════════
+    function aisIcon(vessel_class, length_m, colorOverride) {
+        // Simplified AIS icon by class. Returns an SVG triangle/rectangle silhouette.
+        var color = colorOverride || aisClassColor(vessel_class);
+        var size = Math.max(18, Math.min(36, 16 + length_m / 8));
+        // Cargo/tanker: elongated hull; others: triangle
+        var shape;
+        if (vessel_class >= 70 && vessel_class <= 89) {
+            // Cargo/tanker rectangle
+            shape = '<rect x="' + (size/2 - 4) + '" y="2" width="8" height="' + (size - 4) + '" fill="' + color + '" stroke="white" stroke-width="0.8"/>';
+            shape += '<polygon points="' + (size/2 - 4) + ',2 ' + (size/2 + 4) + ',2 ' + (size/2) + ',0" fill="' + color + '" stroke="white" stroke-width="0.8"/>';
+        } else {
+            // Triangle (fishing / passenger / sailing / pleasure / tug)
+            shape = '<polygon points="' + (size/2) + ',2 2,' + (size - 2) + ' ' + (size - 2) + ',' + (size - 2) + '" fill="' + color + '" fill-opacity="0.85" stroke="white" stroke-width="0.8"/>';
+        }
+        return L.divIcon({
+            className: 'ais-marker-div',
+            html: '<svg viewBox="0 0 ' + size + ' ' + size + '" width="' + size + '" height="' + size + '">' + shape + '</svg>',
+            iconSize: [size, size], iconAnchor: [size/2, size/2]
+        });
+    }
+
+    function aisClassColor(vc) {
+        // Distinct colors by AIS type-of-ship major class
+        if (vc >= 70 && vc <= 79) return '#ffb300';  // cargo
+        if (vc >= 80 && vc <= 89) return '#d500f9';  // tanker
+        if (vc >= 60 && vc <= 69) return '#00b0ff';  // passenger
+        if (vc === 30 || vc === 31 || vc === 32) return '#00e676'; // fishing/towing
+        if (vc >= 50 && vc <= 55) return '#ffab00';  // pilot/tug
+        if (vc === 36) return '#ab47bc';              // sailing
+        if (vc === 37) return '#26a69a';              // pleasure
+        if (vc === 35) return '#757575';              // military
+        if (vc >= 40 && vc <= 49) return '#f50057';  // high speed craft
+        return '#90a4ae';                             // unknown
+    }
+
+    function aisNavStatusStr(n) {
+        return ['Underway','Anchored','Not Under Cmd','Restricted','Constrained',
+                'Moored','Aground','Fishing','Sailing'][n] || '';
+    }
+
+    function onAis(mmsi, lat, lon, cog, sog, hdg, nav_status, vclass, length, beam, name, call) {
+        var c = ais[mmsi];
+        var color = aisClassColor(vclass);
+        if (!c) {
+            c = {};
+            c.marker = L.marker([lat, lon], {
+                icon: aisIcon(vclass, length, color),
+                zIndexOffset: 400, interactive: true
+            });
+            var labelStr = name || ('MMSI ' + mmsi);
+            c.marker.bindTooltip(function() {
+                return '<div class="ais-label">' + (c.name || 'Unknown') + '<br>' +
+                    (c.call ? (c.call + ' · ') : '') + 'MMSI ' + c.mmsi + '<br>' +
+                    c.sog.toFixed(1) + 'm/s @ ' + Math.round(c.cog) + '\u00B0<br>' +
+                    aisNavStatusStr(c.nav_status) + ' · ' + c.length + 'x' + c.beam + 'm</div>';
+            }, { permanent: false, direction: 'top', className: 'ais-tt' });
+            c.vector = L.polyline([], {
+                color: color, weight: 2, opacity: 0.55, dashArray: '3,3', interactive: false
+            });
+            if (state.show_ais) {
+                c.marker.addTo(map);
+                c.vector.addTo(map);
+            }
+            ais[mmsi] = c;
+        }
+        c.mmsi = mmsi; c.lat = lat; c.lon = lon; c.cog = cog; c.sog = sog; c.hdg = hdg;
+        c.nav_status = nav_status; c.vclass = vclass; c.length = length; c.beam = beam;
+        c.name = name; c.call = call; c.lastSeen = Date.now();
+        c.marker.setLatLng([lat, lon]);
+        // Rotate icon to match heading
+        var el = c.marker.getElement();
+        if (el) {
+            var svg = el.querySelector('svg');
+            if (svg) svg.style.transform = 'rotate(' + hdg + 'deg)';
+        }
+        // COG velocity vector — 60s projection
+        if (sog > 0.1) {
+            var crad = cog * Math.PI / 180;
+            var dist = sog * 60;
+            var dlat = dist * Math.cos(crad) / 111320;
+            var dlon = dist * Math.sin(crad) / (111320 * Math.cos(lat * Math.PI / 180));
+            c.vector.setLatLngs([[lat, lon], [lat + dlat, lon + dlon]]);
+        } else {
+            c.vector.setLatLngs([]);
+        }
+    }
+
+    // Prune AIS older than 30s (if nothing removes them, they'll leave trails)
+    setInterval(function() {
+        var now = Date.now();
+        for (var m in ais) {
+            if (now - ais[m].lastSeen > 30000) {
+                map.removeLayer(ais[m].marker);
+                map.removeLayer(ais[m].vector);
+                delete ais[m];
+            }
+        }
+    }, 2000);
+
+    // ═════════════════════════════════════════════════════════════
+    //  PERCEPTION LAYER
+    // ═════════════════════════════════════════════════════════════
+    var PERC_META = {
+        0: { name: 'Unknown',     color: '#b0bec5', icon: '?' },
+        1: { name: 'Buoy',        color: '#ffeb3b', icon: '\u25CF' },
+        2: { name: 'Debris',      color: '#8d6e63', icon: '\u25A0' },
+        3: { name: 'Swimmer',     color: '#ff1744', icon: '\u2020' },
+        4: { name: 'Small Craft', color: '#ff6d00', icon: '\u25B2' },
+        5: { name: 'Whale',       color: '#1e88e5', icon: '\u223F' },
+        6: { name: 'Kelp',        color: '#2e7d32', icon: '\u2724' },
+    };
+
+    function percIcon(obj_class, confidence) {
+        var meta = PERC_META[obj_class] || PERC_META[0];
+        // Confidence drives opacity of fill
+        var op = Math.max(0.25, confidence);
+        var size = 22;
+        var stroke = 'white';
+        var html =
+            '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '">' +
+                '<circle cx="12" cy="12" r="10" fill="' + meta.color + '" fill-opacity="' + op.toFixed(2) + '" stroke="' + stroke + '" stroke-width="1.2"/>' +
+                '<text x="12" y="16" text-anchor="middle" font-size="11" font-weight="700" fill="var(--bg)">' + meta.icon + '</text>' +
+            '</svg>';
+        return L.divIcon({ className: 'perc-marker-div', html: html, iconSize: [size, size], iconAnchor: [size/2, size/2] });
+    }
+
+    function onPerception(oid, lat, lon, obj_class, confidence, heading, speed, length, width, source) {
+        var c = perception[oid];
+        if (!c) {
+            c = {};
+            c.marker = L.marker([lat, lon], {
+                icon: percIcon(obj_class, confidence),
+                zIndexOffset: 300, interactive: true
+            });
+            var srcName = ['camera','lidar','radar','fusion'][source] || 'sensor';
+            c.marker.bindTooltip(function() {
+                var meta = PERC_META[c.obj_class] || PERC_META[0];
+                return '<div class="ais-label">' + meta.name + ' (' + Math.round(c.confidence * 100) + '%)<br>' +
+                    c.length.toFixed(1) + 'x' + c.width.toFixed(1) + 'm · ' + c.speed.toFixed(1) + 'm/s<br>' +
+                    'source: ' + (['camera','lidar','radar','fusion'][c.source] || 'sensor') + '</div>';
+            }, { permanent: false, direction: 'top' });
+            if (state.show_perc) c.marker.addTo(map);
+            perception[oid] = c;
+        }
+        c.id = oid; c.lat = lat; c.lon = lon;
+        c.obj_class = obj_class; c.confidence = confidence;
+        c.heading = heading; c.speed = speed; c.length = length; c.width = width; c.source = source;
+        c.lastSeen = Date.now();
+        c.marker.setLatLng([lat, lon]);
+        c.marker.setIcon(percIcon(obj_class, confidence));
+    }
+
+    setInterval(function() {
+        var now = Date.now();
+        for (var k in perception) {
+            if (now - perception[k].lastSeen > 10000) {
+                map.removeLayer(perception[k].marker);
+                delete perception[k];
+            }
+        }
+    }, 2000);
+
+    // ═════════════════════════════════════════════════════════════
+    //  LAYER TOGGLES
+    // ═════════════════════════════════════════════════════════════
+    function toggleLayer(kind) {
+        if (kind === 'ais') {
+            state.show_ais = !state.show_ais;
+            for (var m in ais) {
+                if (state.show_ais) { ais[m].marker.addTo(map); ais[m].vector.addTo(map); }
+                else { map.removeLayer(ais[m].marker); map.removeLayer(ais[m].vector); }
+            }
+            syncLayerBtns();
+            localStorage.setItem('meridian_show_ais', state.show_ais ? '1' : '0');
+        } else if (kind === 'perc') {
+            state.show_perc = !state.show_perc;
+            for (var k in perception) {
+                if (state.show_perc) perception[k].marker.addTo(map);
+                else map.removeLayer(perception[k].marker);
+            }
+            syncLayerBtns();
+            localStorage.setItem('meridian_show_perc', state.show_perc ? '1' : '0');
+        } else if (kind === 'rdr') {
+            state.show_rdr = !state.show_rdr;
+            if (state.show_rdr) {
+                document.getElementById('rudder-readout').classList.add('show');
+            } else if (!state.bench_active) {
+                document.getElementById('rudder-readout').classList.remove('show');
+            }
+            syncLayerBtns();
+            localStorage.setItem('meridian_show_rdr', state.show_rdr ? '1' : '0');
+        }
+    }
+
+    function syncLayerBtns() {
+        function style(btn, on) {
+            var el = document.getElementById(btn);
+            if (!el) return;
+            el.style.color = on ? 'var(--primary)' : 'var(--dim)';
+            el.style.borderColor = on ? 'var(--primary)' : 'var(--border)';
+        }
+        style('layer-ais-btn', state.show_ais);
+        style('layer-perc-btn', state.show_perc);
+        style('layer-rdr-btn', state.show_rdr);
+    }
+
+    // Restore layer prefs
+    if (localStorage.getItem('meridian_show_ais') === '0') state.show_ais = false;
+    if (localStorage.getItem('meridian_show_perc') === '0') state.show_perc = false;
+    if (localStorage.getItem('meridian_show_rdr') === '1') { state.show_rdr = true; document.getElementById('rudder-readout').classList.add('show'); }
+
+    // ═════════════════════════════════════════════════════════════
+    //  WEBCAM PANE
+    // ═════════════════════════════════════════════════════════════
+    (function initCamDrag() {
+        var pane = document.getElementById('webcam-pane');
+        var header = document.getElementById('cam-header');
+        if (!pane || !header) return;
+        var dragging = false, offX = 0, offY = 0;
+        function start(e) {
+            dragging = true;
+            var ev = e.touches ? e.touches[0] : e;
+            var rect = pane.getBoundingClientRect();
+            offX = ev.clientX - rect.left;
+            offY = ev.clientY - rect.top;
+            e.preventDefault();
+        }
+        function move(e) {
+            if (!dragging) return;
+            var ev = e.touches ? e.touches[0] : e;
+            var x = ev.clientX - offX;
+            var y = ev.clientY - offY;
+            pane.style.left = Math.max(0, Math.min(window.innerWidth - 100, x)) + 'px';
+            pane.style.top = Math.max(56, Math.min(window.innerHeight - 40, y)) + 'px';
+            pane.style.right = 'auto';
+            pane.style.bottom = 'auto';
+        }
+        function end() {
+            if (!dragging) return;
+            dragging = false;
+            localStorage.setItem('meridian_cam_pos', pane.style.left + '|' + pane.style.top);
+        }
+        header.addEventListener('mousedown', start);
+        document.addEventListener('mousemove', move);
+        document.addEventListener('mouseup', end);
+        header.addEventListener('touchstart', start, {passive: false});
+        document.addEventListener('touchmove', move, {passive: false});
+        document.addEventListener('touchend', end);
+    })();
+
+    function applyCamUrl() {
+        var url = (document.getElementById('cam-url-input').value || '').trim();
+        state.cam_url = url;
+        localStorage.setItem('meridian_cam_url', url);
+        var img = document.getElementById('cam-img');
+        var ph = document.getElementById('cam-placeholder');
+        if (url) {
+            img.src = url;
+            img.style.display = 'block';
+            ph.style.display = 'none';
+            showWebcam();
+        } else {
+            img.src = '';
+            img.style.display = 'none';
+            ph.style.display = 'block';
+        }
+    }
+
+    function showWebcam() {
+        var pane = document.getElementById('webcam-pane');
+        pane.classList.add('show');
+        state.cam_visible = true;
+        localStorage.setItem('meridian_cam_visible', '1');
+        // Restore position
+        var pos = localStorage.getItem('meridian_cam_pos');
+        if (pos) {
+            var parts = pos.split('|');
+            if (parts.length === 2 && parts[0] && parts[1]) {
+                pane.style.left = parts[0];
+                pane.style.top = parts[1];
+                pane.style.right = 'auto';
+                pane.style.bottom = 'auto';
+            }
+        } else {
+            pane.style.right = '12px';
+            pane.style.bottom = '240px';
+        }
+    }
+    function hideWebcam() {
+        document.getElementById('webcam-pane').classList.remove('show');
+        state.cam_visible = false;
+        localStorage.setItem('meridian_cam_visible', '0');
+    }
+    function toggleCamCollapsed() {
+        var pane = document.getElementById('webcam-pane');
+        state.cam_collapsed = !state.cam_collapsed;
+        pane.classList.toggle('collapsed', state.cam_collapsed);
+        localStorage.setItem('meridian_cam_collapsed', state.cam_collapsed ? '1' : '0');
+    }
+
+    // Restore cam state
+    (function restoreCam() {
+        var url = localStorage.getItem('meridian_cam_url') || '';
+        if (url) {
+            document.getElementById('cam-url-input').value = url;
+            state.cam_url = url;
+        }
+        if (localStorage.getItem('meridian_cam_collapsed') === '1') {
+            state.cam_collapsed = true;
+            document.getElementById('webcam-pane').classList.add('collapsed');
+        }
+        if (localStorage.getItem('meridian_cam_visible') === '1' && url) {
+            var img = document.getElementById('cam-img');
+            img.src = url;
+            img.style.display = 'block';
+            document.getElementById('cam-placeholder').style.display = 'none';
+            showWebcam();
+        }
+    })();
+
+    // ═════════════════════════════════════════════════════════════
+    //  BENCH TEST
+    // ═════════════════════════════════════════════════════════════
+    function openBench() {
+        document.getElementById('settings-overlay').style.display = 'none';
+        document.getElementById('bench-overlay').classList.add('show');
+        state.bench_active = true;
+        document.getElementById('rudder-readout').classList.add('show');
+        // Auto-arm warning only; don't force-arm. Mode transition happens on first command.
+        toast('BENCH: commands send direct to rudder/throttle');
+        requestAnimationFrame(drawBenchChart);
+    }
+    function closeBench() {
+        document.getElementById('bench-overlay').classList.remove('show');
+        state.bench_active = false;
+        stopBenchPattern();
+        // Zero out outputs on exit
+        setBenchSteer(0);
+        onBenchThrInput(0);
+        document.getElementById('bench-thr-input').value = 0;
+        document.getElementById('bench-steer-input').value = 0;
+        if (!state.show_rdr) document.getElementById('rudder-readout').classList.remove('show');
+    }
+
+    function onBenchSteerInput(val) {
+        var n = parseInt(val);
+        if (isNaN(n)) n = 0;
+        state.bench_steer = Math.max(-100, Math.min(100, n));
+        document.getElementById('bench-steer-val').textContent = state.bench_steer + '%';
+        sendDirectControl(state.bench_thr, state.bench_steer);
+    }
+    function onBenchThrInput(val) {
+        var n = parseInt(val);
+        if (isNaN(n)) n = 0;
+        state.bench_thr = Math.max(0, Math.min(100, n));
+        document.getElementById('bench-thr-val').textContent = state.bench_thr + '%';
+        sendDirectControl(state.bench_thr, state.bench_steer);
+    }
+    function setBenchSteer(pct) {
+        document.getElementById('bench-steer-input').value = pct;
+        onBenchSteerInput(pct);
+    }
+
+    function sendDirectControl(thr_pct, steer_pct) {
+        if (!ws || ws.readyState !== 1) return;
+        // CMD_DIRECT_CONTROL (0x86) = u8 cmd + i16 throttle + i16 steer
+        var b = new ArrayBuffer(5);
+        var d = new DataView(b);
+        d.setUint8(0, 0x86);
+        d.setInt16(1, Math.round(thr_pct), true);
+        d.setInt16(3, Math.round(steer_pct), true);
+        ws.send(cobsEncode(new Uint8Array(b)));
+    }
+
+    function startBenchPattern(mode) {
+        state.bench_pattern = mode;
+        state.bench_pattern_t0 = Date.now();
+        ['bench-mode-step','bench-mode-sweep','bench-mode-square'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.classList.toggle('active', id === 'bench-mode-' + mode);
+        });
+        toast('Pattern: ' + mode.toUpperCase());
+        runBenchPatternTick();
+    }
+    function stopBenchPattern() {
+        state.bench_pattern = null;
+        ['bench-mode-step','bench-mode-sweep','bench-mode-square'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.classList.remove('active');
+        });
+    }
+    function runBenchPatternTick() {
+        if (!state.bench_pattern || !state.bench_active) return;
+        var t = (Date.now() - state.bench_pattern_t0) / 1000;
+        var steer = 0;
+        if (state.bench_pattern === 'step') {
+            // Step +50%, hold 3s, -50%, hold 3s, repeat
+            var phase = Math.floor(t / 3) % 2;
+            steer = phase === 0 ? 50 : -50;
+        } else if (state.bench_pattern === 'sweep') {
+            // Sinusoidal ±80% with 10s period
+            steer = Math.round(80 * Math.sin(t * 2 * Math.PI / 10));
+        } else if (state.bench_pattern === 'square') {
+            // Square wave ±70% with 2s period
+            steer = (Math.floor(t / 1) % 2 === 0) ? 70 : -70;
+        }
+        document.getElementById('bench-steer-input').value = steer;
+        onBenchSteerInput(steer);
+        setTimeout(runBenchPatternTick, 100);
+    }
+
+    function drawBenchChart() {
+        if (!state.bench_active) return;
+        var canvas = document.getElementById('bench-chart');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var w = canvas.width, h = canvas.height;
+        var bg = getComputedStyle(document.documentElement).getPropertyValue('--bg-raised').trim();
+        var grid = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+        var line = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
+        var cmdColor = getComputedStyle(document.documentElement).getPropertyValue('--warning').trim();
+        var dim = getComputedStyle(document.documentElement).getPropertyValue('--dim').trim();
+        ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+        // Centerline
+        ctx.strokeStyle = grid; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(w, h/2); ctx.stroke();
+        var maxDeg = paramVals.RUDDER_MAX_DEG || 20.0;
+        function plot(data, color) {
+            if (!data || data.length === 0) return;
+            ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            for (var i = 0; i < data.length; i++) {
+                var x = (i / (hist.max - 1)) * w;
+                var norm = Math.max(-1, Math.min(1, data[i] / maxDeg));
+                var y = h/2 - norm * (h/2 - 4);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+        plot(hist.rudder_cmd, cmdColor);
+        plot(hist.rudder_deg, line);
+        // Legend
+        ctx.font = '10px DM Mono, monospace';
+        ctx.fillStyle = cmdColor; ctx.fillText('cmd', 6, 12);
+        ctx.fillStyle = line;     ctx.fillText('act', 32, 12);
+        ctx.fillStyle = dim;      ctx.fillText('\u00B1' + maxDeg.toFixed(0) + '\u00B0', w - 36, 12);
+        requestAnimationFrame(drawBenchChart);
+    }
+
+    function updateBenchChart() {
+        if (!state.bench_active) return;
+        var c = state.rudder_deg;
+        document.getElementById('bench-live-val').textContent = c.toFixed(1) + '\u00B0';
+        document.getElementById('bench-live-cmd').textContent = 'cmd ' + Math.round(state.cmd_steer * 100) + '%';
+        document.getElementById('bench-live-act').textContent = 'act ' + Math.round(state.act_steer * 100) + '%';
+        var maxDeg = paramVals.RUDDER_MAX_DEG || 20.0;
+        var expectedDeg = state.cmd_steer * maxDeg;
+        var err = expectedDeg - c;
+        document.getElementById('bench-live-lag').textContent = 'err ' + err.toFixed(1) + '\u00B0';
+    }
+
+    // ═════════════════════════════════════════════════════════════
+    //  AUTOTUNE — step-response analysis for rudder PID suggestions
+    // ═════════════════════════════════════════════════════════════
+    var autotune = { active: false, samples: [], t0: 0, stepCmd: 50 };
+
+    function startAutotune() {
+        if (!state.bench_active) { toast('Open Bench Test first'); return; }
+        if (!state.connected) { toast('Not connected'); return; }
+        autotune.active = true;
+        autotune.samples = [];
+        autotune.t0 = Date.now();
+        document.getElementById('autotune-result').style.display = 'none';
+        toast('Autotune — running step input...');
+        // Sequence: 0 for 1s, +50% for 3s, 0 for 1s
+        setBenchSteer(0);
+        setTimeout(function() {
+            setBenchSteer(autotune.stepCmd);
+        }, 1000);
+        setTimeout(function() {
+            setBenchSteer(0);
+        }, 4000);
+        var sampleTimer = setInterval(function() {
+            if (!autotune.active) { clearInterval(sampleTimer); return; }
+            autotune.samples.push({
+                t: Date.now() - autotune.t0,
+                cmd: state.cmd_steer * 100,
+                act_deg: state.rudder_deg,
+            });
+        }, 50);
+        setTimeout(function() {
+            clearInterval(sampleTimer);
+            autotune.active = false;
+            finishAutotune();
+        }, 5500);
+    }
+
+    function finishAutotune() {
+        var maxDeg = paramVals.RUDDER_MAX_DEG || 20.0;
+        var target = autotune.stepCmd / 100 * maxDeg;
+        // Find the step-up time (cmd goes from 0 to >10%)
+        var t_step = null;
+        for (var i = 0; i < autotune.samples.length; i++) {
+            if (autotune.samples[i].cmd > 10) { t_step = autotune.samples[i].t; break; }
+        }
+        if (t_step === null) {
+            showAutotuneResult('FAILED: step input not detected. Is the SITL streaming MSG_CONTROL?');
+            return;
+        }
+        // Find time to reach 63.2% of step target (first-order time constant)
+        var target63 = target * 0.632;
+        var t_63 = null, peak_deg = 0;
+        var rising = autotune.samples.filter(function(s) { return s.t >= t_step && s.t < t_step + 3000; });
+        for (var i = 0; i < rising.length; i++) {
+            if (t_63 === null && rising[i].act_deg >= target63) t_63 = rising[i].t - t_step;
+            if (rising[i].act_deg > peak_deg) peak_deg = rising[i].act_deg;
+        }
+        if (t_63 === null) {
+            showAutotuneResult('WARNING: response never reached 63% of target. Actuator may be saturated, dead, or wired wrong sign. Check RUDDER_SIGN and mechanical travel.');
+            return;
+        }
+        var overshoot_deg = Math.max(0, peak_deg - target);
+        var overshoot_pct = (overshoot_deg / target) * 100;
+        // Tau (time constant) in seconds
+        var tau_s = t_63 / 1000;
+        // Suggested PD gains — simple pole-placement rule-of-thumb:
+        //   For a first-order plant G(s) = K / (tau*s + 1), closed-loop damping ratio 0.7:
+        //   Kp ≈ 1 / tau, Kd ≈ tau / 3 (scaled to our normalized rudder command)
+        var kp_suggest = (0.9 / tau_s) * (autotune.stepCmd / 100) / (target / maxDeg);
+        var kd_suggest = tau_s / 3;
+        // Clamp to sane ArduPilot Rover ranges
+        kp_suggest = Math.max(0.05, Math.min(2.0, kp_suggest));
+        kd_suggest = Math.max(0.0, Math.min(0.05, kd_suggest));
+
+        var html = '<div style="color:var(--primary);font-weight:700;margin-bottom:6px">AUTOTUNE RESULT</div>';
+        html += 'step size: <strong>' + autotune.stepCmd + '%</strong> → target <strong>' + target.toFixed(1) + '°</strong><br>';
+        html += 'time to 63%: <strong>' + (tau_s * 1000).toFixed(0) + ' ms</strong> (&tau; = ' + tau_s.toFixed(2) + 's)<br>';
+        html += 'peak: <strong>' + peak_deg.toFixed(1) + '°</strong> · overshoot: <strong>' + overshoot_pct.toFixed(0) + '%</strong><br>';
+        html += '<br><div style="color:var(--safe);font-weight:700;margin-bottom:4px">SUGGESTED GAINS</div>';
+        html += 'ATC_STR_RAT_P = <strong style="color:var(--primary)">' + kp_suggest.toFixed(3) + '</strong><br>';
+        html += 'ATC_STR_RAT_D = <strong style="color:var(--primary)">' + kd_suggest.toFixed(4) + '</strong><br>';
+        html += '<br><div style="font-size:10px;color:var(--dim)">Open PID Tuner → STEER tab to apply these values. Quality: ' +
+            (overshoot_pct < 15 && tau_s < 1.0 ? '<span style="color:var(--safe)">GOOD</span>' :
+             overshoot_pct < 30 && tau_s < 2.0 ? '<span style="color:var(--warning)">OK</span>' :
+             '<span style="color:var(--emergency)">POOR — actuator slow or has deadband</span>') + '</div>';
+        showAutotuneResult(html);
+    }
+
+    function showAutotuneResult(html) {
+        var el = document.getElementById('autotune-result');
+        el.innerHTML = html;
+        el.style.display = 'block';
+    }
+
+    // ═════════════════════════════════════════════════════════════
+    //  AIS SIM TOGGLE + PERCEPTION SPAWN
+    // ═════════════════════════════════════════════════════════════
+    function toggleAisSim() {
+        if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+        state.ais_sim_enabled = !state.ais_sim_enabled;
+        // CMD_AIS_SIM (0x8C)
+        ws.send(cobsEncode(new Uint8Array([0x8C, state.ais_sim_enabled ? 1 : 0])));
+        var btn = document.getElementById('ais-sim-btn');
+        if (btn) btn.textContent = 'AIS Sim: ' + (state.ais_sim_enabled ? 'ON' : 'OFF');
+        toast('AIS sim ' + (state.ais_sim_enabled ? 'enabled' : 'disabled'));
+    }
+    // ═════════════════════════════════════════════════════════════
+    //  GPS JAM SIMULATION + BATHY NAV-SOURCE VISIBILITY
+    //  Demo feature: toggle to simulate GPS-denied ops. The tablet stops
+    //  accepting GPS telemetry for 60 s, which forces any downstream
+    //  bathy estimator to take over. Headline for SOCOM: "one click and
+    //  you see the boat keep navigating without GPS."
+    // ═════════════════════════════════════════════════════════════
+    state.gps_jammed = false;
+    state.gps_jam_until = 0;
+    state.bathy_lat = 0; state.bathy_lon = 0; state.bathy_spread = 0;
+    state.bathy_updated_at = 0;
+    var bathyMarker = null;
+    var bathyCircle = null;
+
+    function toggleGpsJam() {
+        if (state.gps_jammed) {
+            state.gps_jammed = false;
+            state.gps_jam_until = 0;
+            toast('GPS restored — primary nav active');
+        } else {
+            state.gps_jammed = true;
+            state.gps_jam_until = Date.now() + 60000;
+            toast('GPS JAMMED — bathy nav taking over');
+        }
+        updateNavSourceBadge();
+        var btn = document.getElementById('gps-jam-btn');
+        if (btn) {
+            btn.textContent = state.gps_jammed ? '\u26A0 JAMMED — Click to restore' : '\u26A0 Simulate GPS Jam';
+            btn.style.background = state.gps_jammed ? 'rgba(255,23,68,0.15)' : 'var(--bg)';
+        }
+    }
+
+    function updateNavSourceBadge() {
+        var b = document.getElementById('nav-source-badge');
+        if (!b) return;
+        var now = Date.now();
+        var gpsFresh = state.gps1.last && (now - state.gps1.last < 5000) && !state.gps_jammed;
+        var bathyFresh = state.bathy_updated_at && (now - state.bathy_updated_at < 5000);
+        var fusionN = state.ais_fusion_count || 0;
+        if (gpsFresh) {
+            b.textContent = 'NAV: GPS';
+            b.style.background = 'rgba(0,230,118,0.15)';
+            b.style.color = 'var(--safe)';
+            b.style.border = '1px solid var(--safe)';
+            b.style.display = 'inline-block';
+            b.style.animation = 'none';
+        } else if (state.gps_jammed && bathyFresh && fusionN > 0) {
+            b.textContent = 'NAV: BATHY + AIS\u00D7' + fusionN + ' (\u26A0 GPS DENIED)';
+            b.style.background = 'rgba(0,229,255,0.15)';
+            b.style.color = 'var(--primary)';
+            b.style.border = '1px solid var(--primary)';
+            b.style.display = 'inline-block';
+            b.style.animation = 'pulse 1.2s ease-in-out infinite';
+        } else if (state.gps_jammed && bathyFresh) {
+            b.textContent = 'NAV: BATHY (\u26A0 GPS DENIED)';
+            b.style.background = 'rgba(255,167,38,0.15)';
+            b.style.color = 'var(--warning)';
+            b.style.border = '1px solid var(--warning)';
+            b.style.display = 'inline-block';
+            b.style.animation = 'pulse 1.2s ease-in-out infinite';
+        } else if (state.gps_jammed) {
+            b.textContent = 'NAV: DEAD RECKONING';
+            b.style.background = 'rgba(255,23,68,0.15)';
+            b.style.color = 'var(--emergency)';
+            b.style.border = '1px solid var(--emergency)';
+            b.style.display = 'inline-block';
+            b.style.animation = 'pulse 1.2s ease-in-out infinite';
+        } else {
+            b.style.display = 'none';
+        }
+    }
+
+    // ── AIS fusion: when GPS-jammed, use nearest AIS contacts as landmarks ──
+    var aisFusionLines = [];
+    function updateAisFusion() {
+        // Clear prior lines
+        for (var i = 0; i < aisFusionLines.length; i++) map.removeLayer(aisFusionLines[i]);
+        aisFusionLines = [];
+        state.ais_fusion_count = 0;
+        if (!state.gps_jammed || !state.bathy_lat) return;
+        var bl = state.bathy_lat, bln = state.bathy_lon;
+        // Rank AIS contacts by distance (within 1.5 km)
+        var cands = [];
+        for (var mmsi in ais) {
+            var c = ais[mmsi];
+            if (!c.lat || !c.lon) continue;
+            var dn = (c.lat - bl) * 111320;
+            var de = (c.lon - bln) * 111320 * Math.cos(bl * Math.PI / 180);
+            var d = Math.sqrt(dn*dn + de*de);
+            if (d < 1500) cands.push({ mmsi: mmsi, dist: d, c: c });
+        }
+        cands.sort(function(a, b) { return a.dist - b.dist; });
+        var use = cands.slice(0, 2);
+        for (var j = 0; j < use.length; j++) {
+            var tgt = use[j].c;
+            var line = L.polyline(
+                [[bl, bln], [tgt.lat, tgt.lon]],
+                { color: '#00e5ff', weight: 2, opacity: 0.75, dashArray: '6,6', interactive: false }
+            ).addTo(map);
+            aisFusionLines.push(line);
+            // Also label the range
+            var mid = [(bl + tgt.lat) / 2, (bln + tgt.lon) / 2];
+            var tip = L.tooltip({
+                permanent: true, direction: 'center', className: 'ais-fusion-label',
+                opacity: 0.9, offset: [0, 0]
+            }).setLatLng(mid).setContent(Math.round(use[j].dist) + 'm');
+            aisFusionLines.push(tip);
+            tip.addTo(map);
+        }
+        state.ais_fusion_count = use.length;
+    }
+    setInterval(function() {
+        if (state.gps_jammed && Date.now() > state.gps_jam_until) {
+            toggleGpsJam();  // auto-restore after 60s
+        }
+        updateAisFusion();
+        updateNavSourceBadge();
+    }, 1000);
+
+    // ── Bathy position marker ──
+    function onBathyEstimate(lat, lon, spread_m, healthy) {
+        state.bathy_lat = lat;
+        state.bathy_lon = lon;
+        state.bathy_spread = spread_m;
+        state.bathy_updated_at = Date.now();
+        if (!bathyMarker) {
+            bathyMarker = L.marker([lat, lon], {
+                icon: L.divIcon({
+                    className: '',
+                    html: '<div style="width:28px;height:28px;border-radius:50%;background:rgba(255,167,38,0.3);border:2px dashed var(--warning);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--warning);font-weight:700;font-family:Rajdhani,sans-serif">B</div>',
+                    iconSize: [28, 28], iconAnchor: [14, 14]
+                }),
+                interactive: false, zIndexOffset: 900
+            }).addTo(map);
+            bathyCircle = L.circle([lat, lon], {
+                radius: spread_m, color: 'var(--warning)', weight: 1, opacity: 0.4,
+                fillColor: 'var(--warning)', fillOpacity: 0.08, dashArray: '3,4', interactive: false
+            }).addTo(map);
+        } else {
+            bathyMarker.setLatLng([lat, lon]);
+            bathyCircle.setLatLng([lat, lon]);
+            bathyCircle.setRadius(spread_m);
+        }
+        bathyMarker.setOpacity(healthy ? 0.95 : 0.4);
+        updateNavSourceBadge();
+    }
+
+    function spawnPerception() {
+        if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+        // Spawn debris (class 2) 40-80m ahead
+        var hrad = state.hdg * Math.PI / 180;
+        var dist = 40 + Math.random() * 40;
+        var lat = state.lat + dist * Math.cos(hrad) / 111320;
+        var lon = state.lon + dist * Math.sin(hrad) / (111320 * Math.cos(state.lat * Math.PI / 180));
+        // CMD_SPAWN_PERCEPT (0x8D) = id + lat_e7 + lon_e7 + class
+        var b = new ArrayBuffer(10);
+        var d = new DataView(b);
+        d.setUint8(0, 0x8D);
+        d.setInt32(1, Math.round(lat * 1e7), true);
+        d.setInt32(5, Math.round(lon * 1e7), true);
+        d.setUint8(9, 2); // debris
+        ws.send(cobsEncode(new Uint8Array(b)));
+        toast('Perception contact spawned ahead');
+    }
+
+    // Initial layer button styling
+    syncLayerBtns();
+    // Initial AIS sim button label (assumes server default ON)
+    (function() {
+        var btn = document.getElementById('ais-sim-btn');
+        if (btn) btn.textContent = 'AIS Sim: ' + (state.ais_sim_enabled ? 'ON' : 'OFF');
+    })();
+
+    // ═════════════════════════════════════════════════════════════
+    //  GPS SOURCE PANEL
+    //  Tracks GPS_RAW_INT (0x05, instance 0) and GPS2_RAW (id 124) to
+    //  show PRIMARY / STANDBY status. Updates the status-bar badge.
+    // ═════════════════════════════════════════════════════════════
+    state.gps1 = { fix: 0, sats: 0, hdop: 99, last: 0, source: 'unknown' };
+    state.gps2 = { fix: 0, sats: 0, hdop: 99, last: 0, source: 'unknown' };
+
+    function onGpsTelem(inst, fix, sats, hdop, source) {
+        var s = inst === 0 ? state.gps1 : state.gps2;
+        // GPS jam simulation: pretend primary GPS has no fix during jam
+        if (inst === 0 && state.gps_jammed) {
+            s.fix = 0;   // no fix — forces fallback pathways to engage
+            s.sats = 0;
+            s.hdop = 99;
+            s.last = Date.now();      // still "talking" (jammer would actively corrupt, not drop)
+            if (source) s.source = source + ' (jammed)';
+        } else {
+            s.fix = fix; s.sats = sats; s.hdop = hdop;
+            s.last = Date.now();
+            if (source) s.source = source;
+        }
+        updateGpsBadge();
+        if (document.getElementById('gps-panel').style.display === 'block') renderGpsPanel();
+        updateNavSourceBadge();
+    }
+
+    function updateGpsBadge() {
+        var b = document.getElementById('gps-source-badge');
+        if (!b) return;
+        var now = Date.now();
+        var a1 = state.gps1.last && now - state.gps1.last < 5000;
+        var a2 = state.gps2.last && now - state.gps2.last < 5000;
+        if (!a1 && !a2) { b.style.display = 'none'; return; }
+        b.style.display = 'inline-block';
+        var primary = a1 ? 'Orca' : (a2 ? 'Puck' : '—');
+        var count = (a1 ? 1 : 0) + (a2 ? 1 : 0);
+        b.textContent = 'GPS: ' + primary + (count > 1 ? ' +1' : '');
+        b.style.borderColor = a1 ? 'var(--primary)' : 'var(--warning)';
+        b.style.color = a1 ? 'var(--primary)' : 'var(--warning)';
+    }
+
+    function toggleGpsPanel() {
+        var p = document.getElementById('gps-panel');
+        if (p.style.display === 'block') { p.style.display = 'none'; return; }
+        p.style.display = 'block';
+        renderGpsPanel();
+    }
+
+    function renderGpsPanel() {
+        var now = Date.now();
+        function row(label, s, role) {
+            var age = s.last ? Math.round((now - s.last) / 1000) : null;
+            var healthy = age !== null && age < 5 && s.fix >= 3;
+            var stale = age !== null && age >= 5;
+            var color = healthy ? 'var(--safe)' : (stale ? 'var(--warning)' : 'var(--dim)');
+            var status = s.fix === 0 ? 'NO FIX' : (s.fix === 2 ? '2D' : s.fix === 3 ? '3D' : s.fix === 4 ? 'DGPS' : s.fix === 5 ? 'RTK-flt' : s.fix === 6 ? 'RTK-fix' : '?');
+            return '<div style="padding:10px;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;background:var(--bg)">'
+                + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
+                + '<div style="font-family:Rajdhani,sans-serif;font-weight:700;color:var(--text);font-size:13px">' + label + '</div>'
+                + '<div style="font-size:10px;padding:2px 6px;border-radius:3px;background:' + color + ';color:var(--bg);font-weight:700">' + role + '</div>'
+                + '</div>'
+                + '<div style="font-family:DM Mono,monospace;font-size:11px;color:var(--dim);line-height:1.6">'
+                + 'source: ' + s.source + '<br>'
+                + 'status: <span style="color:' + color + '">' + status + '</span> · ' + s.sats + ' sats · HDOP ' + s.hdop.toFixed(1) + '<br>'
+                + 'last update: ' + (age === null ? '—' : age + 's ago')
+                + '</div></div>';
+        }
+        var html = '';
+        html += row('GPS 1 (ORCA via MAVLink)', state.gps1, 'PRIMARY');
+        html += row('GPS 2 (Serial puck)', state.gps2, 'STANDBY');
+        document.getElementById('gps-panel-body').innerHTML = html;
+    }
+
+    // Wire GPS telemetry into the existing parsers
+    // MNP 0x05 = GPS_RAW (inst 0). MAVLink id 24 = GPS_RAW_INT (inst 0), id 124 = GPS2_RAW (inst 1).
+    var _origParseMsg = parseMsg;
+    parseMsg = function(p) {
+        _origParseMsg(p);
+        var id = p[0];
+        if (id === 0x05 && p.length >= 19) {
+            onGpsTelem(0, p[1], p[18], p[13] / 100, 'MNP primary');
+        }
+    };
+    var _origParseMavMsg = parseMavMsg;
+    parseMavMsg = function(id, p) {
+        _origParseMavMsg(id, p);
+        var dv = new DataView(p.buffer, p.byteOffset, p.byteLength);
+        if (id === 24 && p.length >= 30) {
+            onGpsTelem(0, dv.getUint8(28), dv.getUint8(29), dv.getUint16(20, true) / 100, 'MAVLink primary');
+        } else if (id === 124 && p.length >= 35) {
+            onGpsTelem(1, dv.getUint8(20), dv.getUint8(21), dv.getUint16(22, true) / 100, 'MAVLink GPS2');
+        }
+    };
+    setInterval(updateGpsBadge, 1000);
+
+    // ═════════════════════════════════════════════════════════════
+    //  COMPASS CALIBRATION WIZARD
+    //  Uses ArduPilot MAVLink MAG_CAL_START (MAV_CMD_DO_START_MAG_CAL = 42424)
+    //  and listens for MAG_CAL_PROGRESS (191) / MAG_CAL_REPORT (192).
+    // ═════════════════════════════════════════════════════════════
+    var magCal = { active: false, t0: 0, axes: {yaw: 0, pitch: 0, roll: 0}, timer: null, logLines: [] };
+
+    function openMagCal() {
+        document.getElementById('settings-overlay').style.display = 'none';
+        document.getElementById('magcal-overlay').style.display = 'block';
+        // Reset UI
+        document.getElementById('magcal-progress').style.display = 'none';
+        document.getElementById('magcal-result').style.display = 'none';
+        document.getElementById('magcal-accept-btn').style.display = 'none';
+        document.getElementById('magcal-start-btn').style.display = 'block';
+        document.getElementById('magcal-instr').style.display = 'block';
+    }
+    function closeMagCal() {
+        if (magCal.active) { if (!confirm('Cancel cal and exit?')) return; magCalCancel(); }
+        document.getElementById('magcal-overlay').style.display = 'none';
+    }
+
+    function magCalStart() {
+        if (!ws || ws.readyState !== 1) { toast('Not connected to autopilot'); return; }
+        if (protocol !== 'mavlink') {
+            toast('Switch to MAVLink protocol first (Settings)');
+            return;
+        }
+        // MAV_CMD_DO_START_MAG_CAL = 42424
+        // p1: mag_mask (0 = all), p2: retry, p3: autosave, p4: delay (s), p5: autoreboot
+        MAV_CRC_EXTRA[76] = 152;  // COMMAND_LONG already set; ensure
+        ws.send(mavEncode(76, mavCommandLong(42424, 0, 0, 1, 0, 0, 0, 0)));
+        magCal.active = true;
+        magCal.t0 = Date.now();
+        magCal.axes = {yaw: 0, pitch: 0, roll: 0};
+        magCal.logLines = [];
+        document.getElementById('magcal-instr').style.display = 'none';
+        document.getElementById('magcal-progress').style.display = 'block';
+        document.getElementById('magcal-start-btn').style.display = 'none';
+        document.getElementById('magcal-phase').textContent = 'CALIBRATING... rotate boat through all axes';
+        magCal.timer = setInterval(magCalTick, 200);
+        toast('Compass cal started — rotate boat slowly');
+    }
+    function magCalAccept() {
+        if (!ws || ws.readyState !== 1) return;
+        // MAV_CMD_DO_ACCEPT_MAG_CAL = 42425
+        ws.send(mavEncode(76, mavCommandLong(42425, 0, 0, 0, 0, 0, 0, 0)));
+        toast('Calibration accepted — saved to EEPROM');
+        setTimeout(closeMagCal, 1000);
+    }
+    function magCalCancel() {
+        if (ws && ws.readyState === 1) {
+            // MAV_CMD_DO_CANCEL_MAG_CAL = 42426
+            ws.send(mavEncode(76, mavCommandLong(42426, 0, 0, 0, 0, 0, 0, 0)));
+        }
+        magCal.active = false;
+        if (magCal.timer) { clearInterval(magCal.timer); magCal.timer = null; }
+    }
+    function magCalTick() {
+        var elapsed = Math.floor((Date.now() - magCal.t0) / 1000);
+        var mm = Math.floor(elapsed / 60);
+        var ss = elapsed % 60;
+        document.getElementById('magcal-elapsed').textContent = (mm < 10 ? '0' : '') + mm + ':' + (ss < 10 ? '0' : '') + ss;
+        ['yaw', 'pitch', 'roll'].forEach(function(k) {
+            var v = magCal.axes[k];
+            var fill = document.getElementById('axis-' + k + '-fill');
+            fill.style.width = Math.round(v) + '%';
+            fill.className = 'axis-fill' + (v >= 80 ? ' good' : '');
+            document.getElementById('axis-' + k + '-pct').textContent = Math.round(v) + '%';
+        });
+        var all80 = magCal.axes.yaw >= 80 && magCal.axes.pitch >= 80 && magCal.axes.roll >= 80;
+        if (all80) {
+            document.getElementById('magcal-phase').textContent = 'COVERAGE COMPLETE — waiting for report';
+        }
+    }
+    function onMagCalProgress(compassId, pctComplete, attempt, status, dirX, dirY, dirZ) {
+        // Each axis's coverage is proxied by the dominant rotation axis per sample.
+        // We approximate per-axis coverage by binning the accumulated dirs.
+        var ax = Math.abs(dirX), ay = Math.abs(dirY), az = Math.abs(dirZ);
+        // Heuristic: yaw axis ≈ rotation about vertical body z; we'll use overall pct for all 3 since ArduPilot doesn't break out per-axis.
+        magCal.axes.yaw = pctComplete;
+        magCal.axes.pitch = pctComplete;
+        magCal.axes.roll = pctComplete;
+        magCal.logLines.push('[' + new Date().toLocaleTimeString() + '] compass' + compassId + ' cal: ' + pctComplete.toFixed(0) + '% (attempt ' + attempt + ')');
+        if (magCal.logLines.length > 30) magCal.logLines = magCal.logLines.slice(-30);
+        document.getElementById('magcal-log').textContent = magCal.logLines.join('\n');
+    }
+    function onMagCalReport(compassId, status, fitness, ofsX, ofsY, ofsZ) {
+        if (magCal.timer) { clearInterval(magCal.timer); magCal.timer = null; }
+        magCal.active = false;
+        var statusName = ['waiting', 'running_step_one', 'running_step_two', 'success', 'failed', 'bad_orientation', 'bad_radius'][status] || ('status_' + status);
+        var ok = status === 3;
+        document.getElementById('magcal-phase').textContent = ok ? 'COMPLETE' : ('FAILED: ' + statusName);
+        var body = 'compass ' + compassId + ': <strong>' + statusName.toUpperCase() + '</strong><br>';
+        body += 'fitness: ' + fitness.toFixed(2) + ' (lower = better; &lt; 5 is good)<br>';
+        body += 'offsets: X=' + ofsX.toFixed(1) + ' Y=' + ofsY.toFixed(1) + ' Z=' + ofsZ.toFixed(1);
+        document.getElementById('magcal-result-body').innerHTML = body;
+        document.getElementById('magcal-result').style.display = 'block';
+        if (ok) document.getElementById('magcal-accept-btn').style.display = 'block';
+    }
+    // Wire into the MAVLink parser
+    var _parseMavAfterGps = parseMavMsg;
+    parseMavMsg = function(id, p) {
+        _parseMavAfterGps(id, p);
+        var dv = new DataView(p.buffer, p.byteOffset, p.byteLength);
+        if (id === 191 && p.length >= 27) {
+            // MAG_CAL_PROGRESS: compass_id(u8), cal_mask(u8), cal_status(u8), attempt(u8), completion_pct(u8),
+            //   completion_mask[10], direction_x(f32), direction_y(f32), direction_z(f32)
+            onMagCalProgress(
+                dv.getUint8(4),      // compass_id
+                dv.getUint8(8),      // completion_pct
+                dv.getUint8(5),      // attempt
+                dv.getUint8(6),      // cal_status
+                dv.getFloat32(15, true),   // direction_x
+                dv.getFloat32(19, true),
+                dv.getFloat32(23, true)
+            );
+            MAV_CRC_EXTRA[191] = 92;
+        } else if (id === 192 && p.length >= 44) {
+            // MAG_CAL_REPORT: fitness(f32), ofs_x(f32), ofs_y(f32), ofs_z(f32), diag_x(f32), diag_y(f32), diag_z(f32),
+            //   offdiag_x(f32), offdiag_y(f32), offdiag_z(f32), compass_id(u8), cal_mask(u8), cal_status(u8), autosaved(u8)
+            onMagCalReport(
+                dv.getUint8(40), dv.getUint8(42),
+                dv.getFloat32(0, true),
+                dv.getFloat32(4, true), dv.getFloat32(8, true), dv.getFloat32(12, true)
+            );
+            MAV_CRC_EXTRA[192] = 36;
+        }
+    };
+
+    // ═════════════════════════════════════════════════════════════
+    //  DEMO TOUR
+    //  Guided walk-through for showing the tablet in a pitch meeting.
+    // ═════════════════════════════════════════════════════════════
+    var tour = { step: 0, active: false };
+    var TOUR_STEPS = [
+        {
+            label: 'STEP 1 / 7',
+            text: 'Welcome to the Meridian tablet GCS running on SITL. You\'re looking at Botany Bay, Sydney. The boat icon is our USV — right now disarmed, holding position. Tap NEXT to continue.',
+            action: function() { /* nothing */ },
+        },
+        {
+            label: 'STEP 2 / 7 — AIS traffic',
+            text: 'Ten realistic vessels (cargo, fishing, pilot, ferry) are broadcasting AIS around us. Colored triangles and rectangles show vessel class. Tap one on the map to see MMSI, name, COG and speed. We pull this straight from the Orca\'s NMEA2000 bridge.',
+            action: function() { state.show_ais = true; syncLayerBtns(); for (var m in ais) { ais[m].marker.addTo(map); ais[m].vector.addTo(map); } },
+        },
+        {
+            label: 'STEP 3 / 7 — Station-keep',
+            text: 'Long-press anywhere on the map (or we will do it now) to set a station. The boat enters STATION_KEEP mode, holds position against wind and current, and automatically avoids threats using full COLREGs (International Regulations for Preventing Collisions).',
+            action: function() { if (state.connected) setStation(-33.970, 151.200); },
+        },
+        {
+            label: 'STEP 4 / 7 — Threat avoidance',
+            text: 'Spawning a synthetic vessel 200 m away, heading straight for us. Watch the status bar: the boat sees the threat, classifies the encounter geometry (head-on / crossing / overtaking), and executes the correct COLREG rule. Red flashing = EVADING.',
+            action: function() { if (state.connected) spawnDemoThreat(); },
+        },
+        {
+            label: 'STEP 5 / 7 — Perception layer',
+            text: 'Perception contacts (buoys, debris, swimmers, small craft not on AIS) come in from the onboard camera/lidar. Each has class, confidence, and source. Spawning debris in the boat\'s path now.',
+            action: function() { if (state.connected) spawnPerception(); state.show_perc = true; syncLayerBtns(); },
+        },
+        {
+            label: 'STEP 6 / 7 — Bench test mode',
+            text: 'Before water ops, verify the rudder and throttle physically respond to commands. Bench Test in Settings gives you a slider, step/sweep/square patterns, and a live rudder-angle chart so you can confirm actuation. Tap NEXT to open it.',
+            action: function() { openBench(); },
+        },
+        {
+            label: 'STEP 7 / 7 — Zero-GPS architecture',
+            text: 'The boat runs on ONE nav source: the Orca Core 2 built-in GPS, forwarded via our bridge to the autopilot. Any existing puck auto-becomes silent standby. Mag+IMU+COG+gyro four-source heading fusion. That\'s the whole pitch: simpler install, same safety, better data rate.',
+            action: function() { closeBench(); toggleGpsPanel(); },
+        },
+    ];
+
+    function startDemoTour() {
+        tour.active = true;
+        tour.step = 0;
+        document.getElementById('settings-overlay').style.display = 'none';
+        document.getElementById('tour-overlay').style.display = 'block';
+        renderTour();
+    }
+    function endDemoTour() {
+        tour.active = false;
+        document.getElementById('tour-overlay').style.display = 'none';
+    }
+    function tourNext() {
+        if (tour.step < TOUR_STEPS.length - 1) {
+            tour.step++;
+            renderTour();
+        } else {
+            endDemoTour();
+        }
+    }
+    function tourPrev() {
+        if (tour.step > 0) { tour.step--; renderTour(); }
+    }
+    function renderTour() {
+        var s = TOUR_STEPS[tour.step];
+        document.getElementById('tour-step-label').textContent = s.label;
+        document.getElementById('tour-text').textContent = s.text;
+        document.getElementById('tour-prev-btn').style.opacity = tour.step === 0 ? '0.4' : '1';
+        document.getElementById('tour-next-btn').textContent = tour.step === TOUR_STEPS.length - 1 ? 'FINISH' : 'NEXT →';
+        try { s.action(); } catch(e) { console.error(e); }
+    }
     </script>
 </body>
 </html>
