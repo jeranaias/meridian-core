@@ -313,6 +313,74 @@
         }
         .health-evt.warning .evt-l { color: var(--warning); }
         .health-evt.notice .evt-l, .health-evt.info .evt-l { color: var(--primary); }
+
+        /* ── Action button command-ack feedback ── */
+        .action-btn.pending {
+            opacity: 0.65;
+            position: relative;
+            pointer-events: none;
+        }
+        .action-btn.pending::after {
+            content: '';
+            position: absolute;
+            inset: 4px;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 6px;
+            animation: btn-spin 0.9s linear infinite;
+            pointer-events: none;
+        }
+        @keyframes btn-spin { to { transform: rotate(360deg); } }
+        .action-btn.ok-flash {
+            background: rgba(0, 230, 118, 0.15) !important;
+            border-color: var(--safe) !important;
+            color: var(--safe) !important;
+            box-shadow: 0 0 18px rgba(0, 230, 118, 0.45);
+            transition: background 0.15s, box-shadow 0.15s, color 0.15s;
+        }
+        .action-btn.fail-flash {
+            background: rgba(255, 23, 68, 0.18) !important;
+            border-color: var(--emergency) !important;
+            color: var(--emergency) !important;
+            box-shadow: 0 0 18px rgba(255, 23, 68, 0.5);
+            animation: btn-shake 0.4s ease-in-out 0s 2;
+        }
+        @keyframes btn-shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+        }
+
+        /* ── Pre-arm checklist (under action panel) ── */
+        .prearm-list {
+            margin-top: 8px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font: 500 11px 'DM Mono', monospace;
+            line-height: 1.4;
+            border: 1px solid;
+            background: rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(6px);
+        }
+        .prearm-list:empty { display: none; }
+        .prearm-list.bad {
+            border-color: var(--emergency);
+            color: var(--emergency);
+        }
+        .prearm-list.ok {
+            border-color: var(--safe);
+            color: var(--safe);
+            background: rgba(0, 230, 118, 0.10);
+        }
+        .prearm-list .prearm-item { padding: 1px 0; }
+        .prearm-list .prearm-ok {
+            font-family: 'Orbitron', 'Rajdhani', sans-serif;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-align: center;
+            font-size: 12px;
+            padding: 4px 0;
+        }
     </style>
 </head>
 <body>
@@ -735,6 +803,9 @@
                 <span class="icon">🛑</span> STOP
             </button>
         </div>
+        <!-- Pre-arm checklist (auto-populated from STATUSTEXT "PreArm: …" messages).
+             Hidden when no failures. -->
+        <div id="prearm-list" class="prearm-list"></div>
     </div>
 
     <script>
@@ -1109,13 +1180,18 @@
     }
 
     // ── Actions ──
+    // Each action sends the MAVLink command AND registers a pending entry
+    // keyed by MAV_CMD id, so when COMMAND_ACK comes back we can flash
+    // the originating button with success / failure state.
+    //   400 = MAV_CMD_COMPONENT_ARM_DISARM
+    //   176 = MAV_CMD_DO_SET_MODE
     function toggleArm() {
         if (state.armed) {
-            sendCmd(0x81); // disarm
-            toast('Disarming...');
+            sendCmd(0x81); // disarm (force-magic 21196 inside sendCmd)
+            if (typeof trackCommand === 'function') trackCommand(400, 'btn-arm', 'DISARM');
         } else {
             sendCmd(0x80); // arm
-            toast('Arming...');
+            if (typeof trackCommand === 'function') trackCommand(400, 'btn-arm', 'ARM');
         }
     }
 
@@ -1125,18 +1201,19 @@
         var wps = waypoints.map(function(w) { return [w.lat, w.lon]; });
         sendMission(wps);
         sendMode(4); // AUTO
+        if (typeof trackCommand === 'function') trackCommand(176, 'btn-go', 'AUTO');
         toast('Mission started — ' + wps.length + ' WP' + (wps.length > 1 ? 's' : ''));
         document.getElementById('btn-go').disabled = true;
     }
 
     function goHome() {
-        sendMode(3); // RTL
-        toast('Returning home');
+        sendMode(3); // RTL (3 in our internal mapping → ArduRover mode 11)
+        if (typeof trackCommand === 'function') trackCommand(176, 'btn-home', 'RTL');
     }
 
     function emergencyStop() {
-        sendCmd(0x81); // disarm
-        toast('EMERGENCY STOP');
+        sendCmd(0x81); // force-disarm
+        if (typeof trackCommand === 'function') trackCommand(400, 'btn-stop', 'E-STOP');
     }
 
     // ── WebSocket (MNP) ──
@@ -1489,6 +1566,14 @@
                 text += String.fromCharCode(p[ti]);
             }
             onStatusText(sev, text);
+            // Pre-arm tracker: any "PreArm: …" message means a check is failing
+            if (sev <= 4 && /^PreArm:/i.test(text)) {
+                onPreArmFailure(text.replace(/^PreArm:\s*/i, ''));
+            }
+        } else if (id === 77 && p.length >= 3) { // COMMAND_ACK
+            var cmd = dv.getUint16(0, true);
+            var result = dv.getUint8(2);
+            onCommandAck(cmd, result);
         } else if (id === 242 && p.length >= 52) { // HOME_POSITION
             state.home = {
                 lat: dv.getInt32(0, true) / 1e7,
@@ -2055,6 +2140,119 @@
         el.style.display = show ? 'block' : 'none';
         if (show) renderHealthPanel();
     }
+
+    // ─────────────────────────────────────────────────────────────
+    //  COMMAND-ACK FEEDBACK + PRE-ARM CHECKLIST
+    //  Wires every action button so the user sees pending → success
+    //  / failure with reason. Also surfaces ArduPilot's pre-arm
+    //  failures as a visible checklist so the operator knows
+    //  exactly what to fix instead of "ARM denied" blackbox.
+    // ─────────────────────────────────────────────────────────────
+
+    // Single-slot pending map keyed by MAV_CMD id.
+    var pendingCmds = {};
+    var ACK_RESULTS = {
+        0: 'ACCEPTED',
+        1: 'TEMP_REJECTED',
+        2: 'DENIED',
+        3: 'UNSUPPORTED',
+        4: 'FAILED',
+        5: 'IN_PROGRESS',
+        6: 'CANCELLED',
+    };
+
+    function trackCommand(cmdId, btnId, label) {
+        pendingCmds[cmdId] = { btnId: btnId, label: label, sent: Date.now() };
+        if (btnId) _setButtonState(btnId, 'pending', label + '...');
+        // 4s ACK watchdog — if no ack arrives, mark timeout
+        setTimeout(function () {
+            var p = pendingCmds[cmdId];
+            if (p && p.sent <= Date.now() - 3500) {
+                if (p.btnId) _setButtonState(p.btnId, 'fail', label + ' TIMEOUT');
+                delete pendingCmds[cmdId];
+                toast('No ACK from vehicle for ' + label);
+            }
+        }, 4000);
+    }
+
+    function _setButtonState(btnId, kind, text) {
+        var btn = document.getElementById(btnId);
+        if (!btn) return;
+        // kind: 'pending' | 'ok' | 'fail' | null (clear)
+        btn.classList.remove('pending', 'ok-flash', 'fail-flash');
+        if (kind === 'pending') {
+            btn.classList.add('pending');
+        } else if (kind === 'ok') {
+            btn.classList.add('ok-flash');
+            setTimeout(function () { btn.classList.remove('ok-flash'); }, 1500);
+        } else if (kind === 'fail') {
+            btn.classList.add('fail-flash');
+            setTimeout(function () { btn.classList.remove('fail-flash'); }, 2500);
+        }
+        // Optional inline label flash
+        if (text) {
+            var orig = btn.dataset._origLabel || btn.innerHTML;
+            btn.dataset._origLabel = orig;
+            btn.innerHTML = text;
+            setTimeout(function () {
+                btn.innerHTML = btn.dataset._origLabel || orig;
+                delete btn.dataset._origLabel;
+            }, kind === 'pending' ? 0 : (kind === 'fail' ? 2500 : 1500));
+        }
+    }
+
+    function onCommandAck(cmd, result) {
+        var p = pendingCmds[cmd];
+        var resultName = ACK_RESULTS[result] || ('R' + result);
+        if (p) {
+            var ok = (result === 0);
+            if (p.btnId) {
+                _setButtonState(p.btnId, ok ? 'ok' : 'fail',
+                    ok ? p.label + ' ✓' : (p.label + ' ' + resultName));
+            }
+            if (!ok) toast(p.label + ' refused: ' + resultName);
+            delete pendingCmds[cmd];
+        }
+        // Also push to events log for the health panel
+        if (typeof onStatusText === 'function') {
+            var sev = (result === 0) ? 6 : 4;  // INFO vs WARNING
+            onStatusText(sev, 'ACK cmd=' + cmd + ' ' + resultName);
+        }
+    }
+
+    // Pre-arm tracker — catches "PreArm: ..." STATUSTEXT messages and
+    // surfaces them as a sticky checklist below the action panel.
+    var preArm = {
+        failures: {},     // {message: last_seen_t}
+        lastTransition: 0,
+    };
+    function onPreArmFailure(msg) {
+        preArm.failures[msg] = Date.now();
+        renderPreArmList();
+    }
+    function renderPreArmList() {
+        var el = document.getElementById('prearm-list');
+        if (!el) return;
+        var now = Date.now();
+        // Auto-expire entries we haven't seen in 90s (boat re-broadcasts ~30s; if it stops, problem cleared)
+        var fresh = {};
+        for (var k in preArm.failures) {
+            if (now - preArm.failures[k] < 90000) fresh[k] = preArm.failures[k];
+        }
+        preArm.failures = fresh;
+        var keys = Object.keys(fresh);
+        if (keys.length === 0) {
+            el.innerHTML = '<div class="prearm-ok">✓ READY TO ARM</div>';
+            el.className = 'prearm-list ok';
+            return;
+        }
+        var items = keys.map(function (k) {
+            return '<div class="prearm-item">✗ ' + k + '</div>';
+        }).join('');
+        el.innerHTML = items;
+        el.className = 'prearm-list bad';
+    }
+    setInterval(renderPreArmList, 3000);  // age out cleared checks every 3s
 
     function haversine(lat1, lon1, lat2, lon2) {
         var R = 6371000, dLat = (lat2 - lat1) * Math.PI / 180, dLon = (lon2 - lon1) * Math.PI / 180;
