@@ -2127,10 +2127,11 @@
             if (canLen > 0 && canLen <= 8) {
                 dcanOnCanFrame(canId, p.subarray(8, 8 + canLen));
             }
-        } else if (id === 47 && p.length >= 3) { // MISSION_ACK
+        } else if (id === 47 && p.length >= 2) { // MISSION_ACK
             // wire order: target_sys(u8) target_comp(u8) type(u8) [mission_type(u8)]
-            // Layout v2: type at offset 2; mission_type at offset 3 if present
-            var ackType = dv.getUint8(2);
+            // MAVLink v2 trailing-zero strip can drop the type byte when it's
+            // 0 (ACCEPTED), leaving a 2-byte payload. Treat missing as 0.
+            var ackType = (p.length >= 3) ? dv.getUint8(2) : 0;
             var missionType = (p.length >= 4) ? dv.getUint8(3) : 0;
             _onMissionAck(missionType, ackType);
         } else if (id === 193 && p.length >= 22) { // EKF_STATUS_REPORT
