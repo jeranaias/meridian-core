@@ -2991,40 +2991,46 @@
     // operator can clear the entire pre-arm list without touching the
     // boat. Each tsSetParam fires a PARAM_SET; ArduPilot acks roughly
     // 100ms each, so we space them with a small queue. The reboot at
-    // the end picks up param changes that need a restart (GPS_TYPE,
-    // BRD_SAFETYENABLE, etc.).
+    // the end picks up changes that need a restart (BRD_SAFETY_DEFLT,
+    // GPS1_TYPE, etc.).
     function tsResolveAll() {
         if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
         if (!confirm(
             'RESOLVE ALL — no-hardware mode\n\n' +
             'This will:\n' +
-            '  • Disable safety switch (BRD_SAFETYENABLE=0)\n' +
+            '  • Disable safety switch (BRD_SAFETY_DEFLT=0)\n' +
             '  • Disable RC throttle failsafe (FS_THR_ENABLE=0)\n' +
             '  • Bypass all arming checks (ARMING_CHECK=0)\n' +
-            '  • Configure dual-HERE4 moving baseline yaw\n' +
-            '  • Set EKF yaw source = GPS\n' +
+            '  • Configure dual-HERE4 as plain DroneCAN GPSes\n' +
+            '  • Set compass yaw + GPS pos/vel as EKF sources\n' +
             '  • Switch to MANUAL mode\n' +
             '  • Reboot the flight controller\n\n' +
             'After reboot the boat will arm without compass cal, RC, or safety switch.'
         )) return;
 
+        // ArduRover 4.6 param names. Older docs say BRD_SAFETYENABLE /
+        // GPS_TYPE / GPS_MB1_TYPE — those are gone, replaced with
+        // BRD_SAFETY_DEFLT / GPS1_TYPE / GPS1_MB_TYPE etc. PARAM_SET
+        // for unknown names is silently rejected, so previous versions
+        // of this button were no-ops for half the steps.
         var steps = [
-            ['BRD_SAFETYENABLE',  0],   // no hardware safety button needed
+            ['BRD_SAFETY_DEFLT',  0],   // safety switch defaults OFF at boot
             ['FS_THR_ENABLE',     0],   // no RC needed
             ['ARMING_CHECK',      0],   // bypass every pre-arm check
-            ['GPS_TYPE',         17],   // primary HERE4 = MB Base
-            ['GPS_TYPE2',        18],   // secondary HERE4 = MB Rover
+            ['GPS1_TYPE',         9],   // plain DroneCAN — moving baseline
+            ['GPS2_TYPE',         9],   // requires HERE4 firmware support;
+            ['GPS1_MB_TYPE',      0],   // sticking to plain dual-GPS keeps
+            ['GPS2_MB_TYPE',      0],   // both receivers fixing independently.
             ['GPS_AUTO_CONFIG',   1],   // auto-config DroneCAN GPS
-            ['GPS_DRV_OPTIONS',   1],   // RTCM3 injection via UAVCAN
-            ['GPS_MB1_TYPE',      1],   // moving baseline on bus 1
-            ['GPS_MB2_TYPE',      0],
-            ['GPS_AUTO_SWITCH',   1],   // failover to whichever has best fix
-            ['EK3_SRC1_YAW',      2],   // yaw from GPS baseline
+            ['GPS_DRV_OPTIONS',   0],
+            ['GPS_AUTO_SWITCH',   1],   // failover to best-fix receiver
+            ['EK3_SRC1_YAW',      1],   // compass yaw — works at standstill;
+                                        // GSF (=6) only locks at >2 m/s
             ['EK3_SRC1_POSXY',    3],   // pos from GPS
             ['EK3_SRC1_VELXY',    3],
             ['EK3_SRC1_POSZ',     1],   // height from baro
-            ['COMPASS_AUTODEC',   1],   // auto magnetic declination (still useful)
-            ['COMPASS_LEARN',     3],   // learn compass in flight as fallback
+            ['COMPASS_AUTODEC',   1],   // auto magnetic declination
+            ['COMPASS_LEARN',     3],   // learn in flight as compass fallback
         ];
 
         toast('RESOLVE ALL: applying ' + steps.length + ' settings…');
@@ -3060,12 +3066,12 @@
     var TROUBLESHOOT_KB = [
         {
             match: 'hardware safety switch',
-            why: 'The physical safety button on the Cube wants a press. Software bypass (BRD_SAFETYENABLE=0) lets you arm without walking out to the boat — Tristan keeps the master kill upstream of the FC anyway.',
+            why: 'The physical safety button on the Cube wants a press. Software bypass (BRD_SAFETY_DEFLT=0) defaults the safety state to OFF at boot, so no walk to the boat needed — the master kill stays upstream of the FC anyway.',
             fixes: [
                 { label: 'Disable safety switch (software only)',
                   action: function () {
-                    tsSetParam('BRD_SAFETYENABLE', 0);
-                    toast('Safety switch disabled. No hardware press needed.');
+                    tsSetParam('BRD_SAFETY_DEFLT', 0);
+                    toast('Safety switch disabled. Reboot to apply.');
                   } },
             ],
         },
@@ -3109,21 +3115,23 @@
             match: /^compass.*not (calibrated|healthy)/i,
             why: 'Compasses don\'t have current cal data. With dual HERE4s on this boat, the BEST option is Moving Baseline RTK — uses the baseline vector between the two GPS antennas as a sub-degree yaw reference. No compass cal needed, no physical rotation, no GPS-course tricks. Also resolves the "DroneCAN GPS role should be Base" error in the same shot.',
             fixes: [
-                // Recommended for dual-HERE4: Moving Baseline RTK.
-                // GPS_TYPE=17 (UAVCAN MB Base), GPS_TYPE2=18 (UAVCAN MB Rover)
-                // configures the two HERE4s as an RTK pair on the boat;
-                // ArduPilot computes precise heading from the baseline.
+                // Dual-HERE4 RTK Moving Baseline. NOTE: requires HERE4
+                // firmware to actually support MB pair role assignment.
+                // Stock HERE4 v1 SKUs do NOT — they enumerate as plain
+                // GPSes regardless. If MB doesn't lock, the FC keeps
+                // emitting "Incorrect Role for DroneCAN GPS, X should be
+                // Base" and GPS2 sits at NoFix waiting for RTCM3 it never
+                // gets. Fall back to compass yaw if so.
                 { label: 'Dual-GPS RTK heading (moving baseline)', action: function () {
-                    tsSetParam('GPS_TYPE',         17);   // primary = MB Base
-                    tsSetParam('GPS_TYPE2',        18);   // secondary = MB Rover
-                    tsSetParam('GPS_AUTO_CONFIG',   1);   // auto-config DroneCAN
-                    tsSetParam('GPS_DRV_OPTIONS',   1);   // RTCM3 injection via UAVCAN
-                    tsSetParam('GPS_MB1_TYPE',      1);   // MB1 enabled on bus 1
-                    tsSetParam('GPS_MB2_TYPE',      0);   // MB2 disabled
-                    tsSetParam('EK3_SRC1_YAW',      2);   // EKF yaw source = GPS
-                    tsSetParam('EK3_SRC1_POSXY',    3);   // Pos = GPS
-                    tsSetParam('EK3_SRC1_VELXY',    3);   // Vel = GPS
-                    // Compass becomes a fallback only — clear arming check on it
+                    tsSetParam('GPS1_TYPE',          17);  // MB Base
+                    tsSetParam('GPS2_TYPE',          18);  // MB Rover
+                    tsSetParam('GPS_AUTO_CONFIG',     1);
+                    tsSetParam('GPS_DRV_OPTIONS',     1);  // RTCM3 inject via UAVCAN
+                    tsSetParam('GPS1_MB_TYPE',        1);
+                    tsSetParam('GPS2_MB_TYPE',        0);
+                    tsSetParam('EK3_SRC1_YAW',        2);  // yaw from GPS baseline
+                    tsSetParam('EK3_SRC1_POSXY',      3);
+                    tsSetParam('EK3_SRC1_VELXY',      3);
                     var cur = (_paramMap['ARMING_CHECK'] || {}).value;
                     if (typeof cur === 'number') {
                         tsSetParam('ARMING_CHECK', cur & ~(1 << 2));
@@ -3189,7 +3197,7 @@
                   } },
                 { label: 'Disable secondary GPS', danger: true,
                   action: function () {
-                    tsSetParam('GPS_TYPE2', 0);
+                    tsSetParam('GPS2_TYPE', 0);
                     toast('GPS2 disabled. Reboot to apply.');
                   } },
             ],
@@ -3201,8 +3209,8 @@
                 { label: 'Reboot Flight Controller', action: function () { tsReboot(); } },
                 { label: 'Promote GPS2 → primary',
                   action: function () {
-                    tsSetParam('GPS_TYPE',  9);  // ensure DroneCAN
-                    tsSetParam('GPS_TYPE2', 9);
+                    tsSetParam('GPS1_TYPE', 9);  // ensure DroneCAN
+                    tsSetParam('GPS2_TYPE', 9);
                     tsSetParam('GPS_AUTO_SWITCH', 1);  // best fix wins
                     toast('GPS_AUTO_SWITCH on. ArduPilot will pick whichever is healthy.');
                   } },
@@ -3224,9 +3232,11 @@
                 // role detection entirely. ArduPilot will treat both HERE4s
                 // as plain GPSes and stop complaining about role mismatch.
                 { label: 'Treat as plain dual-GPS (no RTK)', action: function () {
-                    tsSetParam('GPS_DRV_OPTIONS', 0);   // clear DroneCAN moving-baseline option bits
-                    tsSetParam('GPS_MB1_TYPE', 0);      // disable moving-baseline mode for GPS1
-                    tsSetParam('GPS_MB2_TYPE', 0);      // disable for GPS2
+                    tsSetParam('GPS_DRV_OPTIONS', 0);  // clear MB option bits
+                    tsSetParam('GPS1_MB_TYPE',    0);  // disable MB on GPS1
+                    tsSetParam('GPS2_MB_TYPE',    0);  // disable MB on GPS2
+                    tsSetParam('GPS1_TYPE',       9);  // plain DroneCAN
+                    tsSetParam('GPS2_TYPE',       9);
                     toast('GPS role: plain dual-GPS. Reboot to apply.');
                 } },
                 // Suppress the alarm without changing anything — uses the
