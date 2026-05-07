@@ -753,6 +753,10 @@
         <button onclick="openTuner()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Tune PIDs</button>
         <button onclick="openBench()" style="width:100%;padding:8px;border:1px solid var(--warning);border-radius:4px;background:var(--bg);color:var(--warning);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Bench Test</button>
         <button onclick="openMagCal()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Compass Calibration</button>
+        <button onclick="runAccelCal()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Accel Calibration (level + 6-axis)</button>
+        <button onclick="openParamsPanel()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Parameter Editor</button>
+        <button onclick="rebootFc()" style="width:100%;padding:8px;border:1px solid var(--warning);border-radius:4px;background:var(--bg);color:var(--warning);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">↻ Reboot Flight Controller</button>
+        <button onclick="rebootFcToBl()" style="width:100%;padding:8px;border:1px solid var(--emergency);border-radius:4px;background:var(--bg);color:var(--emergency);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">↻↻ Reboot to Bootloader (DFU)</button>
         <button onclick="startDemoTour()" style="width:100%;padding:8px;border:1px solid var(--safe);border-radius:4px;background:var(--bg);color:var(--safe);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:12px">Start Demo Tour</button>
 
         <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px">
@@ -1475,6 +1479,141 @@
         if (typeof trackCommand === 'function') trackCommand(400, 'btn-stop', 'E-STOP');
     }
 
+    // ──────────────────────────────────────────────────────────────
+    //  System actions: reboot FC, accel cal, param viewer.
+    //  All native MAVLink — no Mission Planner needed.
+    // ──────────────────────────────────────────────────────────────
+
+    function rebootFc() {
+        if (!confirm('Reboot the Flight Controller?\n\nThis disconnects MAVLink for ~5-10s while ArduPilot restarts. Cancels any active mission.')) return;
+        if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+        // MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN = 246
+        //   p1 = 1 (reboot autopilot), 3 (stay in bootloader), 0 (shutdown)
+        ws.send(mavEncode(76, mavCommandLong(246, 1, 0, 0, 0, 0, 0, 0)));
+        if (typeof trackCommand === 'function') trackCommand(246, null, 'REBOOT');
+        toast('Rebooting FC… reconnect in ~10s');
+        toggleSettings();
+    }
+
+    function rebootFcToBl() {
+        if (!confirm('Reboot to BOOTLOADER (DFU mode)?\n\nThe boat will stop responding to MAVLink until you flash new firmware. Only use when intentionally re-flashing.')) return;
+        if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+        ws.send(mavEncode(76, mavCommandLong(246, 3, 0, 0, 0, 0, 0, 0)));
+        toast('Rebooting to bootloader (DFU)…');
+        toggleSettings();
+    }
+
+    function runAccelCal() {
+        if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+        var choice = prompt(
+            'Accel calibration:\n\n' +
+            '  1 = Level (quick, just trim level offsets)\n' +
+            '  2 = 6-axis (full, requires rotating the boat through 6 orientations)\n\n' +
+            'Type 1 or 2:', '1');
+        if (choice !== '1' && choice !== '2') { toast('Cal cancelled'); return; }
+        // MAV_CMD_PREFLIGHT_CALIBRATION = 241
+        // p5 = accel: 1 = simple (level), 2 = 6-axis, 4 = ahrs trim
+        var p5 = (choice === '2') ? 2 : 1;
+        ws.send(mavEncode(76, mavCommandLong(241, 0, 0, 0, 0, p5, 0, 0)));
+        if (typeof trackCommand === 'function') trackCommand(241, null, 'ACCEL_CAL');
+        if (choice === '1') {
+            toast('Level cal sent — keep boat still on level surface for ~2s');
+        } else {
+            toast('6-axis cal started — follow STATUSTEXT prompts to rotate boat');
+        }
+    }
+
+    // Lazy param dump on first open: PARAM_REQUEST_LIST → collect every
+    // PARAM_VALUE response into an in-memory map. Then show searchable
+    // list + edit field.
+    var _paramMap = {};         // name -> {value, type, index, count}
+    var _paramListLoaded = false;
+    function openParamsPanel() {
+        var panel = document.getElementById('params-panel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'params-panel';
+            panel.style.cssText = 'position:fixed;top:60px;right:8px;width:340px;max-width:92vw;max-height:calc(100vh - 80px);overflow:auto;z-index:3500;background:var(--bg-raised);border:1px solid var(--border);border-radius:8px;padding:12px;box-shadow:0 4px 24px rgba(0,0,0,0.5);font-family:Barlow,sans-serif';
+            panel.innerHTML =
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+                '<strong style="font:700 13px Orbitron,Rajdhani,sans-serif;letter-spacing:0.1em;color:var(--primary)">PARAMETERS</strong>' +
+                '<button onclick="this.parentNode.parentNode.remove()" style="background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer">&times;</button>' +
+                '</div>' +
+                '<div style="display:flex;gap:6px;margin-bottom:8px">' +
+                '<input id="param-filter" placeholder="filter (e.g. SERVO, GPS_)" style="flex:1;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font:13px DM Mono,monospace">' +
+                '<button onclick="reloadParams()" style="background:var(--primary);color:var(--bg);border:0;border-radius:4px;padding:6px 10px;cursor:pointer;font:600 11px Rajdhani,sans-serif;letter-spacing:0.08em">RELOAD</button>' +
+                '</div>' +
+                '<div id="param-status" style="font:500 11px DM Mono,monospace;color:var(--dim);margin-bottom:6px">' +
+                (_paramListLoaded ? Object.keys(_paramMap).length + ' params loaded' : 'No params yet — tap RELOAD to fetch') +
+                '</div>' +
+                '<div id="param-list" style="font:500 11px DM Mono,monospace;line-height:1.4"></div>';
+            document.body.appendChild(panel);
+            document.getElementById('param-filter').addEventListener('input', renderParamList);
+        }
+        renderParamList();
+        toggleSettings();
+    }
+
+    function reloadParams() {
+        if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+        _paramMap = {};
+        _paramListLoaded = false;
+        var statusEl = document.getElementById('param-status');
+        if (statusEl) statusEl.textContent = 'requesting full param list…';
+        // MAVLink PARAM_REQUEST_LIST msgid 21
+        var p = new Uint8Array(2);
+        p[0] = 1; p[1] = 1;
+        ws.send(mavEncode(21, p));
+        // Status updates as PARAM_VALUEs arrive — mark loaded after 5s of no new ones
+        setTimeout(function () {
+            _paramListLoaded = true;
+            if (statusEl) statusEl.textContent = Object.keys(_paramMap).length + ' params loaded';
+            renderParamList();
+        }, 8000);
+    }
+
+    function renderParamList() {
+        var listEl = document.getElementById('param-list');
+        if (!listEl) return;
+        var filter = (document.getElementById('param-filter') || { value: '' }).value.toUpperCase();
+        var keys = Object.keys(_paramMap);
+        if (filter) keys = keys.filter(function (k) { return k.indexOf(filter) >= 0; });
+        keys.sort();
+        if (keys.length === 0) { listEl.innerHTML = '<div style="color:var(--dim);padding:8px">no params match</div>'; return; }
+        var html = '';
+        keys.slice(0, 200).forEach(function (k) {
+            var v = _paramMap[k].value;
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px dashed rgba(30,42,56,0.5)">' +
+                '<span style="color:var(--text)">' + k + '</span>' +
+                '<span><input type="number" step="any" value="' + v + '" style="width:90px;padding:3px 5px;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text);font:11px DM Mono,monospace" data-param="' + k + '" onblur="setParamFromInput(this)"></span>' +
+                '</div>';
+        });
+        if (keys.length > 200) html += '<div style="color:var(--dim);padding:6px;text-align:center">… ' + (keys.length - 200) + ' more (use filter)</div>';
+        listEl.innerHTML = html;
+    }
+
+    function setParamFromInput(input) {
+        var name = input.dataset.param;
+        var newVal = parseFloat(input.value);
+        if (isNaN(newVal)) { toast('Invalid value'); return; }
+        var existing = _paramMap[name];
+        if (existing && existing.value === newVal) return;  // no change
+        if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+        // PARAM_SET msgid 23 — wire order: f32 value, char[16] name, u8 type, u8 sys, u8 comp
+        var b = new Uint8Array(23);
+        var dv = new DataView(b.buffer);
+        dv.setFloat32(0, newVal, true);
+        for (var i = 0; i < 16; i++) {
+            b[4 + i] = i < name.length ? name.charCodeAt(i) : 0;
+        }
+        b[20] = 9;  // type = REAL32 (most common)
+        b[21] = 1;  // target sys
+        b[22] = 1;  // target comp
+        ws.send(mavEncode(23, b));
+        toast('SET ' + name + ' = ' + newVal);
+        if (existing) existing.value = newVal;
+    }
+
     // Force ArduPilot to re-run its pre-arm validator immediately and
     // emit fresh STATUSTEXTs for any current failures. Wipes our local
     // failure cache first so cleared checks fall off after the 5-second
@@ -1932,6 +2071,28 @@
                 freemem:  dv.getUint16(2, true),
                 freemem32: p.length >= 8 ? dv.getUint32(4, true) : null,
             };
+        } else if (id === 22 && p.length >= 25) { // PARAM_VALUE
+            // Wire order (size desc): f32 value, u16 count, u16 index, char[16] name, u8 type
+            var pVal = dv.getFloat32(0, true);
+            var pName = '';
+            for (var pi = 8; pi < 24; pi++) {
+                if (p[pi] === 0) break;
+                pName += String.fromCharCode(p[pi]);
+            }
+            if (pName) {
+                _paramMap[pName] = {
+                    value: pVal,
+                    type: dv.getUint8(24),
+                    count: dv.getUint16(4, true),
+                    index: dv.getUint16(6, true),
+                };
+                // Live re-render the param panel if it's open
+                var listEl = document.getElementById('param-list');
+                if (listEl && Object.keys(_paramMap).length % 25 === 0) {
+                    var statusEl = document.getElementById('param-status');
+                    if (statusEl) statusEl.textContent = Object.keys(_paramMap).length + ' / ' + _paramMap[pName].count + ' params received…';
+                }
+            }
         } else if (id === 242 && p.length >= 52) { // HOME_POSITION
             state.home = {
                 lat: dv.getInt32(0, true) / 1e7,
@@ -3861,11 +4022,23 @@
         var a2 = state.gps2.last && now - state.gps2.last < 5000;
         if (!a1 && !a2) { b.style.display = 'none'; return; }
         b.style.display = 'inline-block';
-        var primary = a1 ? 'Orca' : (a2 ? 'Puck' : '—');
-        var count = (a1 ? 1 : 0) + (a2 ? 1 : 0);
-        b.textContent = 'GPS: ' + primary + (count > 1 ? ' +1' : '');
-        b.style.borderColor = a1 ? 'var(--primary)' : 'var(--warning)';
-        b.style.color = a1 ? 'var(--primary)' : 'var(--warning)';
+        // Build label from actual telemetry. Both GPSes healthy = "GPS×2",
+        // primary only = "GPS1", secondary only = "GPS2 (FAIL OVER)".
+        var label;
+        var color;
+        if (a1 && a2) {
+            label = 'GPS×2 ' + state.gps1.sats + '+' + state.gps2.sats + 'S';
+            color = 'var(--primary)';
+        } else if (a1) {
+            label = 'GPS1 ' + state.gps1.sats + 'S';
+            color = 'var(--primary)';
+        } else {
+            label = 'GPS2 ' + state.gps2.sats + 'S (failover)';
+            color = 'var(--warning)';
+        }
+        b.textContent = label;
+        b.style.borderColor = color;
+        b.style.color = color;
     }
 
     function toggleGpsPanel() {
@@ -3895,8 +4068,8 @@
                 + '</div></div>';
         }
         var html = '';
-        html += row('GPS 1 (ORCA via MAVLink)', state.gps1, 'PRIMARY');
-        html += row('GPS 2 (Serial puck)', state.gps2, 'STANDBY');
+        html += row('GPS 1 (DroneCAN, primary)', state.gps1, 'PRIMARY');
+        html += row('GPS 2 (DroneCAN, secondary)', state.gps2, 'STANDBY');
         document.getElementById('gps-panel-body').innerHTML = html;
     }
 
