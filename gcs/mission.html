@@ -460,6 +460,45 @@
         .prearm-list .prearm-snooze-btn:hover {
             background: rgba(0, 229, 255, 0.22);
         }
+        /* Master RESOLVE ALL header — visually distinct so the operator
+           knows it acts on every error at once. Amber = "this is a big
+           one-tap action" without crossing into red/danger territory. */
+        .prearm-list .prearm-resolve-all {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 10px;
+            background: rgba(255, 167, 38, 0.08);
+            border: 1px solid var(--warning);
+            border-radius: 4px;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+        }
+        .prearm-list .prearm-resolve-all-text {
+            font: 500 11px 'Barlow', sans-serif;
+            color: var(--text);
+            line-height: 1.3;
+            flex: 1;
+        }
+        .prearm-list .prearm-resolve-all-text strong {
+            color: var(--warning);
+            font-weight: 700;
+        }
+        .prearm-list .prearm-resolve-all-btn {
+            background: var(--warning);
+            border: none;
+            color: #1a1a1a;
+            padding: 8px 14px;
+            border-radius: 3px;
+            font: 700 12px 'Rajdhani', 'DM Mono', sans-serif;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            text-transform: uppercase;
+            min-height: 36px;
+            flex-shrink: 0;
+            transition: filter 0.12s;
+        }
+        .prearm-list .prearm-resolve-all-btn:hover {
+            filter: brightness(1.15);
+        }
         .prearm-list .prearm-footer {
             margin-top: 6px;
             padding-top: 6px;
@@ -2948,6 +2987,69 @@
         renderPreArmList();
     }
 
+    // ── Self-resolve: run every software-only fix in sequence so the
+    // operator can clear the entire pre-arm list without touching the
+    // boat. Each tsSetParam fires a PARAM_SET; ArduPilot acks roughly
+    // 100ms each, so we space them with a small queue. The reboot at
+    // the end picks up param changes that need a restart (GPS_TYPE,
+    // BRD_SAFETYENABLE, etc.).
+    function tsResolveAll() {
+        if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+        if (!confirm(
+            'RESOLVE ALL — no-hardware mode\n\n' +
+            'This will:\n' +
+            '  • Disable safety switch (BRD_SAFETYENABLE=0)\n' +
+            '  • Disable RC throttle failsafe (FS_THR_ENABLE=0)\n' +
+            '  • Bypass all arming checks (ARMING_CHECK=0)\n' +
+            '  • Configure dual-HERE4 moving baseline yaw\n' +
+            '  • Set EKF yaw source = GPS\n' +
+            '  • Switch to MANUAL mode\n' +
+            '  • Reboot the flight controller\n\n' +
+            'After reboot the boat will arm without compass cal, RC, or safety switch.'
+        )) return;
+
+        var steps = [
+            ['BRD_SAFETYENABLE',  0],   // no hardware safety button needed
+            ['FS_THR_ENABLE',     0],   // no RC needed
+            ['ARMING_CHECK',      0],   // bypass every pre-arm check
+            ['GPS_TYPE',         17],   // primary HERE4 = MB Base
+            ['GPS_TYPE2',        18],   // secondary HERE4 = MB Rover
+            ['GPS_AUTO_CONFIG',   1],   // auto-config DroneCAN GPS
+            ['GPS_DRV_OPTIONS',   1],   // RTCM3 injection via UAVCAN
+            ['GPS_MB1_TYPE',      1],   // moving baseline on bus 1
+            ['GPS_MB2_TYPE',      0],
+            ['GPS_AUTO_SWITCH',   1],   // failover to whichever has best fix
+            ['EK3_SRC1_YAW',      2],   // yaw from GPS baseline
+            ['EK3_SRC1_POSXY',    3],   // pos from GPS
+            ['EK3_SRC1_VELXY',    3],
+            ['EK3_SRC1_POSZ',     1],   // height from baro
+            ['COMPASS_AUTODEC',   1],   // auto magnetic declination (still useful)
+            ['COMPASS_LEARN',     3],   // learn compass in flight as fallback
+        ];
+
+        toast('RESOLVE ALL: applying ' + steps.length + ' settings…');
+        var i = 0;
+        function next() {
+            if (i >= steps.length) {
+                // Switch to MANUAL, then reboot 2s later
+                try { sendModeWithFeedback(0, 'MANUAL', null); } catch (e) {}
+                setTimeout(function () {
+                    toast('Rebooting flight controller…');
+                    tsReboot();
+                    setTimeout(function () {
+                        toast('Self-resolve complete. Boat should be ready to arm after relink.');
+                    }, 6000);
+                }, 1500);
+                return;
+            }
+            var step = steps[i++];
+            tsSetParam(step[0], step[1]);
+            setTimeout(next, 180);  // ~5/sec — leaves room for ACKs
+        }
+        next();
+    }
+    window.tsResolveAll = tsResolveAll;
+
     // ──────────────────────────────────────────────────────────────
     //  TROUBLESHOOT KB — known ArduPilot error strings, plain-English
     //  explanations, and one-tap fix actions. Keep this as the boat
@@ -2958,18 +3060,42 @@
     var TROUBLESHOOT_KB = [
         {
             match: 'hardware safety switch',
-            why: 'The physical safety button on the Cube needs to be pressed (hold ~2s until LED stops flashing).',
+            why: 'The physical safety button on the Cube wants a press. Software bypass (BRD_SAFETYENABLE=0) lets you arm without walking out to the boat — Tristan keeps the master kill upstream of the FC anyway.',
             fixes: [
-                { label: 'Disable safety switch (bench only)', danger: true,
-                  action: function () { tsSetParam('BRD_SAFETYENABLE', 0); } },
+                { label: 'Disable safety switch (software only)',
+                  action: function () {
+                    tsSetParam('BRD_SAFETYENABLE', 0);
+                    toast('Safety switch disabled. No hardware press needed.');
+                  } },
             ],
         },
         {
             match: '3d accel calibration',
-            why: 'Accelerometers haven\'t been calibrated. ArduPilot needs both level and 6-axis cal.',
+            why: 'Accels never calibrated. Physical cal needs the boat tilted — no good when you\'re not at the boat. Software path: use factory defaults and skip the accel arming check; accuracy is fine for surface vehicles which only care about heading.',
             fixes: [
-                { label: 'Run Level Cal',  action: function () { tsAccelCal(1); } },
-                { label: 'Run 6-axis Cal', action: function () { tsAccelCal(2); } },
+                { label: 'Skip accel check (no hardware)',
+                  action: function () {
+                    // Set ARMING_CHECK to all-but-INS bits. INS check = bit 1 (2).
+                    // If currently 1 (all-checks-on), expand to explicit bitmask
+                    // missing the INS bit. If already a bitmask, just clear it.
+                    var cur = (_paramMap['ARMING_CHECK'] || {}).value;
+                    var newVal;
+                    if (typeof cur !== 'number' || cur === 1) {
+                        // Expanded "all except INS" mask: every defined bit except bit 1
+                        newVal = 0x7FFFD;  // bits 0,2..18 set
+                    } else {
+                        newVal = cur & ~(1 << 1);
+                    }
+                    tsSetParam('ARMING_CHECK', newVal);
+                    tsSetParam('INS_USE', 1);
+                    tsSetParam('INS_USE2', 1);
+                    tsSetParam('INS_USE3', 0);
+                    toast('Accel check skipped. Ready to arm.');
+                  } },
+                { label: 'Run Level Cal (auto, no rotation)',
+                  action: function () { tsAccelCal(1); toast('Level cal sent. Boat must be roughly level.'); } },
+                { label: 'Run 6-axis Cal (interactive)',
+                  action: function () { tsAccelCal(2); toast('6-axis cal: follow position prompts.'); } },
             ],
         },
         {
@@ -2981,37 +3107,50 @@
         },
         {
             match: /^compass.*not (calibrated|healthy)/i,
-            why: 'Compasses on the boat don\'t have current calibration data. Physical rotation cal is hard on a 1-2m USV — three options below, in order of effort. Standstill cal is recommended for boats: ArduPilot uses GPS course of motion as yaw reference instead of relying on the magnetometer.',
+            why: 'Compasses don\'t have current cal data. With dual HERE4s on this boat, the BEST option is Moving Baseline RTK — uses the baseline vector between the two GPS antennas as a sub-degree yaw reference. No compass cal needed, no physical rotation, no GPS-course tricks. Also resolves the "DroneCAN GPS role should be Base" error in the same shot.',
             fixes: [
-                // Best for USVs: skip rotation entirely, use GSF (GPS Synthetic
-                // Yaw) which infers heading from motion. Drive forward 30s
-                // and the EKF learns alignment.
-                { label: 'Standstill cal (GPS yaw, no rotation)', action: function () {
+                // Recommended for dual-HERE4: Moving Baseline RTK.
+                // GPS_TYPE=17 (UAVCAN MB Base), GPS_TYPE2=18 (UAVCAN MB Rover)
+                // configures the two HERE4s as an RTK pair on the boat;
+                // ArduPilot computes precise heading from the baseline.
+                { label: 'Dual-GPS RTK heading (moving baseline)', action: function () {
+                    tsSetParam('GPS_TYPE',         17);   // primary = MB Base
+                    tsSetParam('GPS_TYPE2',        18);   // secondary = MB Rover
+                    tsSetParam('GPS_AUTO_CONFIG',   1);   // auto-config DroneCAN
+                    tsSetParam('GPS_DRV_OPTIONS',   1);   // RTCM3 injection via UAVCAN
+                    tsSetParam('GPS_MB1_TYPE',      1);   // MB1 enabled on bus 1
+                    tsSetParam('GPS_MB2_TYPE',      0);   // MB2 disabled
+                    tsSetParam('EK3_SRC1_YAW',      2);   // EKF yaw source = GPS
+                    tsSetParam('EK3_SRC1_POSXY',    3);   // Pos = GPS
+                    tsSetParam('EK3_SRC1_VELXY',    3);   // Vel = GPS
+                    // Compass becomes a fallback only — clear arming check on it
+                    var cur = (_paramMap['ARMING_CHECK'] || {}).value;
+                    if (typeof cur === 'number') {
+                        tsSetParam('ARMING_CHECK', cur & ~(1 << 2));
+                    }
+                    toast('Moving Baseline configured. Reboot to apply. Heading from GPS baseline.');
+                } },
+                // Single-GPS fallback: GSF (GPS Synthetic Yaw) from course-of-motion
+                { label: 'Standstill cal (single-GPS, no rotation)', action: function () {
                     tsSetParam('EK3_SRC1_YAW',  6);  // GSF — GPS course-based yaw
-                    tsSetParam('COMPASS_LEARN', 3);  // in-flight learning
-                    tsSetParam('COMPASS_AUTODEC', 1); // auto magnetic declination
-                    // Clear compass bit (4) from ARMING_CHECK so we can arm without cal
+                    tsSetParam('COMPASS_LEARN', 3);
+                    tsSetParam('COMPASS_AUTODEC', 1);
                     var cur = (_paramMap['ARMING_CHECK'] || {}).value;
                     if (typeof cur === 'number') {
                         tsSetParam('ARMING_CHECK', cur & ~(1 << 2));
                     } else {
-                        tsSetParam('ARMING_CHECK', 1);  // basic checks only
+                        tsSetParam('ARMING_CHECK', 1);
                     }
-                    toast('GSF yaw enabled. Reboot, then drive forward 30s for alignment.');
+                    toast('GSF yaw enabled. Drive forward 30s for alignment.');
                 } },
-                { label: 'Run rotation cal (all compasses)', action: function () { openMagCal(); toggleSettings(); } },
-                { label: 'Use only primary compass', danger: true, action: function () {
-                    tsSetParam('COMPASS_USE2', 0);
-                    tsSetParam('COMPASS_USE3', 0);
-                    toast('Secondary compasses disabled. Reboot to apply.');
-                } },
+                { label: 'Run rotation cal (legacy)', action: function () { openMagCal(); toggleSettings(); } },
                 { label: 'Disable compass entirely', danger: true, action: function () {
-                    if (!confirm('Disable ALL magnetometers and rely only on GPS for heading? Boat will use GSF (GPS course) as yaw source. Recommended only for surface vessels with consistent forward motion.')) return;
+                    if (!confirm('Disable ALL magnetometers? GPS-based yaw will be the only heading source.')) return;
                     tsSetParam('COMPASS_ENABLE',  0);
                     tsSetParam('EK3_SRC1_YAW',    6);
                     var cur = (_paramMap['ARMING_CHECK'] || {}).value;
                     if (typeof cur === 'number') tsSetParam('ARMING_CHECK', cur & ~(1 << 2));
-                    toast('Compass disabled. Reboot. EKF will use GPS course as yaw.');
+                    toast('Compass disabled. EKF will use GPS course as yaw.');
                 } },
             ],
         },
@@ -3034,8 +3173,20 @@
         },
         {
             match: /gps\s*[12]:\s*bad fix/i,
-            why: 'A GPS receiver isn\'t getting a 3D fix. Check sky view, antenna placement, and that the second HERE4 is wired to CAN.',
+            why: 'A GPS receiver isn\'t locked. Common from indoor work or before the HERE4s see sky. Software paths: disable the offending receiver, or skip the GPS arming check so you can run on whatever fix you have (motors stay safe — the boat just won\'t hold position).',
             fixes: [
+                { label: 'Skip GPS arming check (no hardware)',
+                  action: function () {
+                    var cur = (_paramMap['ARMING_CHECK'] || {}).value;
+                    var newVal;
+                    if (typeof cur !== 'number' || cur === 1) {
+                        newVal = 0x7FFF7;  // all-except-GPS (bit 3)
+                    } else {
+                        newVal = cur & ~(1 << 3);
+                    }
+                    tsSetParam('ARMING_CHECK', newVal);
+                    toast('GPS check skipped. Will arm without lock.');
+                  } },
                 { label: 'Disable secondary GPS', danger: true,
                   action: function () {
                     tsSetParam('GPS_TYPE2', 0);
@@ -3045,9 +3196,16 @@
         },
         {
             match: 'gps 1: not healthy',
-            why: 'Primary GPS lost or returned an error. Check wiring + sky view; if it doesn\'t recover, this points at a HERE4 config or CAN bus issue.',
+            why: 'Primary GPS reported an error. First try a software reboot — most CAN-side glitches clear after a clean restart. If it persists, swap to GPS2-as-primary in software.',
             fixes: [
                 { label: 'Reboot Flight Controller', action: function () { tsReboot(); } },
+                { label: 'Promote GPS2 → primary',
+                  action: function () {
+                    tsSetParam('GPS_TYPE',  9);  // ensure DroneCAN
+                    tsSetParam('GPS_TYPE2', 9);
+                    tsSetParam('GPS_AUTO_SWITCH', 1);  // best fix wins
+                    toast('GPS_AUTO_SWITCH on. ArduPilot will pick whichever is healthy.');
+                  } },
             ],
         },
         {
@@ -3221,6 +3379,24 @@
         window._tsSnooze = window._tsSnooze || {};
         var fixIdx = 0, snoozeIdx = 0;
         var html = '';
+
+        // Master "RESOLVE ALL" header — software-only paths for every
+        // current pre-arm error, applied in one tap. Operator does not
+        // need to be at the boat. Only renders when there are visible
+        // failures (hidden when only snoozed items remain).
+        if (visible.length > 0) {
+            html += '<div class="prearm-resolve-all">' +
+                '<div class="prearm-resolve-all-text">' +
+                    '<strong>' + visible.length + ' issue' + (visible.length === 1 ? '' : 's') + ' blocking arm</strong> · ' +
+                    'all have software-only fixes' +
+                '</div>' +
+                '<button class="prearm-resolve-all-btn" ' +
+                        'onclick="tsResolveAll()" ' +
+                        'title="Apply every software fix in one tap, then reboot. No hardware needed.">' +
+                    'RESOLVE ALL' +
+                '</button>' +
+            '</div>';
+        }
 
         visible.forEach(function (k) {
             var entry = _troubleshootMatch(k);
