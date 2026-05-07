@@ -605,6 +605,14 @@
             <div id="hp-batt-detail"></div>
         </div>
         <div class="hp-section">
+            <h4>EKF / navigation</h4>
+            <div id="hp-ekf-detail"></div>
+        </div>
+        <div class="hp-section">
+            <h4>Power rails</h4>
+            <div id="hp-power-detail"></div>
+        </div>
+        <div class="hp-section">
             <h4>IMU vibration</h4>
             <div id="hp-vibe-detail"></div>
         </div>
@@ -1049,8 +1057,16 @@
         esc: new Array(16).fill(null),
         // STATUSTEXT log (most-recent-first)
         events: [],
+        // EKF variance (msgid 193) — navigation health.
+        ekf: null,    // {vel_var, pos_h_var, pos_v_var, compass_var, terrain_var, flags}
+        // Board power (msgid 125) — Vcc rail brownout warning.
+        power: null,  // {vcc, vservo, flags}
+        // Barometer (msgid 29) — temp + pressure for predictive maintenance.
+        baro: null,   // {abs_p, temp_c}
+        // ArduPilot's free-memory report (msgid 152).
+        meminfo: null,
         // Health latch — set by check* functions, displayed in #health-badge
-        health: { battery: 'ok', vibration: 'ok', esc: 'ok' },
+        health: { battery: 'ok', vibration: 'ok', esc: 'ok', ekf: 'ok', power: 'ok' },
         // Bench test
         bench_active: false, bench_thr: 0, bench_steer: 0, bench_pattern: null, bench_pattern_t0: 0,
         // AIS sim enable state (mirror of server param)
@@ -1878,6 +1894,35 @@
             var cmd = dv.getUint16(0, true);
             var result = dv.getUint8(2);
             onCommandAck(cmd, result);
+        } else if (id === 193 && p.length >= 22) { // EKF_STATUS_REPORT
+            // Wire order (size desc): 5 floats then uint16
+            state.ekf = {
+                vel_var:    dv.getFloat32(0, true),
+                pos_h_var:  dv.getFloat32(4, true),
+                pos_v_var:  dv.getFloat32(8, true),
+                compass_var:dv.getFloat32(12, true),
+                terrain_var:dv.getFloat32(16, true),
+                flags:      dv.getUint16(20, true),
+            };
+            checkEkfThresholds();
+        } else if (id === 125 && p.length >= 6) { // POWER_STATUS
+            state.power = {
+                vcc:    dv.getUint16(0, true) / 1000.0,
+                vservo: dv.getUint16(2, true) / 1000.0,
+                flags:  dv.getUint16(4, true),
+            };
+            checkPowerThresholds();
+        } else if (id === 29 && p.length >= 14) { // SCALED_PRESSURE
+            state.baro = {
+                abs_p: dv.getFloat32(4, true),
+                temp_c: dv.getInt16(12, true) / 100.0,
+            };
+        } else if (id === 152 && p.length >= 4) { // MEMINFO
+            state.meminfo = {
+                brkval:   dv.getUint16(0, true),
+                freemem:  dv.getUint16(2, true),
+                freemem32: p.length >= 8 ? dv.getUint32(4, true) : null,
+            };
         } else if (id === 242 && p.length >= 52) { // HOME_POSITION
             state.home = {
                 lat: dv.getInt32(0, true) / 1e7,
@@ -2224,6 +2269,18 @@
         // ESC temperature (°C) — most BLHeli ESCs derate >80, fail >100
         esc_temp_warn:   80,
         esc_temp_crit:   100,
+        // EKF variance — ArduPilot's own GCS_FAILSAFE thresholds:
+        //   <0.5 = healthy fusion
+        //   0.5-0.8 = degraded (warn)
+        //   >0.8 = critical (autopilot may reject AUTO modes)
+        ekf_warn:        0.5,
+        ekf_crit:        0.8,
+        // Vcc rail (V). H7 cubes: nominal 4.9-5.1V. Below 4.5 = brownout risk.
+        vcc_warn:        4.7,
+        vcc_crit:        4.4,
+        // Cube internal temp from baro1 (°C). Alarm if running hot.
+        cube_temp_warn:  60,
+        cube_temp_crit:  75,
     };
 
     var _health_alerts = {
@@ -2308,6 +2365,27 @@
             setTimeout(function () { _health_alerts.vibe_warn_played = false; }, 60000);
         }
         _setHealthChip('vibration', level);
+    }
+
+    function checkEkfThresholds() {
+        if (!state.ekf) return;
+        var worst = Math.max(
+            state.ekf.vel_var || 0,
+            state.ekf.pos_h_var || 0,
+            state.ekf.pos_v_var || 0,
+            state.ekf.compass_var || 0
+        );
+        var level = worst >= HEALTH_THRESH.ekf_crit ? 'crit'
+                  : worst >= HEALTH_THRESH.ekf_warn ? 'warn' : 'ok';
+        _setHealthChip('ekf', level);
+    }
+
+    function checkPowerThresholds() {
+        if (!state.power) return;
+        var v = state.power.vcc || 0;
+        var level = v <= HEALTH_THRESH.vcc_crit ? 'crit'
+                  : v <= HEALTH_THRESH.vcc_warn ? 'warn' : 'ok';
+        _setHealthChip('power', level);
     }
 
     function checkEscThresholds() {
@@ -2428,6 +2506,46 @@
                 (state.batt_mah > 0 ? '<div class="hp-row"><span>Consumed</span><strong>' + state.batt_mah + ' mAh / ' + (state.batt_hj * 0.0001).toFixed(2) + ' kJ</strong></div>' : '') +
                 (timeRemMin !== null ? '<div class="hp-row"><span>Time remaining</span><strong>~' + timeRemMin + ' min</strong></div>' : '') +
                 (state.batt_temp ? '<div class="hp-row"><span>Pack temp</span><strong>' + state.batt_temp.toFixed(1) + ' °C</strong></div>' : '');
+        }
+
+        // EKF / navigation health
+        var ekfEl = document.getElementById('hp-ekf-detail');
+        if (ekfEl) {
+            if (!state.ekf) {
+                ekfEl.innerHTML = '<div class="hp-row"><span>(no EKF report yet)</span></div>';
+            } else {
+                var ek = state.ekf;
+                function vCls(v) {
+                    return v >= HEALTH_THRESH.ekf_crit ? 'crit'
+                         : v >= HEALTH_THRESH.ekf_warn ? 'warn' : '';
+                }
+                ekfEl.innerHTML =
+                    '<div class="hp-row"><span>Velocity variance</span><strong class="' + vCls(ek.vel_var) + '">' + (ek.vel_var || 0).toFixed(3) + '</strong></div>' +
+                    '<div class="hp-row"><span>Pos horiz variance</span><strong class="' + vCls(ek.pos_h_var) + '">' + (ek.pos_h_var || 0).toFixed(3) + '</strong></div>' +
+                    '<div class="hp-row"><span>Pos vert variance</span><strong class="' + vCls(ek.pos_v_var) + '">' + (ek.pos_v_var || 0).toFixed(3) + '</strong></div>' +
+                    '<div class="hp-row"><span>Compass variance</span><strong class="' + vCls(ek.compass_var) + '">' + (ek.compass_var || 0).toFixed(3) + '</strong></div>' +
+                    '<div class="hp-row"><span>Terrain variance</span><strong>' + (ek.terrain_var || 0).toFixed(3) + '</strong></div>' +
+                    '<div class="hp-row"><span>EKF flags</span><strong>0x' + (ek.flags | 0).toString(16) + '</strong></div>';
+            }
+        }
+
+        // Power rails
+        var pwrEl = document.getElementById('hp-power-detail');
+        if (pwrEl) {
+            if (!state.power) {
+                pwrEl.innerHTML = '<div class="hp-row"><span>(no POWER_STATUS yet)</span></div>';
+            } else {
+                var pw = state.power;
+                var vCls2 = pw.vcc <= HEALTH_THRESH.vcc_crit ? 'crit'
+                          : pw.vcc <= HEALTH_THRESH.vcc_warn ? 'warn' : '';
+                pwrEl.innerHTML =
+                    '<div class="hp-row"><span>Vcc (board 5V)</span><strong class="' + vCls2 + '">' + pw.vcc.toFixed(2) + ' V</strong></div>' +
+                    '<div class="hp-row"><span>Vservo (servo rail)</span><strong>' + pw.vservo.toFixed(2) + ' V</strong></div>' +
+                    '<div class="hp-row"><span>Power flags</span><strong>0x' + pw.flags.toString(16) + '</strong></div>' +
+                    (state.baro ? '<div class="hp-row"><span>Cube internal temp</span><strong>' + state.baro.temp_c.toFixed(1) + ' °C</strong></div>' : '') +
+                    (state.baro ? '<div class="hp-row"><span>Pressure (baro1)</span><strong>' + state.baro.abs_p.toFixed(1) + ' hPa</strong></div>' : '') +
+                    (state.meminfo ? '<div class="hp-row"><span>Free memory</span><strong>' + (state.meminfo.freemem32 || state.meminfo.freemem) + ' B</strong></div>' : '');
+            }
         }
 
         // Vibration

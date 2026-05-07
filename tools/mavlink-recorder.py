@@ -160,6 +160,51 @@ def _decode_vibration(p: bytes) -> Optional[dict]:
     return {"vibration_xyz": [vx, vy, vz], "clipping": [c0, c1, c2]}
 
 
+def _decode_ekf_status_report(p: bytes) -> Optional[dict]:
+    """EKF_STATUS_REPORT (193). Wire order (size desc): 5 floats then uint16.
+    Variance values: 0=perfect, ~1.0 = at the threshold of usable, >1.0 bad."""
+    if len(p) < 22: return None
+    vel, posH, posV, compass, terrain = struct.unpack_from("<5f", p, 0)
+    flags = struct.unpack_from("<H", p, 20)[0]
+    out = {"flags": flags, "vel_var": vel, "pos_horiz_var": posH,
+           "pos_vert_var": posV, "compass_var": compass, "terrain_var": terrain}
+    if len(p) >= 24:
+        out["airspeed_var"] = struct.unpack_from("<f", p, 22)[0]
+    return out
+
+
+def _decode_power_status(p: bytes) -> Optional[dict]:
+    """POWER_STATUS (125). u16 Vcc, u16 Vservo, u16 flags."""
+    if len(p) < 6: return None
+    Vcc, Vservo, flags = struct.unpack_from("<HHH", p, 0)
+    return {"vcc_v": Vcc / 1000.0, "vservo_v": Vservo / 1000.0, "flags": flags}
+
+
+def _decode_scaled_pressure(p: bytes) -> Optional[dict]:
+    """SCALED_PRESSURE (29). u32 time_ms, f32 abs_pressure, f32 diff_pressure, i16 temp."""
+    if len(p) < 14: return None
+    t_ms, abs_p, diff_p = struct.unpack_from("<Iff", p, 0)
+    temp = struct.unpack_from("<h", p, 12)[0]
+    return {"abs_pressure_hpa": abs_p, "diff_pressure_hpa": diff_p, "temp_c": temp / 100.0}
+
+
+def _decode_meminfo(p: bytes) -> Optional[dict]:
+    """MEMINFO (152) ardupilot-flavored. u16 brkval, u16 freemem (sometimes
+    extended with u32 freemem32 in newer)."""
+    if len(p) < 4: return None
+    brkval, freemem = struct.unpack_from("<HH", p, 0)
+    out = {"brkval": brkval, "freemem_kb": freemem}
+    if len(p) >= 8:
+        out["freemem32"] = struct.unpack_from("<I", p, 4)[0]
+    return out
+
+
+def _decode_local_position_ned(p: bytes) -> Optional[dict]:
+    if len(p) < 28: return None
+    t_ms, x, y, z, vx, vy, vz = struct.unpack_from("<I6f", p, 0)
+    return {"x_m": x, "y_m": y, "z_m": z, "vx_ms": vx, "vy_ms": vy, "vz_ms": vz}
+
+
 def _decode_servo_output_raw(p: bytes) -> Optional[dict]:
     # MAVLink v2 truncates trailing zero bytes; the original message is
     # u32 time + u8 port + 16xU16 = 37 bytes, but we may receive
@@ -208,12 +253,17 @@ DECODERS = {
     0:    ("HEARTBEAT",            _decode_heartbeat,                None),  # transition events handled below
     1:    ("SYS_STATUS",           _decode_sys_status,               2.0),
     24:   ("GPS_RAW_INT",          _decode_gps_raw_int,              2.0),
+    29:   ("SCALED_PRESSURE",      _decode_scaled_pressure,          5.0),
     30:   ("ATTITUDE",             _decode_attitude,                 0.5),
+    32:   ("LOCAL_POSITION_NED",   _decode_local_position_ned,       1.0),
     33:   ("GLOBAL_POSITION_INT",  _decode_global_position,          1.0),
     36:   ("SERVO_OUTPUT_RAW",     _decode_servo_output_raw,         1.0),
     74:   ("VFR_HUD",              _decode_vfr_hud,                  1.0),
     77:   ("COMMAND_ACK",          _decode_command_ack,              None),  # always log
+    125:  ("POWER_STATUS",         _decode_power_status,             5.0),
     147:  ("BATTERY_STATUS",       _decode_battery_status,           1.0),
+    152:  ("MEMINFO",              _decode_meminfo,                  10.0),  # only every 10s
+    193:  ("EKF_STATUS_REPORT",    _decode_ekf_status_report,        2.0),
     241:  ("VIBRATION",            _decode_vibration,                2.0),
     253:  ("STATUSTEXT",           _decode_statustext,               None),  # always log
     11030: ("ESC_TELEMETRY_1_TO_4",  lambda p: _decode_esc_telemetry(p, 0),  1.0),
