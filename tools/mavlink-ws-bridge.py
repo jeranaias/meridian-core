@@ -66,45 +66,128 @@ class Transport:
 
 
 class SerialTransport(Transport):
-    """Serial port (USB CDC or FTDI RFD900x)."""
+    """Serial port (USB CDC or FTDI RFD900x).
+
+    Self-healing: if `port` is "auto" or read/write start failing, the
+    transport rescans for a Cube COM port and reopens — so an FC reboot
+    that re-enumerates as a different COM port no longer requires a
+    manual bridge restart.
+    """
+
+    # USB VIDs we treat as a Cube/Pixhawk family flight controller.
+    # 2DAE = Hex/CubePilot, 1209 = pid.codes (some variants), 26AC = 3DR.
+    FC_VIDS = {0x2DAE, 0x1209, 0x26AC}
 
     def __init__(self, port: str, baud: int):
         try:
-            import serial
+            import serial  # noqa: F401
+            from serial.tools import list_ports  # noqa: F401
         except ImportError:
             log.error("pip install pyserial")
             sys.exit(1)
-        log.info(f"Opening serial port {port} @ {baud} baud")
-        self.ser = serial.Serial(port, baud, timeout=0)
-        self.ser.reset_input_buffer()
-        log.info("Serial port open")
+        self.requested_port = port
+        self.baud = baud
+        self.ser = None
+        self._open_blocking()  # sync open at startup so we fail fast if no FC present
+
+    @classmethod
+    def _autodetect(cls):
+        """Return the lowest-numbered COM port whose USB VID matches a
+        flight controller. None if no candidates."""
+        from serial.tools import list_ports
+        cands = []
+        for p in list_ports.comports():
+            vid = getattr(p, "vid", None)
+            if vid in cls.FC_VIDS:
+                cands.append(p.device)
+        if not cands:
+            return None
+        # Sort by numeric COM index when possible (COM3 < COM10).
+        def keyfn(name):
+            digits = "".join(c for c in name if c.isdigit())
+            return (int(digits) if digits else 0, name)
+        cands.sort(key=keyfn)
+        return cands[0]
+
+    def _open_blocking(self):
+        import serial
+        port = self.requested_port
+        if port.lower() == "auto":
+            port = self._autodetect()
+            if port is None:
+                raise RuntimeError("No flight controller COM port found (VID 2DAE/1209/26AC)")
+        log.info(f"Opening serial port {port} @ {self.baud} baud")
+        ser = serial.Serial(port, self.baud, timeout=0)
+        ser.reset_input_buffer()
+        self.ser = ser
+        self.current_port = port
+        log.info(f"Serial port open: {port}")
+
+    def _try_reconnect(self) -> bool:
+        """Close the dead handle and try to find/reopen a Cube COM port.
+        Returns True on success."""
+        try:
+            if self.ser:
+                self.ser.close()
+        except Exception:
+            pass
+        self.ser = None
+
+        # Always autodetect on reconnect — even if the user passed an
+        # explicit port, the FC may have re-enumerated as a different
+        # COM number after a reboot. Auto-detect picks up the new one.
+        new_port = self._autodetect()
+        if new_port is None:
+            return False
+        try:
+            import serial
+            ser = serial.Serial(new_port, self.baud, timeout=0)
+            ser.reset_input_buffer()
+            self.ser = ser
+            self.current_port = new_port
+            log.info(f"Serial reconnected on {new_port}")
+            return True
+        except Exception as e:
+            log.warning(f"Reconnect attempt failed on {new_port}: {e}")
+            return False
 
     async def read(self) -> bytes:
         loop = asyncio.get_event_loop()
-        # Non-blocking read via thread executor
         data = await loop.run_in_executor(None, self._read_blocking)
         return data
 
     def _read_blocking(self):
+        import time
+        if self.ser is None:
+            # No port — try to recover, then yield
+            if self._try_reconnect():
+                return b""
+            time.sleep(1.0)  # back off when no FC is present
+            return b""
         try:
             n = self.ser.in_waiting
             if n > 0:
                 return self.ser.read(n)
         except Exception as e:
-            log.error(f"Serial read error: {e}")
-        import time
-        time.sleep(0.005)  # 5ms poll interval
+            log.error(f"Serial read error: {e}; attempting reconnect")
+            self._try_reconnect()
+            return b""
+        time.sleep(0.005)
         return b""
 
     async def write(self, data: bytes) -> None:
+        if self.ser is None:
+            return
         try:
             self.ser.write(data)
         except Exception as e:
-            log.error(f"Serial write error: {e}")
+            log.error(f"Serial write error: {e}; attempting reconnect")
+            self._try_reconnect()
 
     async def close(self) -> None:
         try:
-            self.ser.close()
+            if self.ser:
+                self.ser.close()
         except Exception:
             pass
 
@@ -361,7 +444,9 @@ Then open the tablet:
     )
     src = p.add_mutually_exclusive_group(required=True)
     src.add_argument("--serial", metavar="PORT",
-                     help="Serial port (e.g., COM4, /dev/ttyACM0)")
+                     help="Serial port (e.g., COM4, /dev/ttyACM0). "
+                          "Use 'auto' to autodetect Cube COM port and self-heal "
+                          "across FC reboots.")
     src.add_argument("--udp", metavar="HOST:PORT",
                      help="UDP endpoint to receive MAVLink from")
     src.add_argument("--tcp", metavar="HOST:PORT",
