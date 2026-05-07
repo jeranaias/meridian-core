@@ -490,6 +490,35 @@ async def cmd_verify(args) -> int:
     return 0
 
 
+async def cmd_fix_streams(args) -> int:
+    """Set ArduPilot's SRn_* stream rate params so we get the messages
+    we actually use in the GCS — derived from analysis of real recorded
+    sessions where BATTERY_STATUS / VFR_HUD / VIBRATION / RC_CHANNELS
+    / AHRS / ESC_TELEMETRY were all missing.
+
+    SR0_* governs streams sent over Serial0 (USB on Cube Plus).
+    """
+    # (param_name, hz, what's in this stream)
+    PLAN = [
+        ("SR0_RAW_SENS",  4,  "RAW_IMU, SCALED_PRESSURE, SCALED_IMU2"),
+        ("SR0_EXT_STAT",  2,  "SYS_STATUS, GPS_RAW_INT, BATTERY_STATUS"),
+        ("SR0_RC_CHAN",   2,  "RC_CHANNELS, SERVO_OUTPUT_RAW"),
+        ("SR0_RAW_CTRL",  1,  "RC controller raw"),
+        ("SR0_POSITION",  5,  "GLOBAL_POSITION_INT, LOCAL_POS, HOME_POSITION"),
+        ("SR0_EXTRA1",   10,  "ATTITUDE, ATTITUDE_TARGET"),
+        ("SR0_EXTRA2",    4,  "VFR_HUD"),
+        ("SR0_EXTRA3",    2,  "AHRS, AHRS2, VIBRATION, BATTERY_STATUS, ESC_TELEMETRY"),
+        ("SR0_PARAMS",   10,  "PARAM_VALUE during dump"),
+    ]
+    async with Bridge(args.ws) as bridge:
+        applied = {}
+        for name, rate, what in PLAN:
+            ok = await _set_param(bridge, name, float(rate))
+            applied[name] = {"rate_hz": rate, "applied": ok, "messages": what}
+        print(json.dumps({"streams": applied}, indent=2))
+    return 0
+
+
 async def cmd_restore_param(args) -> int:
     async with Bridge(args.ws) as bridge:
         ok = await _set_param(bridge, args.name, args.value)
@@ -534,6 +563,11 @@ def main():
     vp.add_argument("--confirm-prop-out", action="store_true",
                     help="REQUIRED: confirms prop is out of water")
 
+    sp.add_parser("fix-streams",
+        help="Set SR0_* stream rate params so the GCS gets BATTERY_STATUS / "
+             "VIBRATION / VFR_HUD / RC_CHANNELS / etc. (by default ArduRover "
+             "leaves several streams disabled; this enables them persistently)")
+
     rp = sp.add_parser("restore-param", help="Set one param back to a value (rollback helper)")
     rp.add_argument("--name", required=True)
     rp.add_argument("--value", type=float, required=True)
@@ -547,6 +581,7 @@ def main():
         "arming-bypass": cmd_arming_bypass,
         "verify": cmd_verify,
         "restore-param": cmd_restore_param,
+        "fix-streams": cmd_fix_streams,
     }
     rc = asyncio.run(fn_map[args.cmd](args))
     sys.exit(rc)

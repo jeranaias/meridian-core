@@ -1503,19 +1503,53 @@
             toast('Connected');
             // Wake the autopilot's MAVLink streams so we actually receive
             // GPS / position / VFR_HUD / battery — ArduPilot defaults to a
-            // skeleton stream until a GCS asks for more. Send REQUEST_DATA_STREAM
-            // (msgid 66) for stream 0 (ALL) at 10Hz.
-            // Layout: u16 rate, u8 target_sys, u8 target_comp, u8 stream_id, u8 start_stop
+            // skeleton stream until a GCS asks for more.
+            //
+            // Belt-and-suspenders: send BOTH the legacy REQUEST_DATA_STREAM
+            // AND modern MAV_CMD_SET_MESSAGE_INTERVAL (511) for the
+            // specific messages we render. SET_MESSAGE_INTERVAL is more
+            // reliable — it overrides the SRn_* rate params per-message.
             if (protocol === 'mavlink') {
                 try {
+                    // 1. Legacy: REQUEST_DATA_STREAM ALL @ 10Hz
                     var rate = 10;
                     var p = new Uint8Array(6);
                     p[0] = rate & 0xFF; p[1] = (rate >> 8) & 0xFF;
-                    p[2] = 1;        // target_sys
-                    p[3] = 1;        // target_comp
-                    p[4] = 0;        // MAV_DATA_STREAM_ALL
-                    p[5] = 1;        // start
+                    p[2] = 1; p[3] = 1; p[4] = 0; p[5] = 1;
                     ws.send(mavEncode(66, p));
+
+                    // 2. Modern: SET_MESSAGE_INTERVAL per critical msg.
+                    // p1 = msgid, p2 = interval (microseconds; -1 disable, 0 default rate)
+                    // Earlier analyzer of recorded data showed BATTERY_STATUS,
+                    // VIBRATION, VFR_HUD, RC_CHANNELS, AHRS, HOME_POSITION,
+                    // ESC_TELEMETRY were all missing on default ArduRover
+                    // config — explicit per-message requests fix it.
+                    var REQUESTS = [
+                        [  0, 1000000],  // HEARTBEAT — 1Hz
+                        [  1,  500000],  // SYS_STATUS — 2Hz
+                        [ 24,  200000],  // GPS_RAW_INT — 5Hz
+                        [ 30,  100000],  // ATTITUDE — 10Hz
+                        [ 33,  200000],  // GLOBAL_POSITION_INT — 5Hz
+                        [ 36,  500000],  // SERVO_OUTPUT_RAW — 2Hz
+                        [ 65,  500000],  // RC_CHANNELS — 2Hz
+                        [ 74,  250000],  // VFR_HUD — 4Hz
+                        [147, 1000000],  // BATTERY_STATUS — 1Hz (cells, current, mAh)
+                        [241, 2000000],  // VIBRATION — 0.5Hz
+                        [242,  -1],      // HOME_POSITION on demand (skip; we'll
+                                         // request via MAV_CMD_REQUEST_MESSAGE)
+                        [253,       0],  // STATUSTEXT — default rate (event-driven)
+                        [11030, 2000000], // ESC_TELEMETRY 1-4 — 0.5Hz (if BLHeli ESCs present)
+                    ];
+                    for (var ri = 0; ri < REQUESTS.length; ri++) {
+                        var msgid = REQUESTS[ri][0];
+                        var interval = REQUESTS[ri][1];
+                        // MAV_CMD_SET_MESSAGE_INTERVAL = 511; cmd 76 = COMMAND_LONG
+                        // p1 = msgid, p2 = interval µs. param2 must be float not int.
+                        ws.send(mavEncode(76, mavCommandLong(511, msgid, interval, 0, 0, 0, 0, 0)));
+                    }
+
+                    // Once-per-session HOME_POSITION request (242)
+                    ws.send(mavEncode(76, mavCommandLong(512, 242, 0, 0, 0, 0, 0, 0)));
                 } catch(e) { console.warn('stream request failed:', e); }
             }
         };
