@@ -3070,6 +3070,47 @@
             ],
         },
         {
+            // 6-axis accel cal step prompts. ArduPilot emits one per
+            // orientation (level / left / right / nose-down / nose-up /
+            // back) and waits for MAV_CMD_ACCELCAL_VEHICLE_POS (42429)
+            // to advance. Mission Planner shows a "Click when Done"
+            // button — we provide the same here so cal can run end-to-end
+            // from the tablet.
+            match: /place vehicle.*press any/i,
+            why: 'Accel cal step in progress. Position the boat as instructed in the message above, then tap CONTINUE. Repeat until ArduPilot reports "Calibration successful".',
+            fixes: [
+                { label: '✓ Position Ready (Continue)', action: function () {
+                    if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+                    // MAV_CMD_ACCELCAL_VEHICLE_POS = 42429, p1 = next-position flag (1)
+                    ws.send(mavEncode(76, mavCommandLong(42429, 1, 0, 0, 0, 0, 0, 0)));
+                    toast('Continue → next orientation');
+                    // Snooze this row briefly so it disappears while the
+                    // operator repositions; ArduPilot will emit the next
+                    // step prompt which re-populates with fresh text.
+                    for (var k in preArm.failures) {
+                        if (/place vehicle.*press any/i.test(k)) {
+                            preArm.snoozed[k] = Date.now() + 5000;  // 5s
+                        }
+                    }
+                    renderPreArmList();
+                } },
+                { label: 'Cancel cal', danger: true, action: function () {
+                    if (!ws || ws.readyState !== 1) return;
+                    // MAV_CMD 42428 = MAV_CMD_PREFLIGHT_CALIBRATION cancel via 0,0,0,0,0,0,0
+                    // Use PREFLIGHT_CALIBRATION p7=1 to cancel
+                    ws.send(mavEncode(76, mavCommandLong(241, 0, 0, 0, 0, 0, 0, 1)));
+                    toast('Cal cancelled');
+                } },
+            ],
+        },
+        {
+            match: /calibration successful/i,
+            why: 'Cal completed. Reboot to load the new offsets.',
+            fixes: [
+                { label: 'Reboot Flight Controller', action: function () { tsReboot(); } },
+            ],
+        },
+        {
             match: /ekf.*stopped aiding/i,
             why: 'EKF lost its primary position source (usually GPS). It\'s gracefully degrading; should resume when sensors come back.',
             fixes: [],
