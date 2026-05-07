@@ -153,16 +153,18 @@
         .leaflet-control-attribution { display: none !important; }
         .leaflet-control-zoom { display: none !important; }
 
-        /* ── Toast ── */
+        /* ── Toast ── corner-anchored top-left, out of the way of the
+           map, the action panel, and the health panel slide-out. */
         #toast {
-            position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
-            padding: 10px 20px; border-radius: 8px; z-index: 3000;
-            font-size: 14px; font-weight: 600; display: none;
+            position: fixed; top: 70px; left: 12px;
+            padding: 10px 18px; border-radius: 6px; z-index: 3000;
+            font-size: 13px; font-weight: 600; display: none;
             background: var(--bg-raised); border: 1px solid var(--border);
             color: var(--text); box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            max-width: 360px;
         }
         #toast.show { display: block; animation: fadeIn 0.2s; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 
         @media (min-width: 768px) {
             #action-panel { flex-direction: row; padding: 12px 24px; }
@@ -643,6 +645,17 @@
             <span>VEHICLE HEALTH</span>
             <button onclick="toggleHealthPanel()" class="hp-close" title="Close">&times;</button>
         </div>
+        <!-- Active errors / pre-arm with troubleshoot fixes — top of the
+             panel because this is what the operator opens it for. -->
+        <div class="hp-section" id="hp-errors-section">
+            <h4 style="display:flex;justify-content:space-between;align-items:center">
+                <span>Active errors / pre-arm</span>
+                <button id="btn-prearm-recheck" class="prearm-recheck-btn"
+                        onclick="runPreArmChecks()" title="Ask ArduPilot to re-run pre-arm checks now"
+                        style="font:600 9px DM Mono,monospace">↻ RE-CHECK</button>
+            </h4>
+            <div id="prearm-list" class="prearm-list"></div>
+        </div>
         <div class="hp-section">
             <h4>Battery</h4>
             <div id="hp-batt-detail"></div>
@@ -1051,27 +1064,13 @@
             </button>
         </div>
         <!-- Mode tray: quick-tap mode switching for the four ArduRover modes
-             we use most. Highlighted = vehicle's current mode. Each button
-             registers a pending command so the operator gets visual ack
-             feedback when the mode actually takes effect. -->
+             we use most. Highlighted = vehicle's current mode. -->
         <div class="mode-tray" id="mode-tray">
             <button class="mode-btn" data-mode-idx="0" onclick="sendModeWithFeedback(0,'MANUAL',this)">MANUAL</button>
             <button class="mode-btn" data-mode-idx="1" onclick="sendModeWithFeedback(1,'HOLD',this)">HOLD</button>
             <button class="mode-btn" data-mode-idx="2" onclick="sendModeWithFeedback(2,'LOITER',this)">LOITER</button>
             <button class="mode-btn" data-mode-idx="4" onclick="sendModeWithFeedback(4,'AUTO',this)">AUTO</button>
         </div>
-        <!-- Pre-arm checklist (auto-populated from STATUSTEXT "PreArm: …" messages).
-             Hidden when no failures. The RE-CHECK button asks ArduPilot to
-             re-run pre-arm validation NOW (MAV_CMD_RUN_PREARM_CHECKS=401)
-             so we don't have to wait for its periodic broadcast — useful
-             after Tristan presses the safety switch / runs cal to confirm. -->
-        <div class="prearm-controls">
-            <button id="btn-prearm-recheck" class="prearm-recheck-btn"
-                    onclick="runPreArmChecks()" title="Ask ArduPilot to re-run pre-arm checks now">
-                ↻ RE-CHECK
-            </button>
-        </div>
-        <div id="prearm-list" class="prearm-list"></div>
     </div>
 
     <script>
@@ -2523,15 +2522,25 @@
     function _setHealthChip(key, level) {
         // level: 'ok' | 'warn' | 'crit'
         state.health[key] = level;
+        _refreshHealthChip();
+    }
+    function _refreshHealthChip() {
         var worst = 'ok';
         for (var k in state.health) {
             if (state.health[k] === 'crit') { worst = 'crit'; break; }
             if (state.health[k] === 'warn') worst = 'warn';
         }
+        // Count active pre-arm/troubleshoot errors so the chip can show
+        // "HEALTH ✕ (4)" — operator knows how many things need fixing
+        // without opening the panel.
+        var errCount = preArm && preArm.failures ? Object.keys(preArm.failures).length : 0;
+        if (errCount > 0 && worst === 'ok') worst = 'warn';
         var chip = document.getElementById('health-chip');
         if (chip) {
             chip.className = 'health-chip ' + worst;
-            chip.textContent = worst === 'ok' ? 'HEALTH ✓' : (worst === 'warn' ? 'HEALTH ⚠' : 'HEALTH ✕');
+            var icon = worst === 'ok' ? '✓' : (worst === 'warn' ? '⚠' : '✕');
+            var suffix = errCount > 0 ? ' (' + errCount + ')' : '';
+            chip.textContent = 'HEALTH ' + icon + suffix;
         }
     }
 
@@ -3101,6 +3110,7 @@
         if (keys.length === 0) {
             el.innerHTML = '<div class="prearm-ok">✓ READY TO ARM</div>';
             el.className = 'prearm-list ok';
+            _refreshHealthChip();
             return;
         }
         // Hide each fix's action behind a global registry — we can't put
@@ -3133,6 +3143,7 @@
         });
         el.innerHTML = html;
         el.className = 'prearm-list bad';
+        _refreshHealthChip();
     }
     setInterval(renderPreArmList, 3000);  // age out cleared checks every 3s
 
