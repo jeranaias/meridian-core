@@ -436,6 +436,39 @@
         .prearm-list .prearm-fix-btn.danger:hover {
             background: rgba(255, 167, 38, 0.22);
         }
+        .prearm-list .prearm-row-head {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 8px; margin-bottom: 4px;
+        }
+        .prearm-list .prearm-snooze-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--dim);
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            cursor: pointer;
+            min-height: 26px;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+        .prearm-list .prearm-snooze-btn:hover {
+            color: var(--text);
+            border-color: var(--primary);
+        }
+        .prearm-list .prearm-footer {
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px dashed rgba(255,23,68,0.15);
+            font: 500 10px 'DM Mono', monospace;
+            color: var(--dim);
+            text-align: center;
+        }
+        .prearm-list .prearm-footer a {
+            color: var(--primary);
+            text-decoration: none;
+            margin: 0 2px;
+        }
         .prearm-list .prearm-ok {
             font-family: 'Orbitron', 'Rajdhani', sans-serif;
             font-weight: 700;
@@ -493,77 +526,33 @@
             color: var(--emergency) !important;
         }
 
-        /* ─── Tactical action-button override ─────────────────────────
-           Polish the four core buttons (ARM/GO/HOME/STOP) into a more
-           operational/military aesthetic:
-             - Sharp 3px corners instead of pillowy 12px
-             - Orbitron + tight letter-spacing
-             - Beveled clip-path "chamfer" on corners
-             - Inset background gradient (depth)
-             - Status LED dot top-right that pulses on critical
-             - Stencil-style icon at 28px with subtle text-shadow
-           Pure CSS override, no HTML/JS changes. */
+        /* ─── Tactical action-button override (cleaned-up) ────────────
+           Sharp corners, Orbitron font, solid backgrounds. No keyframe
+           animations on the button face itself — animations were
+           interacting badly with pending-state spinners and confusing
+           the operator. State changes are still visible via class
+           swap (ok-flash / fail-flash) but those are short single-shot.
+           Static look = guaranteed clickable. */
         .action-btn {
             border-radius: 3px !important;
             border-width: 1px !important;
             font-family: 'Orbitron', 'Rajdhani', sans-serif !important;
-            letter-spacing: 0.16em !important;
+            letter-spacing: 0.14em !important;
             font-weight: 700 !important;
             font-size: 12px !important;
-            background:
-                linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.18)) !important;
-            box-shadow:
-                inset 0 1px 0 rgba(255,255,255,0.06),
-                inset 0 -1px 0 rgba(0,0,0,0.4),
-                0 1px 3px rgba(0,0,0,0.45);
-            position: relative;
-            overflow: hidden;
-        }
-        /* Top-right stencil chamfer */
-        .action-btn::before {
-            content: '';
-            position: absolute;
-            top: -1px; right: -1px;
-            width: 14px; height: 14px;
-            background: var(--bg-glass);
-            clip-path: polygon(100% 0, 0 0, 100% 100%);
-            border-bottom-left: 1px solid currentColor;
+            background: rgba(0, 0, 0, 0.30) !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.45);
         }
         .action-btn .icon {
-            font-size: 28px !important;
-            text-shadow: 0 0 8px currentColor;
+            font-size: 22px !important;
             filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
         }
-        /* Per-state strong glows when active/important */
         .action-btn.arm.armed {
-            background:
-                linear-gradient(180deg, rgba(255,109,0,0.12), rgba(255,109,0,0.04)) !important;
-            box-shadow:
-                inset 0 0 24px rgba(255,109,0,0.25),
-                inset 0 1px 0 rgba(255,109,0,0.4),
-                0 0 12px rgba(255,109,0,0.4);
-            animation: tactical-pulse 1.6s ease-in-out infinite;
+            background: rgba(255, 109, 0, 0.18) !important;
+            box-shadow: 0 0 10px rgba(255, 109, 0, 0.35);
         }
-        .action-btn.stop {
-            background:
-                linear-gradient(180deg, rgba(255,23,68,0.10), rgba(255,23,68,0.02)) !important;
-        }
-        .action-btn.stop:active,
         .action-btn.stop:hover {
-            background: rgba(255,23,68,0.20) !important;
-            box-shadow:
-                inset 0 0 18px rgba(255,23,68,0.4),
-                0 0 14px rgba(255,23,68,0.5);
-        }
-        @keyframes tactical-pulse {
-            0%, 100% { box-shadow:
-                inset 0 0 24px rgba(255,109,0,0.25),
-                inset 0 1px 0 rgba(255,109,0,0.4),
-                0 0 12px rgba(255,109,0,0.4); }
-            50%      { box-shadow:
-                inset 0 0 32px rgba(255,109,0,0.4),
-                inset 0 1px 0 rgba(255,109,0,0.6),
-                0 0 22px rgba(255,109,0,0.6); }
+            background: rgba(255, 23, 68, 0.20) !important;
         }
 
         /* Pre-arm "RE-CHECK" button — small, sits above the list */
@@ -2929,8 +2918,27 @@
     // surfaces them as a sticky checklist below the action panel.
     var preArm = {
         failures: {},     // {message: last_seen_t}
+        snoozed: {},      // {message: wake_at_t} — hidden until that timestamp
+        showSnoozed: false,  // operator can toggle visibility
         lastTransition: 0,
     };
+
+    // Default snooze = 15 minutes. Auto-un-snoozes when the time passes.
+    var SNOOZE_MS = 15 * 60 * 1000;
+    function snoozeError(msg) {
+        preArm.snoozed[msg] = Date.now() + SNOOZE_MS;
+        renderPreArmList();
+        toast('Snoozed 15 min: ' + msg);
+    }
+    function unsnoozeAll() {
+        preArm.snoozed = {};
+        renderPreArmList();
+        toast('All snoozed errors restored');
+    }
+    function toggleShowSnoozed() {
+        preArm.showSnoozed = !preArm.showSnoozed;
+        renderPreArmList();
+    }
     function onPreArmFailure(msg) {
         preArm.failures[msg] = Date.now();
         renderPreArmList();
@@ -3101,31 +3109,54 @@
         var el = document.getElementById('prearm-list');
         if (!el) return;
         var now = Date.now();
+        // 1. Drop entries we haven't seen in 90s (problem cleared on
+        //    boat side OR snooze expired and message stopped re-firing).
         var fresh = {};
         for (var k in preArm.failures) {
             if (now - preArm.failures[k] < 90000) fresh[k] = preArm.failures[k];
         }
         preArm.failures = fresh;
-        var keys = Object.keys(fresh);
-        if (keys.length === 0) {
+        // 2. Auto-clear expired snoozes
+        for (var s in preArm.snoozed) {
+            if (preArm.snoozed[s] <= now) delete preArm.snoozed[s];
+        }
+        // 3. Split into visible vs snoozed
+        var visible = [];
+        var snoozedKeys = [];
+        for (var k2 in fresh) {
+            if (preArm.snoozed[k2] && !preArm.showSnoozed) snoozedKeys.push(k2);
+            else visible.push(k2);
+        }
+
+        if (visible.length === 0 && snoozedKeys.length === 0) {
             el.innerHTML = '<div class="prearm-ok">✓ READY TO ARM</div>';
             el.className = 'prearm-list ok';
             _refreshHealthChip();
             return;
         }
-        // Hide each fix's action behind a global registry — we can't put
-        // arbitrary JS in onclick attributes safely, so we bind via dataset.
+
+        // Bind fix-button + snooze-button callbacks via global registry.
         window._tsFixes = window._tsFixes || {};
-        var fixIdx = 0;
+        window._tsSnooze = window._tsSnooze || {};
+        var fixIdx = 0, snoozeIdx = 0;
         var html = '';
-        keys.forEach(function (k) {
+
+        visible.forEach(function (k) {
             var entry = _troubleshootMatch(k);
+            var safe = k.replace(/[<>&]/g, function (c) { return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]; });
+            // Snooze button: stable id per-message so re-renders don't
+            // leak registry entries.
+            var snzId = 'tssnz-' + (snoozeIdx++);
+            window._tsSnooze[snzId] = (function (msg) { return function () { snoozeError(msg); }; })(k);
             html += '<div class="prearm-item-row">' +
-                '<div class="prearm-msg">✗ ' + k.replace(/[<>&]/g, function (c) { return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]; }) + '</div>';
+                '<div class="prearm-row-head">' +
+                    '<div class="prearm-msg">✗ ' + safe + '</div>' +
+                    '<button class="prearm-snooze-btn" ' +
+                            'onclick="(window._tsSnooze[\'' + snzId + '\']||function(){})()" ' +
+                            'title="Snooze 15 min">🔕</button>' +
+                '</div>';
             if (entry) {
-                if (entry.why) {
-                    html += '<div class="prearm-why">' + entry.why + '</div>';
-                }
+                if (entry.why) html += '<div class="prearm-why">' + entry.why + '</div>';
                 if (entry.fixes && entry.fixes.length) {
                     html += '<div class="prearm-fix-row">';
                     entry.fixes.forEach(function (f) {
@@ -3137,10 +3168,21 @@
                     html += '</div>';
                 }
             } else {
-                html += '<div class="prearm-why" style="opacity:0.65">No specific guidance for this message yet — check Mission Planner / ArduPilot wiki.</div>';
+                html += '<div class="prearm-why" style="opacity:0.65">No specific guidance for this message yet.</div>';
             }
             html += '</div>';
         });
+
+        // Footer if anything is snoozed
+        if (snoozedKeys.length > 0) {
+            html += '<div class="prearm-footer">' +
+                snoozedKeys.length + ' snoozed · ' +
+                '<a href="#" onclick="event.preventDefault();toggleShowSnoozed();">' +
+                    (preArm.showSnoozed ? 'hide' : 'show') + '</a>' +
+                ' · <a href="#" onclick="event.preventDefault();unsnoozeAll();">restore all</a>' +
+                '</div>';
+        }
+
         el.innerHTML = html;
         el.className = 'prearm-list bad';
         _refreshHealthChip();
