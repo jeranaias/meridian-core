@@ -214,7 +214,13 @@
             );
         }
 
-        /* Sweep highlight along the bottom border of the status bar. */
+        /* Sweep highlight along the bottom border of the status bar.
+           IMPORTANT: don't override #status-bar's position:fixed here —
+           absolute pseudo-elements work fine inside a fixed parent
+           (fixed creates its own positioning context). An earlier
+           "position:relative" override was knocking the bar out of
+           fixed mode and Leaflet reflow on waypoint-add was pushing
+           it off-screen. */
         #status-bar::after {
             content: '';
             position: absolute;
@@ -225,7 +231,6 @@
             pointer-events: none;
         }
         @keyframes sb-sweep { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
-        #status-bar { position: relative; overflow: visible; }
 
         /* Glow on the connection dot when connected. */
         .conn-dot.connected {
