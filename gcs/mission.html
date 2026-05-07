@@ -391,6 +391,49 @@
             background: rgba(0, 230, 118, 0.10);
         }
         .prearm-list .prearm-item { padding: 1px 0; }
+        .prearm-list .prearm-item-row {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,23,68,0.15);
+        }
+        .prearm-list .prearm-item-row:last-child { border-bottom: 0; }
+        .prearm-list .prearm-msg {
+            font: 600 11px 'DM Mono', monospace;
+            color: var(--emergency);
+            margin-bottom: 4px;
+        }
+        .prearm-list .prearm-why {
+            font: 500 11px 'Barlow', sans-serif;
+            color: var(--text);
+            line-height: 1.4;
+            margin-bottom: 6px;
+        }
+        .prearm-list .prearm-fix-row {
+            display: flex; flex-wrap: wrap; gap: 4px;
+        }
+        .prearm-list .prearm-fix-btn {
+            background: rgba(0, 229, 255, 0.10);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 5px 10px;
+            border-radius: 3px;
+            font: 600 10px 'Rajdhani', 'DM Mono', sans-serif;
+            letter-spacing: 0.06em;
+            cursor: pointer;
+            text-transform: uppercase;
+            min-height: 32px;
+            transition: background 0.12s;
+        }
+        .prearm-list .prearm-fix-btn:hover {
+            background: rgba(0, 229, 255, 0.22);
+        }
+        .prearm-list .prearm-fix-btn.danger {
+            background: rgba(255, 167, 38, 0.10);
+            border-color: var(--warning);
+            color: var(--warning);
+        }
+        .prearm-list .prearm-fix-btn.danger:hover {
+            background: rgba(255, 167, 38, 0.22);
+        }
         .prearm-list .prearm-ok {
             font-family: 'Orbitron', 'Rajdhani', sans-serif;
             font-weight: 700;
@@ -2859,11 +2902,158 @@
         preArm.failures[msg] = Date.now();
         renderPreArmList();
     }
+
+    // ──────────────────────────────────────────────────────────────
+    //  TROUBLESHOOT KB — known ArduPilot error strings, plain-English
+    //  explanations, and one-tap fix actions. Keep this as the boat
+    //  surfaces new error patterns we haven't seen yet.
+    //  Each entry: { match, why, fixes: [{label, action, danger?}] }
+    //  match can be a string (substring) or a regex; runs on lowercase msg.
+    // ──────────────────────────────────────────────────────────────
+    var TROUBLESHOOT_KB = [
+        {
+            match: 'hardware safety switch',
+            why: 'The physical safety button on the Cube needs to be pressed (hold ~2s until LED stops flashing).',
+            fixes: [
+                { label: 'Disable safety switch (bench only)', danger: true,
+                  action: function () { tsSetParam('BRD_SAFETYENABLE', 0); } },
+            ],
+        },
+        {
+            match: '3d accel calibration',
+            why: 'Accelerometers haven\'t been calibrated. ArduPilot needs both level and 6-axis cal.',
+            fixes: [
+                { label: 'Run Level Cal',  action: function () { tsAccelCal(1); } },
+                { label: 'Run 6-axis Cal', action: function () { tsAccelCal(2); } },
+            ],
+        },
+        {
+            match: /^compass.*requires reboot/i,
+            why: 'Compass calibration saved successfully. Just need to reboot for the new offsets to load.',
+            fixes: [
+                { label: 'Reboot Flight Controller', action: function () { tsReboot(); } },
+            ],
+        },
+        {
+            match: /^compass.*not (calibrated|healthy)/i,
+            why: 'Compasses on the boat don\'t have current calibration data. With dual-HERE4 setup, all magnetometers need cal.',
+            fixes: [
+                { label: 'Run Compass Cal (all)', action: function () { openMagCal(); toggleSettings(); } },
+                { label: 'Use only primary compass', action: function () {
+                    tsSetParam('COMPASS_USE2', 0);
+                    tsSetParam('COMPASS_USE3', 0);
+                    toast('Secondary compasses disabled. Reboot to apply.');
+                } },
+            ],
+        },
+        {
+            match: 'radio failsafe',
+            why: 'No RC receiver detected, or RC failsafe is on. ArduPilot won\'t arm without a valid RC signal unless the failsafe action is bypassed.',
+            fixes: [
+                { label: 'Disable RC throttle failsafe', action: function () { tsSetParam('FS_THR_ENABLE', 0); } },
+                { label: 'Remove RC from arming check', action: function () {
+                    // Bit 4 of ARMING_CHECK = RC. Read current, clear bit, write back.
+                    var cur = (_paramMap['ARMING_CHECK'] || {}).value;
+                    if (typeof cur !== 'number') {
+                        toast('ARMING_CHECK not loaded — open Param Editor and Reload first');
+                        return;
+                    }
+                    var newVal = cur & ~(1 << 4);
+                    tsSetParam('ARMING_CHECK', newVal);
+                } },
+            ],
+        },
+        {
+            match: /gps\s*[12]:\s*bad fix/i,
+            why: 'A GPS receiver isn\'t getting a 3D fix. Check sky view, antenna placement, and that the second HERE4 is wired to CAN.',
+            fixes: [
+                { label: 'Disable secondary GPS', danger: true,
+                  action: function () {
+                    tsSetParam('GPS_TYPE2', 0);
+                    toast('GPS2 disabled. Reboot to apply.');
+                  } },
+            ],
+        },
+        {
+            match: 'gps 1: not healthy',
+            why: 'Primary GPS lost or returned an error. Check wiring + sky view; if it doesn\'t recover, this points at a HERE4 config or CAN bus issue.',
+            fixes: [
+                { label: 'Reboot Flight Controller', action: function () { tsReboot(); } },
+            ],
+        },
+        {
+            match: 'mode not armable',
+            why: 'Current flight mode (e.g. AUTO/RTL) requires sensors the boat doesn\'t have right now. Switch to MANUAL or HOLD before arming.',
+            fixes: [
+                { label: 'Switch to MANUAL', action: function () { sendModeWithFeedback(0, 'MANUAL', null); } },
+                { label: 'Switch to HOLD',   action: function () { sendModeWithFeedback(1, 'HOLD',   null); } },
+            ],
+        },
+        {
+            match: /incorrect role set for dronecan gps/i,
+            why: 'A HERE4\'s internal DroneCAN role is wrong. ArduPilot wants the role set to "Base" when it\'s being used as a normal GPS (not RTK base+rover pair). Lives on the HERE4 itself, not the FC.',
+            fixes: [
+                { label: 'Open DroneCAN GUI (Mission Planner — fallback)', action: function () {
+                    toast('DroneCAN device-param editor not yet in Meridian — use Mission Planner DroneCAN GUI for now.');
+                } },
+            ],
+        },
+        {
+            match: /ekf.*stopped aiding/i,
+            why: 'EKF lost its primary position source (usually GPS). It\'s gracefully degrading; should resume when sensors come back.',
+            fixes: [],
+        },
+        {
+            match: /smartrtl.*deactivated/i,
+            why: 'SmartRTL needs continuous valid position to maintain its breadcrumb trail. Auto-deactivated until position recovers.',
+            fixes: [],
+        },
+    ];
+
+    // Convenience handlers used by KB action callbacks
+    function tsSetParam(name, value) {
+        if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+        var b = new Uint8Array(23);
+        var dv = new DataView(b.buffer);
+        dv.setFloat32(0, value, true);
+        for (var i = 0; i < 16; i++) b[4 + i] = i < name.length ? name.charCodeAt(i) : 0;
+        b[20] = 9; b[21] = 1; b[22] = 1;
+        ws.send(mavEncode(23, b));
+        if (_paramMap[name]) _paramMap[name].value = value;
+        toast(name + ' = ' + value);
+    }
+    function tsReboot() {
+        if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+        ws.send(mavEncode(76, mavCommandLong(246, 1, 0, 0, 0, 0, 0, 0)));
+        toast('Rebooting FC… reconnect in ~10s');
+    }
+    function tsAccelCal(p5) {
+        if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+        ws.send(mavEncode(76, mavCommandLong(241, 0, 0, 0, 0, p5, 0, 0)));
+        toast(p5 === 1 ? 'Level cal sent' : '6-axis cal — follow STATUSTEXT prompts');
+    }
+
+    function _troubleshootMatch(msg) {
+        var lower = msg.toLowerCase();
+        for (var i = 0; i < TROUBLESHOOT_KB.length; i++) {
+            var entry = TROUBLESHOOT_KB[i];
+            var m = entry.match;
+            if (typeof m === 'string') {
+                if (lower.indexOf(m) >= 0) return entry;
+            } else if (m && m.test) {
+                if (m.test(msg)) return entry;
+            }
+        }
+        return null;
+    }
+
+    // Each rendered pre-arm row gets: ✗ message + plain-English why +
+    // one-tap fix buttons. Unknown messages fall back to a generic
+    // "tap to copy" so operator can paste it elsewhere.
     function renderPreArmList() {
         var el = document.getElementById('prearm-list');
         if (!el) return;
         var now = Date.now();
-        // Auto-expire entries we haven't seen in 90s (boat re-broadcasts ~30s; if it stops, problem cleared)
         var fresh = {};
         for (var k in preArm.failures) {
             if (now - preArm.failures[k] < 90000) fresh[k] = preArm.failures[k];
@@ -2875,10 +3065,35 @@
             el.className = 'prearm-list ok';
             return;
         }
-        var items = keys.map(function (k) {
-            return '<div class="prearm-item">✗ ' + k + '</div>';
-        }).join('');
-        el.innerHTML = items;
+        // Hide each fix's action behind a global registry — we can't put
+        // arbitrary JS in onclick attributes safely, so we bind via dataset.
+        window._tsFixes = window._tsFixes || {};
+        var fixIdx = 0;
+        var html = '';
+        keys.forEach(function (k) {
+            var entry = _troubleshootMatch(k);
+            html += '<div class="prearm-item-row">' +
+                '<div class="prearm-msg">✗ ' + k.replace(/[<>&]/g, function (c) { return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]; }) + '</div>';
+            if (entry) {
+                if (entry.why) {
+                    html += '<div class="prearm-why">' + entry.why + '</div>';
+                }
+                if (entry.fixes && entry.fixes.length) {
+                    html += '<div class="prearm-fix-row">';
+                    entry.fixes.forEach(function (f) {
+                        var id = 'tsfix-' + (fixIdx++);
+                        window._tsFixes[id] = f.action;
+                        html += '<button class="prearm-fix-btn' + (f.danger ? ' danger' : '') + '" ' +
+                            'onclick="(window._tsFixes[\'' + id + '\']||function(){})()">' + f.label + '</button>';
+                    });
+                    html += '</div>';
+                }
+            } else {
+                html += '<div class="prearm-why" style="opacity:0.65">No specific guidance for this message yet — check Mission Planner / ArduPilot wiki.</div>';
+            }
+            html += '</div>';
+        });
+        el.innerHTML = html;
         el.className = 'prearm-list bad';
     }
     setInterval(renderPreArmList, 3000);  // age out cleared checks every 3s
