@@ -8,7 +8,7 @@
 // Versioning: bump CACHE_VERSION when you ship a new mission.html — old
 // caches are cleared on activation.
 
-const CACHE_VERSION = 'meridian-gcs-v1';
+const CACHE_VERSION = 'meridian-gcs-v2';
 
 const SHELL = [
     '/',
