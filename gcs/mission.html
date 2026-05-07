@@ -1544,17 +1544,22 @@
                         [  0, 1000000],  // HEARTBEAT — 1Hz
                         [  1,  500000],  // SYS_STATUS — 2Hz
                         [ 24,  200000],  // GPS_RAW_INT — 5Hz
+                        [ 29,  500000],  // SCALED_PRESSURE — 2Hz (Cube temp)
                         [ 30,  100000],  // ATTITUDE — 10Hz
                         [ 33,  200000],  // GLOBAL_POSITION_INT — 5Hz
                         [ 36,  500000],  // SERVO_OUTPUT_RAW — 2Hz
                         [ 65,  500000],  // RC_CHANNELS — 2Hz
                         [ 74,  250000],  // VFR_HUD — 4Hz
+                        [125,  500000],  // POWER_STATUS — 2Hz (Vcc rail)
                         [147, 1000000],  // BATTERY_STATUS — 1Hz (cells, current, mAh)
+                        [193,  500000],  // EKF_STATUS_REPORT — 2Hz (variance)
                         [241, 2000000],  // VIBRATION — 0.5Hz
-                        [242,  -1],      // HOME_POSITION on demand (skip; we'll
-                                         // request via MAV_CMD_REQUEST_MESSAGE)
-                        [253,       0],  // STATUSTEXT — default rate (event-driven)
-                        [11030, 2000000], // ESC_TELEMETRY 1-4 — 0.5Hz (if BLHeli ESCs present)
+                        // (no SET_MESSAGE_INTERVAL for HOME_POSITION; we use
+                        //  MAV_CMD_REQUEST_MESSAGE for it as a one-shot below)
+                        // (no SET_MESSAGE_INTERVAL for ESC_TELEMETRY 11030
+                        //  here — ArduPilot denies it when there's no
+                        //  BLHeli/DroneCAN telemetry source. If/when ESCs
+                        //  with telemetry are wired, drop the line back in.)
                     ];
                     for (var ri = 0; ri < REQUESTS.length; ri++) {
                         var msgid = REQUESTS[ri][0];
@@ -1886,9 +1891,13 @@
                 text += String.fromCharCode(p[ti]);
             }
             onStatusText(sev, text);
-            // Pre-arm tracker: any "PreArm: …" message means a check is failing
-            if (sev <= 4 && /^PreArm:/i.test(text)) {
-                onPreArmFailure(text.replace(/^PreArm:\s*/i, ''));
+            // Pre-arm tracker: ArduPilot emits two flavors —
+            //   "PreArm: …"  is the periodic broadcast of failing checks
+            //   "Arm: …"     is what comes back when the operator actually
+            //                taps ARM and the autopilot refuses
+            // Both feed the same checklist UI.
+            if (sev <= 4 && /^(Pre)?Arm:/i.test(text)) {
+                onPreArmFailure(text.replace(/^(Pre)?Arm:\s*/i, ''));
             }
         } else if (id === 77 && p.length >= 3) { // COMMAND_ACK
             var cmd = dv.getUint16(0, true);
