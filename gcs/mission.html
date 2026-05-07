@@ -440,21 +440,25 @@
             display: flex; align-items: center; justify-content: space-between;
             gap: 8px; margin-bottom: 4px;
         }
+        /* Match the visual style of .prearm-fix-btn so all action buttons
+           in a row read as a uniform set — different action, same look. */
         .prearm-list .prearm-snooze-btn {
-            background: transparent;
-            border: 1px solid var(--border);
-            color: var(--dim);
-            padding: 3px 8px;
+            background: rgba(0, 229, 255, 0.10);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 5px 10px;
             border-radius: 3px;
-            font-size: 12px;
+            font: 600 10px 'Rajdhani', 'DM Mono', sans-serif;
+            letter-spacing: 0.06em;
             cursor: pointer;
-            min-height: 26px;
+            text-transform: uppercase;
+            min-height: 32px;
             flex-shrink: 0;
             line-height: 1;
+            transition: background 0.12s;
         }
         .prearm-list .prearm-snooze-btn:hover {
-            color: var(--text);
-            border-color: var(--primary);
+            background: rgba(0, 229, 255, 0.22);
         }
         .prearm-list .prearm-footer {
             margin-top: 6px;
@@ -3043,13 +3047,25 @@
                     tsSetParam('GPS_MB2_TYPE', 0);      // disable for GPS2
                     toast('GPS role: plain dual-GPS. Reboot to apply.');
                 } },
-                // Suppress the alarm without changing anything (silence-only)
-                { label: 'Silence this alarm only',  danger: true,
+                // Suppress the alarm without changing anything — uses the
+                // standard snooze mechanism with a long timeout (4 hours)
+                // so it cleanly auto-restores if the issue is still active
+                // when you come back to the boat.
+                { label: 'Silence 4 hr',  danger: true,
                   action: function () {
-                    // Add to local dedup so it never toasts again this session
-                    _statusTextDedup['__suppress'] = _statusTextDedup['__suppress'] || {};
-                    _statusTextDedup['__suppress']['Incorrect Role set for DroneCAN GPS'] = true;
-                    toast('Silenced (this session only). Underlying issue not fixed.');
+                    // Snooze every currently-active failure whose text
+                    // matches this KB pattern. Long snooze (4h) for explicit
+                    // "I'm aware, ignore" — vs the default 15min row-snooze.
+                    var pat = /incorrect role set for dronecan gps/i;
+                    var snoozed = 0;
+                    for (var k in preArm.failures) {
+                        if (pat.test(k)) {
+                            preArm.snoozed[k] = Date.now() + 4 * 60 * 60 * 1000;
+                            snoozed++;
+                        }
+                    }
+                    renderPreArmList();
+                    toast('Silenced ' + snoozed + ' alarm(s) for 4 hr');
                 } },
             ],
         },
@@ -3153,7 +3169,7 @@
                     '<div class="prearm-msg">✗ ' + safe + '</div>' +
                     '<button class="prearm-snooze-btn" ' +
                             'onclick="(window._tsSnooze[\'' + snzId + '\']||function(){})()" ' +
-                            'title="Snooze 15 min">🔕</button>' +
+                            'title="Hide for 15 min — auto-restores if still active">SNOOZE 15M</button>' +
                 '</div>';
             if (entry) {
                 if (entry.why) html += '<div class="prearm-why">' + entry.why + '</div>';
