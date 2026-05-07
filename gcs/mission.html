@@ -67,12 +67,22 @@
             position: fixed; top: 0; left: 0; right: 0; z-index: 9000;
             display: flex; align-items: center; gap: 12px;
             padding: 10px 16px; height: 56px;
-            background: var(--bg-glass); backdrop-filter: blur(12px);
+            /* Solid background — backdrop-filter rendering on some
+               browsers causes the bar to disappear when the underlying
+               map repaints (e.g. on click-to-add-waypoint). Switching
+               to opaque guarantees the bar is always visible. */
+            background: #0a0e17;
             border-bottom: 1px solid var(--border);
+            box-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
         }
+        html.light #status-bar { background: #f4f6fa; }
         /* Action panel must also stay above overlays so the operator
            can always tap STOP / DISARM no matter what mode panel is open. */
-        #action-panel { z-index: 9000; }
+        #action-panel {
+            z-index: 9000;
+            background: #0a0e17;  /* same opaque guarantee */
+        }
+        html.light #action-panel { background: #f4f6fa; }
         .status-brand { font-family: 'Rajdhani', sans-serif; font-size: 18px; font-weight: 700; color: var(--primary); letter-spacing: 0.06em; }
         .status-item { display: flex; flex-direction: column; align-items: center; gap: 1px; }
         .status-val { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; color: var(--text); }
@@ -712,7 +722,7 @@
     </style>
 
     <!-- Settings Overlay -->
-    <div id="settings-overlay" style="display:none;position:fixed;top:44px;right:8px;z-index:3000;background:var(--bg-raised);border:1px solid var(--border);border-radius:8px;padding:16px;width:280px;box-shadow:0 4px 24px rgba(0,0,0,0.5)">
+    <div id="settings-overlay" style="display:none;position:fixed;top:60px;right:8px;z-index:3000;background:var(--bg-raised);border:1px solid var(--border);border-radius:8px;padding:16px;width:300px;max-height:calc(100vh - 80px);overflow-y:auto;box-shadow:0 4px 24px rgba(0,0,0,0.5);-webkit-overflow-scrolling:touch">
         <div style="font-weight:600;margin-bottom:12px;color:var(--primary)">Settings</div>
         <label style="display:block;margin-bottom:8px;font-size:13px;color:var(--dim)">Theme</label>
         <div style="display:flex;gap:4px;margin-bottom:12px">
