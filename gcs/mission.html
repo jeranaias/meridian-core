@@ -2981,13 +2981,37 @@
         },
         {
             match: /^compass.*not (calibrated|healthy)/i,
-            why: 'Compasses on the boat don\'t have current calibration data. With dual-HERE4 setup, all magnetometers need cal.',
+            why: 'Compasses on the boat don\'t have current calibration data. Physical rotation cal is hard on a 1-2m USV — three options below, in order of effort. Standstill cal is recommended for boats: ArduPilot uses GPS course of motion as yaw reference instead of relying on the magnetometer.',
             fixes: [
-                { label: 'Run Compass Cal (all)', action: function () { openMagCal(); toggleSettings(); } },
-                { label: 'Use only primary compass', action: function () {
+                // Best for USVs: skip rotation entirely, use GSF (GPS Synthetic
+                // Yaw) which infers heading from motion. Drive forward 30s
+                // and the EKF learns alignment.
+                { label: 'Standstill cal (GPS yaw, no rotation)', action: function () {
+                    tsSetParam('EK3_SRC1_YAW',  6);  // GSF — GPS course-based yaw
+                    tsSetParam('COMPASS_LEARN', 3);  // in-flight learning
+                    tsSetParam('COMPASS_AUTODEC', 1); // auto magnetic declination
+                    // Clear compass bit (4) from ARMING_CHECK so we can arm without cal
+                    var cur = (_paramMap['ARMING_CHECK'] || {}).value;
+                    if (typeof cur === 'number') {
+                        tsSetParam('ARMING_CHECK', cur & ~(1 << 2));
+                    } else {
+                        tsSetParam('ARMING_CHECK', 1);  // basic checks only
+                    }
+                    toast('GSF yaw enabled. Reboot, then drive forward 30s for alignment.');
+                } },
+                { label: 'Run rotation cal (all compasses)', action: function () { openMagCal(); toggleSettings(); } },
+                { label: 'Use only primary compass', danger: true, action: function () {
                     tsSetParam('COMPASS_USE2', 0);
                     tsSetParam('COMPASS_USE3', 0);
                     toast('Secondary compasses disabled. Reboot to apply.');
+                } },
+                { label: 'Disable compass entirely', danger: true, action: function () {
+                    if (!confirm('Disable ALL magnetometers and rely only on GPS for heading? Boat will use GSF (GPS course) as yaw source. Recommended only for surface vessels with consistent forward motion.')) return;
+                    tsSetParam('COMPASS_ENABLE',  0);
+                    tsSetParam('EK3_SRC1_YAW',    6);
+                    var cur = (_paramMap['ARMING_CHECK'] || {}).value;
+                    if (typeof cur === 'number') tsSetParam('ARMING_CHECK', cur & ~(1 << 2));
+                    toast('Compass disabled. Reboot. EKF will use GPS course as yaw.');
                 } },
             ],
         },

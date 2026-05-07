@@ -27,12 +27,22 @@ def emit(tag, msg):
     ts = time.strftime("%H:%M:%S")
     print(f"BOAT {ts} {tag} {msg}", flush=True)
 
+DEDUP_WINDOW_S = 1800   # default: 30 min between repeats of the same STATUSTEXT
+PREARM_DEDUP_S = 43200  # PreArm: messages are persistent until the operator
+                        # runs calibration / presses the safety switch.
+                        # Re-firing every 30 min is noise; bumping to 12h.
+                        # If they stop appearing for 5 min and come back,
+                        # the cleanup-loop below resets the seen-stamp so
+                        # they fire fresh — that's the genuine signal.
+
 async def watch():
     state = {"armed": None, "mode": None, "fix": None, "connected": False}
+    seen = {}  # text -> last_emit_t for dedup
     backoff = 1.0
     while True:
         try:
-            async with websockets.connect(WS_URL, open_timeout=8, ping_interval=20) as ws:
+            async with websockets.connect(WS_URL, open_timeout=10,
+                                           ping_interval=60, ping_timeout=60) as ws:
                 if not state["connected"]:
                     emit("LINK", f"connected -> {WS_URL}")
                     state["connected"] = True
@@ -74,7 +84,22 @@ async def watch():
                             if sev <= 4:
                                 txt = bytes(p[1:51]).split(b"\x00",1)[0].decode("ascii",errors="replace")
                                 lvl = SEV[sev] if sev < 8 else f"sev{sev}"
-                                emit(lvl, txt)
+                                key = f"{lvl}:{txt}"
+                                now = time.time()
+                                # Pre-arm messages and other persistent-state
+                                # alerts get the long dedup window; transient
+                                # event-style messages get the short one.
+                                is_persistent = (
+                                    txt.startswith("PreArm:") or
+                                    txt.startswith("Arm:") or
+                                    "Incorrect Role" in txt or
+                                    "stopped aiding" in txt or
+                                    "SmartRTL" in txt
+                                )
+                                window = PREARM_DEDUP_S if is_persistent else DEDUP_WINDOW_S
+                                if now - seen.get(key, 0) >= window:
+                                    emit(lvl, txt)
+                                    seen[key] = now
                         elif mid == 77 and len(p) >= 3:  # COMMAND_ACK
                             cmd, result = struct.unpack_from("<HB", p, 0)
                             if result != 0:
