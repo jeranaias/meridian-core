@@ -2116,6 +2116,23 @@
             var cmd = dv.getUint16(0, true);
             var result = dv.getUint8(2);
             onCommandAck(cmd, result);
+        } else if (id === 51 && p.length >= 2) { // MISSION_REQUEST_INT
+            // wire order: seq(u16) target_sys(u8) target_comp(u8) mission_type(u8)
+            _onMissionRequest(dv.getUint16(0, true));
+        } else if (id === 40 && p.length >= 2) { // MISSION_REQUEST (legacy)
+            _onMissionRequest(dv.getUint16(0, true));
+        } else if (id === 386 && p.length >= 16) { // CAN_FRAME
+            var canId = dv.getUint32(0, true);
+            var canLen = p[7];
+            if (canLen > 0 && canLen <= 8) {
+                dcanOnCanFrame(canId, p.subarray(8, 8 + canLen));
+            }
+        } else if (id === 47 && p.length >= 3) { // MISSION_ACK
+            // wire order: target_sys(u8) target_comp(u8) type(u8) [mission_type(u8)]
+            // Layout v2: type at offset 2; mission_type at offset 3 if present
+            var ackType = dv.getUint8(2);
+            var missionType = (p.length >= 4) ? dv.getUint8(3) : 0;
+            _onMissionAck(missionType, ackType);
         } else if (id === 193 && p.length >= 22) { // EKF_STATUS_REPORT
             // Wire order (size desc): 5 floats then uint16
             state.ekf = {
@@ -2230,6 +2247,302 @@
         d.setUint8(32, 0); // confirmation
         return new Uint8Array(b);
     }
+
+    // ──────────────────────────────────────────────────────────────
+    //  DroneCAN-over-MAVLink mini-stack
+    //  Talks directly to DroneCAN peripherals (HERE4, ESCs, etc.)
+    //  through ArduPilot's MAV_CMD_CAN_FORWARD bridge. Three services
+    //  implemented here:
+    //    uavcan.protocol.param.GetSet      (DTID 11)
+    //    uavcan.protocol.param.ExecuteOpcode (DTID 10)
+    //    uavcan.protocol.RestartNode       (DTID 5)
+    //  Used by the "Reset HERE4 periph" troubleshoot button to clear
+    //  HERE4s stuck in moving-baseline base mode (the cause of the
+    //  "Incorrect Role 125 should be Base" loop and 0-sat NoFix).
+    //  Wire spec: dronecan.github.io/Specification/4._CAN_bus_transport_layer/
+    // ──────────────────────────────────────────────────────────────
+    MAV_CRC_EXTRA[386] = 132;  // CAN_FRAME
+
+    // CRC-16-CCITT-FALSE (poly 0x1021, init 0xFFFF, no reflection).
+    // Used for multi-frame DroneCAN transfer integrity. Not the same
+    // CRC as MAVLink's x25 above.
+    function dcanCrc16(bytes) {
+        var crc = 0xFFFF;
+        for (var i = 0; i < bytes.length; i++) {
+            crc ^= bytes[i] << 8;
+            for (var j = 0; j < 8; j++) {
+                crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
+                crc &= 0xFFFF;
+            }
+        }
+        return crc;
+    }
+
+    // 29-bit DroneCAN service request CAN ID.
+    //   bit 28..24 priority (5)
+    //   bit 23..16 service-type-id (8)
+    //   bit 15     request_not_response (1)
+    //   bit 14..8  destination node (7)
+    //   bit 7      service_not_message (1)
+    //   bit 6..0   source node (7)
+    function dcanServiceCanId(serviceId, isRequest, dstNode, srcNode) {
+        // Priority 16 = "low" — fine for parameter ops
+        return ((16 & 0x1F) * 0x1000000) +
+               ((serviceId & 0xFF) * 0x10000) +
+               ((isRequest ? 1 : 0) * 0x8000) +
+               ((dstNode & 0x7F) * 0x100) +
+               (1 * 0x80) +
+               (srcNode & 0x7F);
+    }
+
+    function dcanTail(sot, eot, toggle, tid) {
+        return ((sot ? 1 : 0) << 7) | ((eot ? 1 : 0) << 6) |
+               ((toggle ? 1 : 0) << 5) | (tid & 0x1F);
+    }
+
+    // CAN_FRAME (msgid 386) v2 wire order (size-desc, 16 bytes):
+    //   uint32 id, uint8 target_sys, target_comp, bus, len, uint8[8] data
+    function dcanCanFramePayload(canId, busIndex, dataBytes) {
+        var b = new Uint8Array(16);
+        var d = new DataView(b.buffer);
+        d.setUint32(0, canId >>> 0, true);
+        b[4] = 1;        // target_sys
+        b[5] = 1;        // target_comp
+        b[6] = busIndex; // 1-based
+        b[7] = dataBytes.length;
+        for (var i = 0; i < Math.min(dataBytes.length, 8); i++) b[8+i] = dataBytes[i];
+        return b;
+    }
+
+    // Fragment a DSDL payload into one or more 8-byte CAN data fields.
+    // For multi-frame: prepend a 16-bit CRC computed over the 8-byte
+    // signature (LE) + payload, then split into 7-byte chunks with a
+    // tail byte each.
+    function dcanFragment(payload, signature, transferId) {
+        var frames = [];
+        if (payload.length <= 7) {
+            var data = new Uint8Array(payload.length + 1);
+            data.set(payload, 0);
+            data[payload.length] = dcanTail(1, 1, 0, transferId);
+            frames.push(data);
+            return frames;
+        }
+        var hashBuf = new Uint8Array(8 + payload.length);
+        hashBuf.set(signature, 0);
+        hashBuf.set(payload, 8);
+        var crc = dcanCrc16(hashBuf);
+        var withCrc = new Uint8Array(payload.length + 2);
+        withCrc[0] = crc & 0xFF;
+        withCrc[1] = (crc >> 8) & 0xFF;
+        withCrc.set(payload, 2);
+
+        var i = 0, toggle = 0, isFirst = true;
+        while (i < withCrc.length) {
+            var chunkLen = Math.min(7, withCrc.length - i);
+            var isLast = (i + chunkLen >= withCrc.length);
+            var data = new Uint8Array(chunkLen + 1);
+            for (var j = 0; j < chunkLen; j++) data[j] = withCrc[i + j];
+            data[chunkLen] = dcanTail(isFirst ? 1 : 0, isLast ? 1 : 0, toggle, transferId);
+            frames.push(data);
+            i += chunkLen;
+            isFirst = false;
+            toggle ^= 1;
+        }
+        return frames;
+    }
+
+    // 64-bit data type signatures, LE-encoded as Uint8Array(8). Hardcoded
+    // because there's no DSDL compiler in the browser. Values from
+    // github.com/dronecan/DSDL.
+    var DCAN_DSDL = {
+        paramGetSet:    new Uint8Array([0xD5,0xA4,0xD1,0x39,0xF9,0x22,0xB6,0xA7]),
+        executeOpcode:  new Uint8Array([0xCD,0xD2,0x69,0xEB,0xC5,0x1A,0x13,0x3B]),
+        restartNode:    new Uint8Array([0xF0,0x17,0x30,0x4A,0x39,0x05,0x9E,0x56]),
+    };
+
+    // Encode uavcan.protocol.param.GetSet.Request to set an integer:
+    //   uint13 index, Value{tag:3 + int64:64}, uint8[<=92] name (tail-array)
+    // For setting "GPS_TYPE" = 1: 13 + 3 + 64 + 64 = 144 bits = 18 bytes.
+    // The first 16 bits hold index(13) + tag(3) -- pack as little-endian
+    // uint16: (tag << 13) | index.
+    function dcanEncodeGetSet(name, intValue) {
+        var nameBytes = new Uint8Array(name.length);
+        for (var i = 0; i < name.length; i++) nameBytes[i] = name.charCodeAt(i);
+        var out = new Uint8Array(2 + 8 + nameBytes.length);
+        var hdr = ((1 & 0x7) << 13) | (0 & 0x1FFF);  // tag=1 (integer), index=0
+        out[0] = hdr & 0xFF;
+        out[1] = (hdr >> 8) & 0xFF;
+        // int64 little-endian. JS ints are safe to 2^53, but we only need
+        // small values (0..255 for GPS_TYPE), so pack low 32 bits and
+        // leave high 32 zero.
+        out[2] = intValue & 0xFF;
+        out[3] = (intValue >>> 8) & 0xFF;
+        out[4] = (intValue >>> 16) & 0xFF;
+        out[5] = (intValue >>> 24) & 0xFF;
+        out.set(nameBytes, 10);
+        return out;
+    }
+
+    // Encode uavcan.protocol.param.ExecuteOpcode.Request:
+    //   uint8 opcode (0=SAVE, 1=ERASE), int48 argument
+    // 7 bytes total; argument set to 0.
+    function dcanEncodeExecuteOpcode(opcode) {
+        var out = new Uint8Array(7);
+        out[0] = opcode & 0xFF;
+        return out;
+    }
+
+    // Encode uavcan.protocol.RestartNode.Request:
+    //   uint40 magic_number = 0xACCE551B1E (little-endian 5 bytes)
+    function dcanEncodeRestartNode() {
+        return new Uint8Array([0x1E, 0x1B, 0x55, 0xCE, 0xAC]);
+    }
+
+    // Connection state: which transfer IDs are pending response, plus
+    // the periodic MAV_CMD_CAN_FORWARD keepalive. ArduPilot times out
+    // forwarding after ~3s, so we re-issue the command at 1Hz while a
+    // session is active.
+    var DCAN_GCS_NODE = 127;       // our pseudo-node ID; avoid 1, 124, 125
+    var DCAN_FORWARD_BUS = 2;      // CAN bus 2 (HERE4 #2 lives there)
+    var _dcan = {
+        nextTransferId: 0,
+        pending: {},               // key: src:service:tid -> { resolve, timer, frames }
+        rxBags: {},                // multi-frame reassembly
+        forwardTimer: null,
+    };
+
+    function dcanStartForwarding(busIndex) {
+        DCAN_FORWARD_BUS = busIndex || DCAN_FORWARD_BUS;
+        if (_dcan.forwardTimer) return;
+        function tick() {
+            if (!ws || ws.readyState !== 1) return;
+            ws.send(mavEncode(76, mavCommandLong(32400, DCAN_FORWARD_BUS,
+                                                  0, 0, 0, 0, 0, 0)));
+        }
+        tick();
+        _dcan.forwardTimer = setInterval(tick, 1000);
+    }
+    function dcanStopForwarding() {
+        if (_dcan.forwardTimer) clearInterval(_dcan.forwardTimer);
+        _dcan.forwardTimer = null;
+    }
+
+    // Send a service request and return a Promise that resolves with the
+    // response payload (Uint8Array, CRC stripped) or rejects on timeout.
+    function dcanRequest(serviceId, signature, dstNode, payload, timeoutMs) {
+        return new Promise(function (resolve, reject) {
+            if (!ws || ws.readyState !== 1) { reject('Not connected'); return; }
+            var tid = (_dcan.nextTransferId++) & 0x1F;
+            var canId = dcanServiceCanId(serviceId, true, dstNode, DCAN_GCS_NODE);
+            var frames = dcanFragment(payload, signature, tid);
+            for (var i = 0; i < frames.length; i++) {
+                ws.send(mavEncode(386, dcanCanFramePayload(canId,
+                                                            DCAN_FORWARD_BUS,
+                                                            frames[i])));
+            }
+            var key = dstNode + ':' + serviceId + ':' + tid;
+            var timer = setTimeout(function () {
+                delete _dcan.pending[key];
+                delete _dcan.rxBags[key];
+                reject('Timeout from node ' + dstNode);
+            }, timeoutMs || 4000);
+            _dcan.pending[key] = { resolve: resolve, reject: reject, timer: timer };
+        });
+    }
+
+    // CAN_FRAME RX handler — wired into the MAVLink decode loop below.
+    function dcanOnCanFrame(canId, dataBytes) {
+        if (dataBytes.length < 1) return;
+        var tail = dataBytes[dataBytes.length - 1];
+        var sot = (tail & 0x80) !== 0;
+        var eot = (tail & 0x40) !== 0;
+        var toggle = (tail & 0x20) !== 0;
+        var tid = tail & 0x1F;
+        var srcNode = canId & 0x7F;
+        var isService = (canId >> 7) & 1;
+        var dstNode = (canId >> 8) & 0x7F;
+        var isRequest = (canId >> 15) & 1;
+        var serviceId = (canId >> 16) & 0xFF;
+        if (!isService || isRequest) return;
+        if (dstNode !== DCAN_GCS_NODE) return;
+
+        var key = srcNode + ':' + serviceId + ':' + tid;
+        var pending = _dcan.pending[key];
+        if (!pending) return;
+
+        if (sot && eot) {
+            var payload = dataBytes.slice(0, dataBytes.length - 1);
+            clearTimeout(pending.timer);
+            delete _dcan.pending[key];
+            pending.resolve(payload);
+            return;
+        }
+        if (sot) {
+            _dcan.rxBags[key] = { frames: [dataBytes.slice(0, dataBytes.length - 1)],
+                                   expectedToggle: 1 };
+            return;
+        }
+        var bag = _dcan.rxBags[key];
+        if (!bag || toggle !== bag.expectedToggle) return;
+        bag.frames.push(dataBytes.slice(0, dataBytes.length - 1));
+        bag.expectedToggle ^= 1;
+        if (eot) {
+            var total = 0;
+            for (var i = 0; i < bag.frames.length; i++) total += bag.frames[i].length;
+            var combined = new Uint8Array(total);
+            var off = 0;
+            for (var i = 0; i < bag.frames.length; i++) {
+                combined.set(bag.frames[i], off);
+                off += bag.frames[i].length;
+            }
+            // Drop the leading 2-byte CRC; we trust the bus.
+            var payload = combined.slice(2);
+            delete _dcan.rxBags[key];
+            clearTimeout(pending.timer);
+            delete _dcan.pending[key];
+            pending.resolve(payload);
+        }
+    }
+
+    // High-level routine: reset a HERE4's internal GPS_TYPE -> 1, save,
+    // restart. Same sequence as tools/here4-fix.py but in-tablet.
+    async function tsResetHere4(nodeId, busIndex) {
+        if (!confirm('Reset HERE4 #' + nodeId + ' to plain DroneCAN GPS?\n\n' +
+                     'Sets the periph\'s internal GPS_TYPE = 1 (auto), saves to ' +
+                     'NVM, restarts the node. Use this to clear the ' +
+                     '"Incorrect Role X should be Base" loop and the resulting ' +
+                     'NoFix on a HERE4 stuck in moving-baseline mode.\n\n' +
+                     'Takes ~30 seconds.')) return;
+        dcanStartForwarding(busIndex || 2);
+        toast('DroneCAN forwarding enabled, reaching node ' + nodeId + '...');
+        try {
+            await new Promise(function (r) { setTimeout(r, 1500); });
+
+            toast('Setting GPS_TYPE = 1 on node ' + nodeId);
+            await dcanRequest(11, DCAN_DSDL.paramGetSet, nodeId,
+                              dcanEncodeGetSet('GPS_TYPE', 1), 5000);
+
+            toast('Saving to NVM...');
+            await dcanRequest(10, DCAN_DSDL.executeOpcode, nodeId,
+                              dcanEncodeExecuteOpcode(0), 5000);
+
+            toast('Restarting node ' + nodeId);
+            // Restart often doesn't ack before the node goes down; treat
+            // a timeout as success and move on.
+            try {
+                await dcanRequest(5, DCAN_DSDL.restartNode, nodeId,
+                                  dcanEncodeRestartNode(), 2000);
+            } catch (e) { /* expected */ }
+
+            await new Promise(function (r) { setTimeout(r, 3000); });
+            toast('HERE4 reset complete — wait 30s for it to acquire fix');
+        } catch (e) {
+            toast('HERE4 reset failed: ' + e);
+        } finally {
+            setTimeout(dcanStopForwarding, 5000);
+        }
+    }
+    window.tsResetHere4 = tsResetHere4;
 
     // ── Send commands (protocol-aware) ──
     function sendCmd(cmd) {
@@ -2358,35 +2671,125 @@
         }
     }
 
+    // Mission upload uses ArduPilot's request-driven protocol:
+    //   1. GCS    -> FC: MISSION_COUNT (msgId 44)
+    //   2. FC     -> GCS: MISSION_REQUEST_INT (msgId 51) for seq=0
+    //   3. GCS    -> FC: MISSION_ITEM_INT (msgId 73) seq=0
+    //   4. ...repeat 2-3 for each item...
+    //   5. FC     -> GCS: MISSION_ACK (msgId 47, type=0=ACCEPTED) when done
+    //
+    // The previous version blasted all items right after the count,
+    // which ArduPilot ignores. It also produced 37-byte items missing
+    // target_system + target_component (proper size is 38).
+    var _missionUpload = null;  // active state, or null when idle
+
+    // CRC_EXTRA values from MAVLink common.xml v2:
+    // MISSION_COUNT (44) = 221, MISSION_REQUEST (40) = 230,
+    // MISSION_REQUEST_INT (51) = 196, MISSION_ITEM_INT (73) = 38,
+    // MISSION_ACK (47) = 153
+    MAV_CRC_EXTRA[44] = 221;
+    MAV_CRC_EXTRA[40] = 230;
+    MAV_CRC_EXTRA[51] = 196;
+    MAV_CRC_EXTRA[73] = 38;
+    MAV_CRC_EXTRA[47] = 153;
+
     function sendMissionMavlink(wps) {
-        // MAVLink MISSION_COUNT (msgId 44, CRC_EXTRA 221)
-        MAV_CRC_EXTRA[44] = 221;
-        MAV_CRC_EXTRA[73] = 38;
-        var countBuf = new ArrayBuffer(4);
-        var cd = new DataView(countBuf);
-        cd.setUint16(0, wps.length, true); // count
-        cd.setUint8(2, 1);  // target_system
-        cd.setUint8(3, 1);  // target_component
-        ws.send(mavEncode(44, new Uint8Array(countBuf)));
-        // MISSION_ITEM_INT (msgId 73) for each waypoint
-        wps.forEach(function(wp, i) {
-            var b = new ArrayBuffer(37);
-            var d = new DataView(b);
-            d.setFloat32(0, 0, true);  // param1 (hold time)
-            d.setFloat32(4, 2, true);  // param2 (acceptance radius)
-            d.setFloat32(8, 0, true);  // param3 (pass through)
-            d.setFloat32(12, 0, true); // param4 (yaw)
-            d.setInt32(16, Math.round(wp[0] * 1e7), true); // lat
-            d.setInt32(20, Math.round(wp[1] * 1e7), true); // lon
-            d.setFloat32(24, 0, true); // alt (0 for surface)
-            d.setUint16(28, i, true);  // seq
-            d.setUint16(30, 16, true); // MAV_CMD_NAV_WAYPOINT
-            d.setUint8(32, 6);  // frame: MAV_FRAME_GLOBAL_RELATIVE_ALT_INT
-            d.setUint8(33, i === 0 ? 1 : 0); // current
-            d.setUint8(34, 1);  // autocontinue
-            d.setUint8(35, 0);  // mission_type
-            ws.send(mavEncode(73, new Uint8Array(b)));
-        });
+        if (_missionUpload && _missionUpload.timer) {
+            clearTimeout(_missionUpload.timer);
+        }
+        _missionUpload = {
+            wps: wps,
+            sent: 0,
+            startedAt: Date.now(),
+            timer: null,
+            attempts: 0,
+        };
+        toast('Uploading ' + wps.length + ' waypoint' + (wps.length === 1 ? '' : 's') + '...');
+        _sendMissionCount();
+    }
+
+    function _sendMissionCount() {
+        if (!_missionUpload) return;
+        _missionUpload.attempts++;
+        if (_missionUpload.attempts > 4) {
+            toast('Mission upload timed out (no requests from FC)');
+            _missionUpload = null;
+            return;
+        }
+        // MISSION_COUNT v2 wire order: count(2) target_sys(1) target_comp(1) mission_type(1)
+        var b = new Uint8Array(5);
+        var dv = new DataView(b.buffer);
+        dv.setUint16(0, _missionUpload.wps.length, true);
+        b[2] = 1;  // target_system
+        b[3] = 1;  // target_component
+        b[4] = 0;  // mission_type = MAV_MISSION_TYPE_MISSION
+        ws.send(mavEncode(44, b));
+        // If FC doesn't request seq=0 within 1.5s, retry the count
+        _missionUpload.timer = setTimeout(_sendMissionCount, 1500);
+    }
+
+    function _sendMissionItem(seq) {
+        if (!_missionUpload || seq >= _missionUpload.wps.length) return;
+        var wp = _missionUpload.wps[seq];
+        // MISSION_ITEM_INT v2 wire order (38 bytes, size-descending):
+        //   4 floats (param1..4) = 16
+        //   2 int32  (x, y)      =  8
+        //   1 float  (z)         =  4
+        //   2 uint16 (seq, cmd)  =  4
+        //   6 uint8              =  6  -> 38 total
+        var b = new Uint8Array(38);
+        var d = new DataView(b.buffer);
+        d.setFloat32(0,  0, true);  // param1 — hold time
+        d.setFloat32(4,  2, true);  // param2 — acceptance radius (m)
+        d.setFloat32(8,  0, true);  // param3 — pass-through
+        d.setFloat32(12, 0, true);  // param4 — yaw at waypoint
+        d.setInt32(16, Math.round(wp[0] * 1e7), true);  // x = lat * 1e7
+        d.setInt32(20, Math.round(wp[1] * 1e7), true);  // y = lon * 1e7
+        d.setFloat32(24, 0, true);                        // z = alt (0, surface)
+        d.setUint16(28, seq, true);                       // seq
+        d.setUint16(30, 16, true);                        // command = MAV_CMD_NAV_WAYPOINT
+        b[32] = 1;  // target_system
+        b[33] = 1;  // target_component
+        b[34] = 3;  // frame = MAV_FRAME_GLOBAL_RELATIVE_ALT (rover surface)
+        b[35] = (seq === 0) ? 1 : 0;  // current
+        b[36] = 1;  // autocontinue
+        b[37] = 0;  // mission_type
+        ws.send(mavEncode(73, b));
+        _missionUpload.sent = seq + 1;
+        // Reset retry timer; FC should ack or request the next within 1.5s
+        if (_missionUpload.timer) clearTimeout(_missionUpload.timer);
+        _missionUpload.timer = setTimeout(function () {
+            // No follow-up from FC; restart from count
+            toast('Mission upload stalled, retrying');
+            _missionUpload.attempts++;
+            if (_missionUpload.attempts > 4) {
+                toast('Mission upload timed out');
+                _missionUpload = null;
+                return;
+            }
+            _sendMissionCount();
+        }, 1500);
+    }
+
+    // Called from the MAVLink decode loop when MISSION_REQUEST_INT or
+    // MISSION_REQUEST arrives. Both have seq at offset 0 (uint16).
+    function _onMissionRequest(seq) {
+        if (!_missionUpload) return;
+        _sendMissionItem(seq);
+    }
+
+    function _onMissionAck(missionType, ackType) {
+        if (!_missionUpload) return;
+        if (ackType === 0) {
+            var n = _missionUpload.wps.length;
+            toast('Mission uploaded: ' + n + ' waypoint' + (n === 1 ? '' : 's') + ' ✓');
+        } else {
+            // ack types: 1=ERROR, 2=UNSUPPORTED_FRAME, 3=UNSUPPORTED, 4=NO_SPACE,
+            // 5=INVALID, 6=INVALID_PARAM1, ...
+            toast('Mission rejected by FC (ack type ' + ackType + ')');
+        }
+        if (_missionUpload.timer) clearTimeout(_missionUpload.timer);
+        _missionUpload = null;
     }
 
     // ── UI updates ──
@@ -2983,9 +3386,35 @@
         renderPreArmList();
     }
     function onPreArmFailure(msg) {
+        // If ARMING_CHECK is currently 0 on the FC, every "PreArm:" message
+        // is informational only — the gate is open. Auto-snooze it for an
+        // hour so it doesn't clutter the panel after RESOLVE ALL.
+        var armingCheck = (_paramMap['ARMING_CHECK'] || {}).value;
+        if (armingCheck === 0) {
+            preArm.snoozed[msg] = Date.now() + 60 * 60 * 1000;  // 1h
+        }
         preArm.failures[msg] = Date.now();
         renderPreArmList();
     }
+
+    // ── Auto-clear stale PreArm errors on successful ARM transition.
+    // If the boat armed, by definition no pre-arm check is blocking right
+    // now -- so every entry on the panel is a stale historical broadcast,
+    // not an active blocker. Wipe them. The 90s freshness filter handles
+    // the long-tail; this handles the immediate UX pain.
+    var _preArmAutoClearWasArmed = false;
+    setInterval(function () {
+        if (state.armed && !_preArmAutoClearWasArmed) {
+            var n = Object.keys(preArm.failures).length;
+            if (n > 0) {
+                preArm.failures = {};
+                preArm.snoozed = {};
+                renderPreArmList();
+                toast('Cleared ' + n + ' stale pre-arm warning' + (n === 1 ? '' : 's') + ' (boat armed)');
+            }
+        }
+        _preArmAutoClearWasArmed = state.armed;
+    }, 500);
 
     // ── Self-resolve: run every software-only fix in sequence so the
     // operator can clear the entire pre-arm list without touching the
@@ -3226,16 +3655,25 @@
         },
         {
             match: /incorrect role set for dronecan gps/i,
-            why: 'A HERE4\'s internal DroneCAN GPS role is mis-configured. For two HERE4s used as plain dual-GPS (no RTK base+rover pair), ArduPilot wants both roles set so neither tries to act as a Moving Baseline source. Two paths to clear it:',
+            why: 'A HERE4\'s on-module GPS_TYPE is stuck as moving-baseline base in its own NVM (sticky from a prior MB config). ArduPilot complains the role is wrong AND the F9P inside the HERE4 is wedged in RTK-base streaming mode (= 0-sat NoFix). Best fix: reset the HERE4\'s internal config directly via DroneCAN-over-MAVLink — no laptop needed.',
             fixes: [
-                // Workaround at the FC level — disable RTK moving-baseline
-                // role detection entirely. ArduPilot will treat both HERE4s
-                // as plain GPSes and stop complaining about role mismatch.
-                { label: 'Treat as plain dual-GPS (no RTK)', action: function () {
-                    tsSetParam('GPS_DRV_OPTIONS', 0);  // clear MB option bits
-                    tsSetParam('GPS1_MB_TYPE',    0);  // disable MB on GPS1
-                    tsSetParam('GPS2_MB_TYPE',    0);  // disable MB on GPS2
-                    tsSetParam('GPS1_TYPE',       9);  // plain DroneCAN
+                // Definitive fix: write to the HERE4's own NVM via the
+                // DroneCAN-over-MAVLink tunnel implemented above. Sets the
+                // periph's GPS_TYPE = 1 (auto), saves, restarts.
+                { label: 'Reset HERE4 #2 periph (definitive)', action: function () {
+                    tsResetHere4(125, 2);
+                } },
+                { label: 'Reset HERE4 #1 periph', action: function () {
+                    tsResetHere4(124, 1);
+                } },
+                // Fallback: just turn off MB at the FC level so it stops
+                // complaining (the periph stays misconfigured but the role
+                // error stops; no GPS2 fix until the periph is reset).
+                { label: 'FC-side mute (no periph reset)', action: function () {
+                    tsSetParam('GPS_DRV_OPTIONS', 0);
+                    tsSetParam('GPS1_MB_TYPE',    0);
+                    tsSetParam('GPS2_MB_TYPE',    0);
+                    tsSetParam('GPS1_TYPE',       9);
                     tsSetParam('GPS2_TYPE',       9);
                     toast('GPS role: plain dual-GPS. Reboot to apply.');
                 } },
