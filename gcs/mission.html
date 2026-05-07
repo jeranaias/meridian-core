@@ -1978,6 +1978,13 @@
     }
 
     // ── UI updates ──
+    // Track whether the operator has manually panned the map recently;
+    // suppress auto-follow for 4s so they can inspect a region without
+    // the boat marker yanking the viewport back on every position update.
+    var _userPannedAt = 0;
+    map.on('dragstart', function () { _userPannedAt = Date.now(); });
+    var _firstFixCentered = false;
+
     function updateVehicle() {
         if (state.lat === 0 && state.lon === 0) return;
         vehicleMarker.setLatLng([state.lat, state.lon]);
@@ -1990,6 +1997,28 @@
         trail.push([state.lat, state.lon]);
         if (trail.length > 500) trail.shift();
         trailLine.setLatLngs(trail);
+
+        // Auto-center: snap immediately on the first valid GPS fix,
+        // then follow at 2 Hz unless the operator has manually dragged.
+        if (!_firstFixCentered) {
+            map.setView([state.lat, state.lon], 17, { animate: false });
+            _firstFixCentered = true;
+        } else if (Date.now() - _userPannedAt > 4000) {
+            // Soft follow \u2014 only re-center if the boat has drifted near the edge,
+            // and use panTo (not setView) so the zoom level is preserved.
+            var bounds = map.getBounds();
+            var latRange = bounds.getNorth() - bounds.getSouth();
+            var lonRange = bounds.getEast() - bounds.getWest();
+            var nearEdge =
+                state.lat < bounds.getSouth() + latRange * 0.18 ||
+                state.lat > bounds.getNorth() - latRange * 0.18 ||
+                state.lon < bounds.getWest()  + lonRange * 0.18 ||
+                state.lon > bounds.getEast()  - lonRange * 0.18;
+            if (nearEdge) {
+                map.panTo([state.lat, state.lon], { animate: true, duration: 0.4 });
+            }
+        }
+
         // Refresh mission line and ETA against live position
         if (waypoints.length > 0) {
             refreshMissionLine();
@@ -1997,10 +2026,18 @@
         }
     }
 
+    // Helper for status-bar values that can be "no data" (negative
+    // sentinel from MAVLink). Returns "\u2014" when missing rather than
+    // a literal "-1%" / "NaN".
+    function _fmtPct(v) { return (v >= 0 && v <= 100) ? v + '%' : '\u2014'; }
+
     function updateStatus() {
         setText('si-gps', state.sats + 'S', state.gps_fix >= 3 ? 'ok' : 'warn');
         setText('si-spd', state.spd.toFixed(1) + ' m/s');
-        setText('si-batt', state.batt + '%', state.batt > 30 ? 'ok' : (state.batt > 15 ? 'warn' : 'bad'));
+        var battCls = state.batt > 30 ? 'ok'
+                    : state.batt > 15 ? 'warn'
+                    : state.batt >= 0 ? 'bad' : '';  // negative = no data, no class
+        setText('si-batt', _fmtPct(state.batt), battCls);
         setText('si-hdg', Math.round(state.hdg) + '\u00B0');
     }
 
