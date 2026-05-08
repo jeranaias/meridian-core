@@ -74,9 +74,15 @@ class SerialTransport(Transport):
     manual bridge restart.
     """
 
-    # USB VIDs we treat as a Cube/Pixhawk family flight controller.
-    # 2DAE = Hex/CubePilot, 1209 = pid.codes (some variants), 26AC = 3DR.
-    FC_VIDS = {0x2DAE, 0x1209, 0x26AC}
+    # USB VIDs we treat as a flight-controller-side serial endpoint.
+    # Direct USB CDC to the FC:
+    #   2DAE = Hex/CubePilot, 1209 = pid.codes (Holybro/some Pixhawks),
+    #   26AC = 3DR (legacy Pixhawk).
+    # Through-radio paths (RFD900, SiK, etc.) — the radio itself is the
+    # serial endpoint, with the FC on the far end:
+    #   0403 = FTDI (FT232R in RFD900X/RFD900+),
+    #   10C4 = Silicon Labs (CP2102/CP2104, common in some SiK clones).
+    FC_VIDS = {0x2DAE, 0x1209, 0x26AC, 0x0403, 0x10C4}
 
     def __init__(self, port: str, baud: int):
         try:
