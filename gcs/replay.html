@@ -289,8 +289,10 @@
   }
 
   /* ── Status text panel ──────────────────────────────────── */
+  /* Pinned bottom-left so it doesn't fight Leaflet's top-left
+     zoom controls. */
   #stats-overlay {
-    position: absolute; top: 36px; left: 8px;
+    position: absolute; bottom: 16px; left: 8px;
     background: rgba(14,19,26,0.92);
     border: 1px solid var(--border-bright);
     border-radius: 4px;
@@ -1031,6 +1033,12 @@ document.getElementById('scrub').addEventListener('input', function (e) {
 document.getElementById('play-btn').addEventListener('click', function () {
   var btn = this;
   if (playTimer) { clearInterval(playTimer); playTimer = null; btn.textContent = '▶'; return; }
+  if (!run || !run.track || !run.track.length) {
+    // Page is open but no data loaded yet (auto-load in flight). Bail
+    // gracefully so the button doesn't appear stuck in "playing" state.
+    btn.textContent = '▶';
+    return;
+  }
   btn.textContent = '⏸';
   var slider = document.getElementById('scrub');
   playTimer = setInterval(function () {

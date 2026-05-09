@@ -672,7 +672,7 @@
     <!-- Status Bar -->
     <div id="status-bar">
         <span class="brand-hex" aria-hidden="true"></span>
-        <span class="status-brand" title="GCS build">MERIDIAN <span style="font-size:9px;opacity:0.6;font-weight:400">v28</span></span>
+        <span class="status-brand" title="GCS build">MERIDIAN <span style="font-size:9px;opacity:0.6;font-weight:400">v29</span></span>
         <span class="conn-dot" id="conn-dot"></span>
         <div class="status-item" id="si-gps"><span class="status-val">--</span><span class="status-label">GPS</span></div>
         <div class="status-item" id="si-spd"><span class="status-val">--</span><span class="status-label">Speed</span></div>
@@ -3203,31 +3203,12 @@
         // convention; m/s gives the operator a quick sanity-check.
         var kn = state.spd * 1.94384;
         setText('si-spd', state.spd.toFixed(1) + ' m/s · ' + kn.toFixed(1) + ' kn');
-        // Voltage-based battery % override. Without a current sensor wired
-        // to BATT_CURR_PIN, ArduPilot can't accumulate Ah and falls back
-        // to a static-ish estimate (often stuck at 99%). Compute % from
-        // voltage directly: linear interpolation across the LiPo discharge
-        // curve, clamped 0..100. We assume 6S (boat default); detect from
-        // voltage range. 6S full = 25.2V (4.2V/cell), empty cutoff = 21.0V
-        // (3.5V/cell).
-        var battPct = state.batt;
-        if (state.volt && state.volt > 5) {
-            var cellCount;
-            if (state.volt > 21) cellCount = 6;       // 6S range 21-25.2V
-            else if (state.volt > 14) cellCount = 4;  // 4S range 14-16.8V
-            else if (state.volt > 10) cellCount = 3;  // 3S range 10.5-12.6V
-            else if (state.volt > 7)  cellCount = 2;  // 2S range 7-8.4V
-            else cellCount = 1;
-            var perCell = state.volt / cellCount;
-            // Map per-cell voltage to %: 4.20V=100, 3.80V=50, 3.50V=10, 3.30V=0
-            var pct;
-            if      (perCell >= 4.20) pct = 100;
-            else if (perCell >= 3.80) pct = 50 + (perCell - 3.80) / 0.40 * 50;
-            else if (perCell >= 3.50) pct = 10 + (perCell - 3.50) / 0.30 * 40;
-            else if (perCell >= 3.30) pct =  0 + (perCell - 3.30) / 0.20 * 10;
-            else pct = 0;
-            battPct = Math.max(0, Math.min(100, Math.round(pct)));
-        }
+        // Use the canonical voltage-curve helper (battPct may be null
+        // before voltage is known; fall back to FC's value then). Cell
+        // count is locked at first detection so deep discharge on a 6S
+        // pack doesn't get reclassified as a smaller pack at 100%.
+        var voltPct = batteryPctFromVoltage();
+        var battPct = (voltPct != null) ? voltPct : state.batt;
         var battCls = battPct > 30 ? 'ok'
                     : battPct > 15 ? 'warn'
                     : battPct >= 0 ? 'bad' : '';
@@ -3358,9 +3339,42 @@
         }
     }
 
+    // Battery % from voltage. The FC's battery_remaining (state.batt) is
+    // unreliable without a wired current sensor (stuck at 99). Compute %
+    // from voltage instead, locking the detected cell count on the FIRST
+    // good high-voltage sample so a deep-discharge sag doesn't get
+    // misclassified as a smaller pack at "100%".
+    function batteryPctFromVoltage() {
+        var v = state.volt;
+        if (!v || v < 5) return null;
+        // Lock cell count once detected at a high-voltage sample. 22V+
+        // unambiguously means 6S (a 4S full charge is 16.8V max). After
+        // lock, never reclassify -- low voltage on a known 6S means
+        // deep discharge, not a smaller pack.
+        if (state._cellCount == null) {
+            if (v > 22)      state._cellCount = 6;
+            else if (v > 16.9) state._cellCount = 5;  // rare on USVs
+            else if (v > 12.7) state._cellCount = 4;
+            else if (v > 8.5)  state._cellCount = 3;
+            else if (v > 5.5)  state._cellCount = 2;
+            else               state._cellCount = 1;
+        }
+        var per = v / state._cellCount;
+        var pct;
+        if      (per >= 4.20) pct = 100;
+        else if (per >= 3.80) pct = 50 + (per - 3.80) / 0.40 * 50;
+        else if (per >= 3.50) pct = 10 + (per - 3.50) / 0.30 * 40;
+        else if (per >= 3.30) pct =  0 + (per - 3.30) / 0.20 * 10;
+        else                  pct =  0;  // critical / cell damage zone
+        return Math.max(0, Math.min(100, Math.round(pct)));
+    }
+
     function checkBatteryThresholds() {
-        // Use BATTERY_STATUS battery_remaining if available, else SYS_STATUS state.batt
-        var pct = (typeof state.batt === 'number' && state.batt >= 0) ? state.batt : 100;
+        // Prefer voltage-curve % over the FC's static battery_remaining,
+        // because the latter is junk without a current sensor.
+        var voltPct = batteryPctFromVoltage();
+        var pct = (voltPct != null) ? voltPct
+                : ((typeof state.batt === 'number' && state.batt >= 0) ? state.batt : 100);
         var minCell = state.cells.length ? Math.min.apply(null, state.cells) : null;
 
         var level = 'ok';
@@ -3557,9 +3571,15 @@
         if (battEl) {
             var minCell = state.cells.length ? Math.min.apply(null, state.cells) : null;
             var timeRemMin = state.batt_time_remaining_s > 0 ? Math.round(state.batt_time_remaining_s / 60) : null;
+            // Charge from voltage curve (FC's state.batt is unreliable
+            // without a wired current sensor). Same helper used by the
+            // status bar so both readouts always agree.
+            var hpPct = batteryPctFromVoltage();
+            if (hpPct == null && typeof state.batt === 'number' && state.batt >= 0) hpPct = state.batt;
             battEl.innerHTML =
-                '<div class="hp-row"><span>Charge</span><strong>' + (state.batt > 0 ? state.batt + '%' : '—') + '</strong></div>' +
+                '<div class="hp-row"><span>Charge</span><strong>' + (hpPct != null ? hpPct + '%' : '—') + '</strong></div>' +
                 '<div class="hp-row"><span>Pack voltage</span><strong>' + (state.volt ? state.volt.toFixed(2) + ' V' : '—') + '</strong></div>' +
+                (state._cellCount ? '<div class="hp-row"><span>Pack</span><strong>' + state._cellCount + 'S' + (state.volt ? ' · ' + (state.volt / state._cellCount).toFixed(2) + ' V/cell' : '') + '</strong></div>' : '') +
                 (state.cells.length ? '<div class="hp-row"><span>Cells (' + state.cells.length + ')</span><strong>' + state.cells.map(function(c){return c.toFixed(2);}).join(' / ') + '</strong></div>' : '') +
                 (minCell !== null ? '<div class="hp-row"><span>Lowest cell</span><strong>' + minCell.toFixed(3) + ' V</strong></div>' : '') +
                 '<div class="hp-row"><span>Current draw</span><strong>' + (state.batt_curr_a ? state.batt_curr_a.toFixed(1) + ' A' : '—') + '</strong></div>' +
