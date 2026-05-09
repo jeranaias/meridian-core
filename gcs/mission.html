@@ -672,7 +672,7 @@
     <!-- Status Bar -->
     <div id="status-bar">
         <span class="brand-hex" aria-hidden="true"></span>
-        <span class="status-brand">MERIDIAN</span>
+        <span class="status-brand" title="GCS build">MERIDIAN <span style="font-size:9px;opacity:0.6;font-weight:400">v22</span></span>
         <span class="conn-dot" id="conn-dot"></span>
         <div class="status-item" id="si-gps"><span class="status-val">--</span><span class="status-label">GPS</span></div>
         <div class="status-item" id="si-spd"><span class="status-val">--</span><span class="status-label">Speed</span></div>
@@ -3052,10 +3052,35 @@
         // convention; m/s gives the operator a quick sanity-check.
         var kn = state.spd * 1.94384;
         setText('si-spd', state.spd.toFixed(1) + ' m/s · ' + kn.toFixed(1) + ' kn');
-        var battCls = state.batt > 30 ? 'ok'
-                    : state.batt > 15 ? 'warn'
-                    : state.batt >= 0 ? 'bad' : '';  // negative = no data, no class
-        setText('si-batt', _fmtPct(state.batt), battCls);
+        // Voltage-based battery % override. Without a current sensor wired
+        // to BATT_CURR_PIN, ArduPilot can't accumulate Ah and falls back
+        // to a static-ish estimate (often stuck at 99%). Compute % from
+        // voltage directly: linear interpolation across the LiPo discharge
+        // curve, clamped 0..100. We assume 6S (boat default); detect from
+        // voltage range. 6S full = 25.2V (4.2V/cell), empty cutoff = 21.0V
+        // (3.5V/cell).
+        var battPct = state.batt;
+        if (state.volt && state.volt > 5) {
+            var cellCount;
+            if (state.volt > 21) cellCount = 6;       // 6S range 21-25.2V
+            else if (state.volt > 14) cellCount = 4;  // 4S range 14-16.8V
+            else if (state.volt > 10) cellCount = 3;  // 3S range 10.5-12.6V
+            else if (state.volt > 7)  cellCount = 2;  // 2S range 7-8.4V
+            else cellCount = 1;
+            var perCell = state.volt / cellCount;
+            // Map per-cell voltage to %: 4.20V=100, 3.80V=50, 3.50V=10, 3.30V=0
+            var pct;
+            if      (perCell >= 4.20) pct = 100;
+            else if (perCell >= 3.80) pct = 50 + (perCell - 3.80) / 0.40 * 50;
+            else if (perCell >= 3.50) pct = 10 + (perCell - 3.50) / 0.30 * 40;
+            else if (perCell >= 3.30) pct =  0 + (perCell - 3.30) / 0.20 * 10;
+            else pct = 0;
+            battPct = Math.max(0, Math.min(100, Math.round(pct)));
+        }
+        var battCls = battPct > 30 ? 'ok'
+                    : battPct > 15 ? 'warn'
+                    : battPct >= 0 ? 'bad' : '';
+        setText('si-batt', _fmtPct(battPct) + (state.volt ? ' ' + state.volt.toFixed(1) + 'V' : ''), battCls);
         setText('si-hdg', Math.round(state.hdg) + '\u00B0');
     }
 
