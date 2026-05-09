@@ -130,6 +130,22 @@
         .action-btn.home:active { background: rgba(255, 167, 38, 0.1); }
         .action-btn.stop { border-color: var(--emergency); color: var(--emergency); }
         .action-btn.stop:active { background: rgba(255, 23, 68, 0.1); }
+        /* Visual state when E-STOP is armed (one tap done, waiting for the
+           confirming second tap). Pulses red so a panic tap is still fast,
+           but the button looks obviously different from idle so accidental
+           single brushes are visible *and* harmless. */
+        @keyframes estop-pulse {
+            0%   { background: rgba(255, 23, 68, 0.20); }
+            50%  { background: rgba(255, 23, 68, 0.55); }
+            100% { background: rgba(255, 23, 68, 0.20); }
+        }
+        .action-btn.stop.estop-arming {
+            background: rgba(255, 23, 68, 0.4);
+            color: #fff;
+            border-color: var(--emergency);
+            animation: estop-pulse 0.35s infinite;
+            font-weight: 800;
+        }
 
         /* ── Mission Info ── */
         #mission-info {
@@ -1570,9 +1586,47 @@
     }
     setInterval(_updateModeTray, 600);
 
+    // Two-tap E-STOP. First tap arms the button (visual + audio + 4s
+    // window); second tap inside that window actually fires the
+    // force-disarm. Single accidental brushes do nothing. The window
+    // is short enough (4s) that a panic-tap-tap still stops the boat
+    // immediately, but a single thumb-graze on the tablet does not.
+    var _eStopArmed = 0;  // timestamp of the first tap, 0 when idle
     function emergencyStop() {
-        sendCmd(0x81); // force-disarm
-        if (typeof trackCommand === 'function') trackCommand(400, 'btn-stop', 'E-STOP');
+        var now = Date.now();
+        var btn = document.getElementById('btn-stop');
+        if (now - _eStopArmed < 4000) {
+            // Second tap inside window -- send it.
+            _eStopArmed = 0;
+            if (btn) {
+                btn.classList.remove('estop-arming');
+                btn.textContent = btn.dataset.origText || 'E-STOP';
+            }
+            sendCmd(0x81); // force-disarm
+            toast('E-STOP SENT');
+            try { _audioBeep(880, 200); } catch (e) {}
+            if (typeof trackCommand === 'function') trackCommand(400, 'btn-stop', 'E-STOP');
+            return;
+        }
+        // First tap -- arm and wait. Show "TAP AGAIN" on the button,
+        // pulse it, and reset state if no follow-up within 4s.
+        _eStopArmed = now;
+        if (btn) {
+            if (!btn.dataset.origText) btn.dataset.origText = btn.textContent.trim() || 'E-STOP';
+            btn.classList.add('estop-arming');
+            btn.textContent = 'TAP AGAIN';
+        }
+        toast('Tap E-STOP again within 4s to confirm');
+        try { _audioBeep(440, 120); } catch (e) {}
+        setTimeout(function () {
+            if (Date.now() - _eStopArmed >= 3900) {
+                _eStopArmed = 0;
+                if (btn) {
+                    btn.classList.remove('estop-arming');
+                    btn.textContent = btn.dataset.origText || 'E-STOP';
+                }
+            }
+        }, 4000);
     }
 
     // ──────────────────────────────────────────────────────────────
