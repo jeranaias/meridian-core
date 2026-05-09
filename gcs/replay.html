@@ -1099,41 +1099,52 @@ document.getElementById('file-input').addEventListener('change', function (e) {
   });
 });
 
-// "↻ LATEST" — fetch the most recent .jsonl from /flightlogs/ on the
-// HTTP server. Convenience for "Tristan just got back, show me the run"
-// without pawing around the file system. Server-side: just `python -m
-// http.server` from D:/projects/meridian/, so /flightlogs-backup/
-// directory listing is HTML; we parse the file links to find the
-// newest. If the listing isn't enabled, we fall back to a hard-coded
-// pattern guess (today's date).
-document.getElementById('load-latest').addEventListener('click', function () {
-  fetch('/flightlogs-backup/')
-    .then(function (r) { return r.text(); })
+// "↻ LATEST" — fetch ALL .jsonl files from /flightlogs/ and stitch them
+// into one continuous session. Default Python http.server returns an
+// HTML directory listing we can parse with a regex. Auto-runs on page
+// load so the dashboard is populated the moment Tristan opens the page.
+function loadAllFlightLogs(opts) {
+  opts = opts || {};
+  return fetch('flightlogs/')
+    .then(function (r) {
+      if (!r.ok) throw new Error('flightlogs dir not reachable (HTTP ' + r.status + ')');
+      return r.text();
+    })
     .then(function (html) {
-      // Pull href="*.jsonl" from a default Python http.server listing
       var matches = html.match(/href="([^"]+\.jsonl)"/g) || [];
       var files = matches.map(function (m) { return m.slice(6, -1); });
-      if (!files.length) {
-        alert('No .jsonl files found in /flightlogs-backup/. ' +
-              'Make sure the HTTP server is running from D:/projects/meridian.');
-        return;
-      }
-      // Newest by lexical sort (recorder filenames are timestamped)
-      files.sort();
-      var latest = files[files.length - 1];
-      return fetch('/flightlogs-backup/' + latest)
-        .then(function (r) { return r.text(); })
-        .then(function (text) {
-          render(parseLog(text));
-          document.getElementById('meta').innerHTML =
-            'Loaded <b>' + latest + '</b> · ' +
-            (text.length / 1024 / 1024).toFixed(2) + ' MB';
-        });
-    })
-    .catch(function (e) {
-      alert('Could not list /flightlogs-backup/. Drop the .jsonl manually using OPEN .JSONL.');
-      console.error(e);
+      if (!files.length) throw new Error('No .jsonl files in /flightlogs/.');
+      files.sort();   // recorder filenames are ISO timestamps -> chrono order
+      if (opts.latest) files = [files[files.length - 1]];
+      document.getElementById('meta').innerHTML =
+        'Loading <b>' + files.length + ' file' + (files.length === 1 ? '' : 's') +
+        '</b>... ' + files.join(', ');
+      return Promise.all(files.map(function (f) {
+        return fetch('flightlogs/' + f).then(function (r) { return r.text(); });
+      })).then(function (texts) {
+        var combined = texts.join('\n');
+        render(parseLog(combined));
+        document.getElementById('meta').innerHTML =
+          'Loaded <b>' + files.length + ' file' + (files.length === 1 ? '' : 's') +
+          '</b> · ' + (combined.length / 1024 / 1024).toFixed(1) + ' MB · ' +
+          files.join(', ');
+      });
     });
+}
+
+document.getElementById('load-latest').addEventListener('click', function () {
+  loadAllFlightLogs({ latest: false }).catch(function (e) {
+    alert('Could not auto-load: ' + e.message + '\nUse OPEN .JSONL to pick files manually.');
+  });
+});
+
+// Auto-load full session on page open. If it fails (server not configured
+// for /flightlogs/ access), do nothing -- empty state shows, file picker
+// still works.
+window.addEventListener('load', function () {
+  loadAllFlightLogs({ latest: false }).catch(function (e) {
+    console.log('Auto-load skipped:', e.message);
+  });
 });
 
 document.getElementById('export-kml').addEventListener('click', function () {
