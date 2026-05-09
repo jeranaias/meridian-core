@@ -2133,8 +2133,22 @@
             // EKF-fused velocity that GLOBAL_POSITION_INT and VFR_HUD
             // carry. With the compass broken and EKF unhappy, the
             // EKF-derived speed is unreliable; raw GPS isn't.
+            //
+            // Outlier rejection: GPS_RAW_INT.vel intermittently reads 0
+            // when the ublox velocity solution isn't ready (multipath,
+            // tracking transients). A boat doesn't decelerate from 8 kn
+            // to 0 in 0.5s, so reject suspiciously-low readings when we
+            // already have a valid recent value, and apply light EMA so
+            // the displayed value doesn't strobe.
             var rawVel = dv.getUint16(24, true) / 100;
-            if (rawVel < 100) state.spd = rawVel;
+            if (rawVel < 100) {
+                var prev = state.spd != null ? state.spd : rawVel;
+                if (prev > 1.0 && rawVel < prev * 0.3) {
+                    // outlier: keep prev, don't drop to (near) zero
+                } else {
+                    state.spd = rawVel * 0.4 + prev * 0.6;
+                }
+            }
             // Raw GPS course-over-ground at offset 26 (uint16 centidegrees).
             // This is the GPS chip's own COG solution, also outside the
             // EKF. When the boat is moving fast enough for the chip to
