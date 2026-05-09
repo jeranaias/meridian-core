@@ -247,6 +247,85 @@ def _decode_command_ack(p: bytes) -> Optional[dict]:
     return {"command": cmd, "result": result}
 
 
+def _decode_nav_controller_output(p: bytes) -> Optional[dict]:
+    """NAV_CONTROLLER_OUTPUT (62). Wire (size desc): f32 nav_roll, nav_pitch,
+    alt_error, aspd_error, xtrack_error; i16 nav_bearing, target_bearing,
+    wp_dist."""
+    if len(p) < 26: return None
+    padded = p + b"\x00" * max(0, 26 - len(p))
+    nav_roll, nav_pitch, alt_err, aspd_err, xtrack_err = struct.unpack_from("<5f", padded, 0)
+    nav_bearing, target_bearing, wp_dist = struct.unpack_from("<3h", padded, 20)
+    # wp_dist is i16 but documented as uint16 per recent MAVLink; cast safely
+    if wp_dist < 0: wp_dist = wp_dist + 65536
+    return {
+        "nav_roll_deg": nav_roll, "nav_pitch_deg": nav_pitch,
+        "alt_error_m": alt_err, "aspd_error_ms": aspd_err,
+        "xtrack_error_m": xtrack_err,
+        "nav_bearing_deg": nav_bearing, "target_bearing_deg": target_bearing,
+        "wp_dist_m": wp_dist,
+    }
+
+
+def _decode_rc_channels(p: bytes) -> Optional[dict]:
+    """RC_CHANNELS (65). Wire: u32 time_boot_ms, u16 chan1..18, u8 chancount, rssi.
+    First 4 channels typically used on a Rover for steering / throttle / aux."""
+    if len(p) < 8: return None
+    padded = p + b"\x00" * max(0, 42 - len(p))
+    chans = list(struct.unpack_from("<18H", padded, 4))
+    chancount = padded[40] if len(padded) > 40 else 0
+    rssi = padded[41] if len(padded) > 41 else 255
+    return {
+        "chans_us": chans[:8],   # keep first 8 to keep jsonl tidy
+        "chancount": chancount,
+        "rc_rssi": rssi,         # 0..254 = quality, 255 = unknown
+    }
+
+
+def _decode_attitude_target(p: bytes) -> Optional[dict]:
+    """ATTITUDE_TARGET (83). Commanded attitude from the autopilot's outer
+    loop -- compare to ATTITUDE for closed-loop tracking analysis.
+    Wire: u32 time_boot_ms, f32 q[4], f32 body_roll_rate, body_pitch_rate,
+    body_yaw_rate, thrust, u8 type_mask."""
+    if len(p) < 37: return None
+    body_roll_rate = struct.unpack_from("<f", p, 20)[0]
+    body_pitch_rate = struct.unpack_from("<f", p, 24)[0]
+    body_yaw_rate = struct.unpack_from("<f", p, 28)[0]
+    thrust = struct.unpack_from("<f", p, 32)[0]
+    return {
+        "body_roll_rate": body_roll_rate,
+        "body_pitch_rate": body_pitch_rate,
+        "body_yaw_rate": body_yaw_rate,
+        "thrust": thrust,
+    }
+
+
+def _decode_ahrs2(p: bytes) -> Optional[dict]:
+    """AHRS2 (178). Backup attitude estimate, useful for EKF lane-switch
+    diagnosis. Wire: f32 roll, pitch, yaw, altitude, i32 lat, lng."""
+    if len(p) < 24: return None
+    roll, pitch, yaw, alt = struct.unpack_from("<4f", p, 0)
+    lat, lng = struct.unpack_from("<2i", p, 16)
+    return {
+        "roll_rad": roll, "pitch_rad": pitch, "yaw_rad": yaw,
+        "alt_m": alt,
+        "lat_deg": lat / 1e7, "lng_deg": lng / 1e7,
+    }
+
+
+def _decode_pid_tuning(p: bytes) -> Optional[dict]:
+    """PID_TUNING (194). Inner-loop PID internals -- enable on tuning sorties
+    only, costs bandwidth. Wire: f32 desired, achieved, FF, P, I, D; u8 axis."""
+    if len(p) < 25: return None
+    desired, achieved, FF, P, I, D = struct.unpack_from("<6f", p, 0)
+    axis = p[24]
+    AXIS = {1:"roll", 2:"pitch", 3:"yaw", 4:"accel_z", 5:"steering", 6:"throttle"}
+    return {
+        "axis": AXIS.get(axis, str(axis)),
+        "desired": desired, "achieved": achieved,
+        "FF": FF, "P": P, "I": I, "D": D,
+    }
+
+
 def _decode_radio_status(p: bytes) -> Optional[dict]:
     """RADIO_STATUS (109): RFD900/SiK link health.
     Wire order v2 (size desc): u16 rxerrors, u16 fixed, u8 rssi, u8 remrssi,
@@ -340,8 +419,13 @@ DECODERS = {
     193:  ("EKF_STATUS_REPORT",    _decode_ekf_status_report,        2.0),
     241:  ("VIBRATION",            _decode_vibration,                2.0),
     253:  ("STATUSTEXT",           _decode_statustext,               None),  # always log
+    62:   ("NAV_CONTROLLER_OUTPUT", _decode_nav_controller_output,    1.0),
+    65:   ("RC_CHANNELS",          _decode_rc_channels,              1.0),
+    83:   ("ATTITUDE_TARGET",      _decode_attitude_target,          0.5),
     109:  ("RADIO_STATUS",         _decode_radio_status,             None),  # always log -- RFD900 RSSI/SNR per packet
     124:  ("GPS2_RAW",             _decode_gps2_raw,                 1.0),
+    178:  ("AHRS2",                _decode_ahrs2,                    2.0),
+    194:  ("PID_TUNING",           _decode_pid_tuning,               1.0),
     11030: ("ESC_TELEMETRY_1_TO_4",  lambda p: _decode_esc_telemetry(p, 0),  1.0),
     11031: ("ESC_TELEMETRY_5_TO_8",  lambda p: _decode_esc_telemetry(p, 4),  1.0),
     11032: ("ESC_TELEMETRY_9_TO_12", lambda p: _decode_esc_telemetry(p, 8),  1.0),
@@ -498,6 +582,9 @@ class Recorder:
         elif msgid == 0:    # HEARTBEAT
             ls["mode"]       = fields.get("mode")
             ls["armed"]      = fields.get("armed")
+        elif msgid == 62:   # NAV_CONTROLLER_OUTPUT
+            ls["xtrack_m"]   = fields.get("xtrack_error_m")
+            ls["wp_dist_m"]  = fields.get("wp_dist_m")
 
     def handle_frame(self, frame: bytes) -> None:
         try:

@@ -391,6 +391,16 @@
           <div class="chart-value" id="chart-thr-val">—</div>
           <div id="chart-thr"></div>
         </div>
+        <div class="chart-row" id="chart-xtrack-row">
+          <div class="chart-label">XTRACK ERROR · M</div>
+          <div class="chart-value" id="chart-xtrack-val">—</div>
+          <div id="chart-xtrack"></div>
+        </div>
+        <div class="chart-row" id="chart-rssi-row">
+          <div class="chart-label">RFD RSSI · DB</div>
+          <div class="chart-value" id="chart-rssi-val">—</div>
+          <div id="chart-rssi"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -480,6 +490,11 @@ function parseLog(text) {
     armed: [],       // [{t, armed}]
     modes: [],       // [{t, mode}]
     radio: [],
+    nav: [],         // NAV_CONTROLLER_OUTPUT (xtrack, wp_dist, target_bearing)
+    rc: [],          // RC_CHANNELS (commanded steering/throttle from operator)
+    attTarget: [],   // ATTITUDE_TARGET (commanded body rates from autopilot)
+    ahrs2: [],       // backup AHRS estimate
+    pid: [],         // PID_TUNING (tuning sorties only)
     t0: null, t1: null,
   };
   var lastArmed = null, lastMode = null;
@@ -502,8 +517,16 @@ function parseLog(text) {
       case 'SYS_STATUS':            r.sys.push(e); break;
       case 'BATTERY_STATUS':        r.battery.push(e); break;
       case 'RADIO_STATUS':          r.radio.push(e); break;
+      case 'NAV_CONTROLLER_OUTPUT': r.nav.push(e); break;
+      case 'RC_CHANNELS':           r.rc.push(e); break;
+      case 'ATTITUDE_TARGET':       r.attTarget.push(e); break;
+      case 'AHRS2':                 r.ahrs2.push(e); break;
+      case 'PID_TUNING':            r.pid.push(e); break;
       case 'STATUSTEXT':
-        if (e.severity != null && e.severity <= 5) r.statusText.push(e);
+        // Severity 0-7: 0=EMERG, 1=ALERT, 2=CRIT, 3=ERROR, 4=WARN,
+        // 5=NOTICE, 6=INFO, 7=DEBUG. Keep 0-7 for full pre-arm and
+        // sensor-init detail (raised from 5 per test #2 plan).
+        if (e.severity != null && e.severity <= 7) r.statusText.push(e);
         break;
       case 'HEARTBEAT':
         if (e.armed != null && e.armed !== lastArmed) {
@@ -658,6 +681,7 @@ function destroyCharts() {
   for (var k in charts) {
     if (charts[k]) { try { charts[k].destroy(); } catch (_) {} charts[k] = null; }
   }
+  charts = { spd: null, volt: null, hdg: null, thr: null, xtrack: null, rssi: null };
 }
 
 function drawCharts(r) {
@@ -744,6 +768,23 @@ function drawCharts(r) {
     { stroke: '#ff80ff', width: 1.5, fill: 'rgba(255,128,255,0.06)' },
   ]), [thrData[0], thrData[1]], document.getElementById('chart-thr'));
 
+  // ── New for run #2: course-keeping + RF link quality ──
+  var xtrackData = buildSeries(r.nav, 'xtrack_error_m', r.t0, r.t1);
+  charts.xtrack = new uPlot(makeOpts([
+    {},
+    { stroke: '#ffa726', width: 1.5, fill: 'rgba(255,167,38,0.06)' },
+  ]), [xtrackData[0], xtrackData[1]], document.getElementById('chart-xtrack'));
+
+  // RSSI chart: local + remote on same axes (cyan + orange dashed)
+  var rssiLocal  = buildSeries(r.radio, 'rssi_db',    r.t0, r.t1);
+  var rssiRemote = buildSeries(r.radio, 'remrssi_db', r.t0, r.t1);
+  var rssiMerged = mergeSeries([rssiLocal, rssiRemote]);
+  charts.rssi = new uPlot(makeOpts([
+    {},
+    { stroke: '#00e5ff', width: 1.5, label: 'RX' },
+    { stroke: '#ffa726', width: 1.4, label: 'remote', dash: [4, 3] },
+  ]), rssiMerged, document.getElementById('chart-rssi'));
+
   // Re-fit on resize
   fitChartsToContainer();
 }
@@ -807,13 +848,12 @@ function computeArmedRanges(r) {
 }
 
 function fitChartsToContainer() {
-  // Match each uPlot canvas to its parent .chart-row interior
-  ['spd', 'volt', 'hdg', 'thr'].forEach(function (k) {
+  ['spd', 'volt', 'hdg', 'thr', 'xtrack', 'rssi'].forEach(function (k) {
     var c = charts[k];
     if (!c) return;
     var parent = document.getElementById('chart-' + k).parentElement;
     var w = parent.clientWidth;
-    var h = parent.clientHeight - 22;  // leave room for label
+    var h = parent.clientHeight - 22;
     c.setSize({ width: w, height: h });
   });
 }
@@ -943,6 +983,18 @@ function updateScrub(pct, fromCursor) {
   if (v) {
     document.getElementById('chart-thr-val').textContent =
       v.throttle_pct != null ? v.throttle_pct + ' %' : '—';
+  }
+  // New chart values for run #2
+  var n = nearest(run.nav);
+  if (n) {
+    document.getElementById('chart-xtrack-val').textContent =
+      n.xtrack_error_m != null ? n.xtrack_error_m.toFixed(2) + ' m' : '—';
+  }
+  var rs = nearest(run.radio);
+  if (rs) {
+    document.getElementById('chart-rssi-val').textContent =
+      (rs.rssi_db != null ? rs.rssi_db.toFixed(0) : '—') + ' / ' +
+      (rs.remrssi_db != null ? rs.remrssi_db.toFixed(0) : '—') + ' dB';
   }
 
   // Bottom info line

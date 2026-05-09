@@ -672,7 +672,7 @@
     <!-- Status Bar -->
     <div id="status-bar">
         <span class="brand-hex" aria-hidden="true"></span>
-        <span class="status-brand" title="GCS build">MERIDIAN <span style="font-size:9px;opacity:0.6;font-weight:400">v24</span></span>
+        <span class="status-brand" title="GCS build">MERIDIAN <span style="font-size:9px;opacity:0.6;font-weight:400">v25</span></span>
         <span class="conn-dot" id="conn-dot"></span>
         <div class="status-item" id="si-gps"><span class="status-val">--</span><span class="status-label">GPS</span></div>
         <div class="status-item" id="si-spd"><span class="status-val">--</span><span class="status-label">Speed</span></div>
@@ -1942,6 +1942,14 @@
                         [147, 1000000],  // BATTERY_STATUS — 1Hz (cells, current, mAh)
                         [193,  500000],  // EKF_STATUS_REPORT — 2Hz (variance)
                         [241, 2000000],  // VIBRATION — 0.5Hz
+                        // Test-engineering / control-loop diagnostics for
+                        // run #2 onward. Adds the data needed for spec
+                        // sheet measurements (turning radius, course-keeping
+                        // accuracy) and PID tuning analysis.
+                        [ 62, 1000000],  // NAV_CONTROLLER_OUTPUT — 1Hz (xtrack, dist-to-WP, target bearing)
+                        [ 83,  500000],  // ATTITUDE_TARGET — 2Hz (commanded attitude vs ATTITUDE)
+                        [178, 1000000],  // AHRS2 — 1Hz (backup attitude for EKF lane diagnosis)
+                        // (RC_CHANNELS already requested above as msgid 65)
                         // (no SET_MESSAGE_INTERVAL for HOME_POSITION; we use
                         //  MAV_CMD_REQUEST_MESSAGE for it as a one-shot below)
                         // (no SET_MESSAGE_INTERVAL for ESC_TELEMETRY 11030
@@ -2320,6 +2328,39 @@
                 dv.getUint32(28, true),
             ];
             checkVibrationThresholds();
+        } else if (id === 62 && p.length >= 26) { // NAV_CONTROLLER_OUTPUT
+            // Wire (size desc): 5 floats then 3 i16
+            //   nav_roll, nav_pitch, alt_error, aspd_error, xtrack_error,
+            //   nav_bearing, target_bearing, wp_dist
+            state.nav = {
+                xtrack_error: dv.getFloat32(16, true),
+                nav_bearing:  dv.getInt16(20, true),
+                target_bearing: dv.getInt16(22, true),
+                wp_dist:      dv.getUint16(24, true),
+            };
+        } else if (id === 65 && p.length >= 8) { // RC_CHANNELS
+            // u32 time + 18 x u16 chans
+            state.rc = {
+                ch1: dv.getUint16(4, true),
+                ch2: dv.getUint16(6, true),
+                ch3: dv.getUint16(8, true),
+                ch4: dv.getUint16(10, true),
+                rssi: p.length >= 42 ? p[41] : 255,
+            };
+        } else if (id === 83 && p.length >= 33) { // ATTITUDE_TARGET
+            // commanded body rates + thrust at offsets 20, 24, 28, 32
+            state.att_target = {
+                body_roll_rate:  dv.getFloat32(20, true),
+                body_pitch_rate: dv.getFloat32(24, true),
+                body_yaw_rate:   dv.getFloat32(28, true),
+                thrust:          dv.getFloat32(32, true),
+            };
+        } else if (id === 178 && p.length >= 24) { // AHRS2 (backup attitude)
+            state.ahrs2 = {
+                roll: dv.getFloat32(0, true),
+                pitch: dv.getFloat32(4, true),
+                yaw:  dv.getFloat32(8, true),
+            };
         } else if (id === 253 && p.length >= 2) { // STATUSTEXT
             var sev = dv.getUint8(0);
             var text = '';
@@ -2333,6 +2374,9 @@
             //   "Arm: …"     is what comes back when the operator actually
             //                taps ARM and the autopilot refuses
             // Both feed the same checklist UI.
+            // Pre-arm checklist UI: severities 0-4 (EMERG..WARN). Don't
+            // include sev 5-7 (NOTICE/INFO/DEBUG) here -- those go to the
+            // events log only via onStatusText above.
             if (sev <= 4 && /^(Pre)?Arm:/i.test(text)) {
                 onPreArmFailure(text.replace(/^(Pre)?Arm:\s*/i, ''));
             }
