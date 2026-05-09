@@ -328,8 +328,8 @@
     <span style="width:1px;height:20px;background:var(--border-bright);margin:0 4px"></span>
     <button class="btn primary" id="load-latest" title="Load the newest .jsonl from this folder">↻ LATEST</button>
     <label class="file-btn btn">
-      OPEN .JSONL
-      <input type="file" id="file-input" accept=".jsonl,.json">
+      OPEN .JSONL · <span style="opacity:0.6;font-size:9px">multi-select for full session</span>
+      <input type="file" id="file-input" accept=".jsonl,.json" multiple>
     </label>
     <button class="btn" id="export-kml">KML</button>
     <button class="btn" id="export-csv">CSV</button>
@@ -1075,11 +1075,28 @@ function totalDistance(track) {
 //  FILE I/O
 // ════════════════════════════════════════════════════════════
 document.getElementById('file-input').addEventListener('change', function (e) {
-  var f = e.target.files[0];
-  if (!f) return;
-  var rd = new FileReader();
-  rd.onload = function () { render(parseLog(rd.result)); };
-  rd.readAsText(f);
+  var fs = Array.from(e.target.files || []);
+  if (!fs.length) return;
+  // Sort by name (recorder filenames are timestamped, so name-sort = chrono)
+  fs.sort(function (a, b) { return a.name < b.name ? -1 : 1; });
+  // Read and concatenate all selected .jsonl files in order. Useful when
+  // the recorder has rotated mid-session into multiple hourly files and
+  // we want to replay the entire run end-to-end.
+  Promise.all(fs.map(function (f) {
+    return new Promise(function (resolve, reject) {
+      var rd = new FileReader();
+      rd.onload = function () { resolve(rd.result); };
+      rd.onerror = reject;
+      rd.readAsText(f);
+    });
+  })).then(function (texts) {
+    var combined = texts.join('\n');
+    render(parseLog(combined));
+    document.getElementById('meta').innerHTML =
+      'Loaded <b>' + fs.length + ' file' + (fs.length === 1 ? '' : 's') + '</b> · ' +
+      fs.map(function (f) { return f.name; }).join(', ') + ' · ' +
+      (combined.length / 1024 / 1024).toFixed(1) + ' MB total';
+  });
 });
 
 // "↻ LATEST" — fetch the most recent .jsonl from /flightlogs/ on the
