@@ -672,7 +672,7 @@
     <!-- Status Bar -->
     <div id="status-bar">
         <span class="brand-hex" aria-hidden="true"></span>
-        <span class="status-brand" title="GCS build">MERIDIAN <span style="font-size:9px;opacity:0.6;font-weight:400">v22</span></span>
+        <span class="status-brand" title="GCS build">MERIDIAN <span style="font-size:9px;opacity:0.6;font-weight:400">v23</span></span>
         <span class="conn-dot" id="conn-dot"></span>
         <div class="status-item" id="si-gps"><span class="status-val">--</span><span class="status-label">GPS</span></div>
         <div class="status-item" id="si-spd"><span class="status-val">--</span><span class="status-label">Speed</span></div>
@@ -685,6 +685,19 @@
         <span class="status-mode disarmed" id="status-mode">DISARMED</span>
         <span class="health-chip ok" id="health-chip" onclick="toggleHealthPanel()" title="Tap for battery, vibration, ESC + events">HEALTH ✓</span>
         <button id="btn-settings" onclick="toggleSettings()" style="background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer;padding:4px 8px" title="Settings">&#9881;</button>
+    </div>
+
+    <!-- "Boat offline" banner. Appears when no HEARTBEAT in >5s. Hides
+         the second the boat reconnects. Useful during battery swaps so
+         the operator sees "yes I know it's down" rather than wondering
+         why telemetry is frozen. -->
+    <div id="boat-offline-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:5000;
+         background:rgba(255,23,68,0.92);color:#fff;text-align:center;
+         padding:8px 16px;font:700 14px 'Rajdhani',sans-serif;letter-spacing:0.1em;
+         text-transform:uppercase;border-bottom:2px solid #fff;
+         box-shadow:0 4px 16px rgba(0,0,0,0.4);backdrop-filter:blur(4px);">
+        <span id="boat-offline-text">BOAT OFFLINE — reconnecting…</span>
+        <span style="margin-left:12px;font-weight:500;font-size:11px;opacity:0.85" id="boat-offline-elapsed"></span>
     </div>
 
     <!-- Health Panel (slide-out from right edge, tap chip to open) -->
@@ -1147,6 +1160,44 @@
     'use strict';
 
     // ── State ──
+    // Online/offline boat watchdog. Boat reboots (battery swaps, FC cycle)
+    // are common and should NOT look like "everything broke" -- the
+    // operator needs a clear "boat offline · 3.2s" banner that goes away
+    // the second telemetry resumes. _onBoatAlive is called from every
+    // HEARTBEAT receive; the interval-driven _checkBoatLiveness flips
+    // the banner when no heartbeat in >5s.
+    function _showBoatOffline(text) {
+        var b = document.getElementById('boat-offline-banner');
+        var t = document.getElementById('boat-offline-text');
+        if (b && t) { t.textContent = text; b.style.display = 'block'; }
+    }
+    function _hideBoatOffline() {
+        var b = document.getElementById('boat-offline-banner');
+        if (b) b.style.display = 'none';
+    }
+    function _onBoatAlive() {
+        if (state._was_offline) {
+            _hideBoatOffline();
+            try { toast('Boat back · ' + ((Date.now() - state._offline_since) / 1000).toFixed(1) + 's gap'); } catch (_) {}
+            state._was_offline = false;
+            state._offline_since = 0;
+        }
+    }
+    setInterval(function () {
+        if (!state.last_heartbeat_at) return;  // never seen one
+        if (!state.connected) return;          // WS-level handles its own banner
+        var since = Date.now() - state.last_heartbeat_at;
+        if (since > 5000 && !state._was_offline) {
+            state._was_offline = true;
+            state._offline_since = Date.now() - 5000;
+            _showBoatOffline('BOAT OFFLINE — telemetry stopped, reconnecting…');
+        }
+        if (state._was_offline) {
+            var el = document.getElementById('boat-offline-elapsed');
+            if (el) el.textContent = ((Date.now() - state._offline_since) / 1000).toFixed(1) + 's';
+        }
+    }, 500);
+
     var state = {
         connected: false, armed: false, lat: 0, lon: 0, hdg: 0, spd: 0, batt: 0, volt: 0,
         mode: 'MANUAL', gps_fix: 0, sats: 0, destination: null, home: null,
@@ -1214,11 +1265,25 @@
     var map = L.map('map', { center: [-33.97, 151.20], zoom: 16, zoomControl: false, attributionControl: false });
     var tileLayer = null;
     function setTiles(theme) {
-        if (tileLayer) map.removeLayer(tileLayer);
-        var url = theme === 'light'
-            ? 'https://{s}.basemaps.cartocdn.com/voyager/{z}/{x}/{y}{r}.png'
-            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-        tileLayer = L.tileLayer(url, { subdomains: 'abcd', maxZoom: 19 }).addTo(map);
+        // Always use the dark_all tiles -- they're already in the service
+        // worker cache from any previous session, so the map works offline
+        // (= boat with no internet through the laptop) immediately. For
+        // bright-sunlight readability, apply a CSS invert+rotate filter to
+        // the tile pane in light mode -- looks like a photo-negative
+        // satellite shot (high contrast) without downloading a different
+        // tile set on a sketchy WiFi connection.
+        if (!tileLayer) {
+            tileLayer = L.tileLayer(
+                'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                { subdomains: 'abcd', maxZoom: 19 }
+            ).addTo(map);
+        }
+        var pane = document.querySelector('.leaflet-tile-pane');
+        if (pane) {
+            pane.style.filter = (theme === 'light')
+                ? 'invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.92) saturate(0.85)'
+                : '';
+        }
     }
     setTiles('dark');
 
@@ -1868,6 +1933,8 @@
             document.getElementById('conn-dot').className = 'conn-dot';
             clearTimeout(reconnectTimer);
             reconnectTimer = setTimeout(connect, 3000);
+            // WS dropped is its own kind of "boat offline"
+            _showBoatOffline('BRIDGE OFFLINE — reconnecting…');
         };
         ws.onerror = function() { ws.close(); };
         ws.onmessage = function(evt) {
@@ -2107,7 +2174,9 @@
         if (id === 0 && p.length >= 8) { // HEARTBEAT
             state.armed = (dv.getUint8(6) & 0x80) !== 0;
             state.mode = COPTER_MODE_NAMES[dv.getUint32(0, true)] || 'MODE_' + dv.getUint32(0, true);
+            state.last_heartbeat_at = Date.now();
             updateArmUI();
+            _onBoatAlive();
         } else if (id === 33 && p.length >= 28) { // GLOBAL_POSITION_INT
             state.lat = dv.getInt32(4, true) / 1e7;
             state.lon = dv.getInt32(8, true) / 1e7;
