@@ -91,12 +91,30 @@ def _decode_sys_status(p: bytes) -> Optional[dict]:
 
 
 def _decode_gps_raw_int(p: bytes) -> Optional[dict]:
-    if len(p) < 30: return None
+    """GPS_RAW_INT (24). Wire order v2 size-desc:
+    u64 time, i32 lat, i32 lon, i32 alt, u16 eph, u16 epv, u16 vel, u16 cog,
+    u8 fix_type, u8 sats."""
+    if len(p) < 30:
+        # Pad and try -- some packets get trailing-zero stripped
+        if len(p) < 16: return None
+        p = p + b"\x00" * (30 - len(p))
     lat = struct.unpack_from("<i", p, 8)[0]
     lon = struct.unpack_from("<i", p, 12)[0]
-    fix = struct.unpack_from("<B", p, 28)[0]
-    sats = struct.unpack_from("<B", p, 29)[0]
-    return {"fix_type": fix, "satellites": sats, "lat": lat / 1e7, "lon": lon / 1e7}
+    alt = struct.unpack_from("<i", p, 16)[0]
+    eph = struct.unpack_from("<H", p, 20)[0]
+    epv = struct.unpack_from("<H", p, 22)[0]
+    vel = struct.unpack_from("<H", p, 24)[0]
+    cog = struct.unpack_from("<H", p, 26)[0]
+    fix = p[28]
+    sats = p[29]
+    return {
+        "fix_type": fix, "satellites": sats,
+        "lat": lat / 1e7, "lon": lon / 1e7, "alt_m": alt / 1000.0,
+        "eph_m": eph / 100.0 if eph != 0xFFFF else None,
+        "epv_m": epv / 100.0 if epv != 0xFFFF else None,
+        "vel_ms": vel / 100.0 if vel != 0xFFFF else None,
+        "cog_deg": cog / 100.0 if cog != 0xFFFF else None,
+    }
 
 
 def _decode_global_position(p: bytes) -> Optional[dict]:

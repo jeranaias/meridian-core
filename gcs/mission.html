@@ -2117,21 +2117,12 @@
             var vy = dv.getInt16(22, true) / 100;
             var gs = Math.sqrt(vx * vx + vy * vy);
             if (gs > 0.05 || state.spd == null) state.spd = gs;
-            // Heading source. ArduPilot's heading_deg field (offset 26) is
-            // EKF/AHRS-computed yaw -- compass-derived in our setup, which
-            // is broken until COMPASS_LEARN converges. When the boat is
-            // moving fast enough to give us a clean GPS course-of-motion
-            // (>0.5 m/s for ground vehicles), prefer that as the displayed
-            // heading. atan2(vx, vy) in NED frame gives bearing clockwise
-            // from true north, which is the marine convention. Standstill:
-            // fall back to whatever AHRS gives (probably wrong but the
-            // best we have when there's no motion vector to derive from).
-            var ahrsHdg = dv.getUint16(26, true) / 100;
-            if (gs > 0.5) {
-                state.hdg = (Math.atan2(vy, vx) * 180 / Math.PI + 360) % 360;
-            } else {
-                state.hdg = ahrsHdg;
-            }
+            // Heading from GLOBAL_POSITION_INT only as a fallback when
+            // GPS_RAW_INT hasn't given us a fresh raw COG yet. GPS_RAW_INT
+            // arrives at ~2 Hz, GLOBAL_POSITION_INT at ~5 Hz, so most
+            // updates come through the GPS_RAW_INT branch. Don't overwrite
+            // a fresh raw-GPS heading with EKF junk.
+            if (state.hdg == null) state.hdg = dv.getUint16(26, true) / 100;
             updateVehicle();
         } else if (id === 1 && p.length >= 31) { // SYS_STATUS
             state.volt = dv.getUint16(14, true) / 1000;
@@ -2145,7 +2136,18 @@
             // carry. With the compass broken and EKF unhappy, the
             // EKF-derived speed is unreliable; raw GPS isn't.
             var rawVel = dv.getUint16(24, true) / 100;
-            if (rawVel < 100) state.spd = rawVel;  // sanity gate, junk = >100 m/s
+            if (rawVel < 100) state.spd = rawVel;
+            // Raw GPS course-over-ground at offset 26 (uint16 centidegrees).
+            // This is the GPS chip's own COG solution, also outside the
+            // EKF. When the boat is moving fast enough for the chip to
+            // compute a stable COG (>0.5 m/s), prefer it over the
+            // EKF/AHRS heading. UINT16_MAX (0xFFFF) means "unknown" --
+            // ignore. Replaces the GLOBAL_POSITION_INT vx/vy override
+            // from v17 which was still EKF-laundered.
+            var rawCog_cd = dv.getUint16(26, true);
+            if (rawCog_cd != 0xFFFF && rawVel > 0.5) {
+                state.hdg = rawCog_cd / 100;
+            }
         } else if (id === 74 && p.length >= 20) { // VFR_HUD
             state.spd = dv.getFloat32(4, true); // groundspeed
             state.thr = dv.getInt16(12, true); // throttle %
