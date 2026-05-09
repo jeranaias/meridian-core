@@ -2536,17 +2536,35 @@
         var actual = parseFloat(document.getElementById('hc-actual-input').value);
         if (!isFinite(actual)) { toast('Enter the actual bow direction in degrees'); return; }
         actual = ((actual % 360) + 360) % 360;
-        // state.yaw is set from ATTITUDE.yaw (radians). Convert to deg.
+        if (state.yaw == null) { toast('No live heading yet'); return; }
+
+        // ArduPilot Rover's AHRS_TRIM_Z does not affect the live yaw output
+        // in 4.6 -- it's effectively a no-op. The directly-effective knob
+        // is COMPASS_DEC (magnetic declination). The live displayed yaw is
+        //   yaw_displayed = mag_heading + COMPASS_DEC
+        // so adding our desired correction to COMPASS_DEC (with AUTODEC=0
+        // to stop the FC from resetting it) gives an immediate yaw shift.
         var displayed = (state.yaw * 180 / Math.PI + 360) % 360;
-        // Choose the shortest signed angular difference so we don't ever
-        // trim by 359° instead of -1°.
         var diff = actual - displayed;
         if (diff >  180) diff -= 360;
         if (diff < -180) diff += 360;
-        var trimRad = diff * Math.PI / 180;
-        // ArduPilot AHRS_TRIM_Z range is ±π. We're well inside.
-        tsSetParam('AHRS_TRIM_Z', trimRad);
-        toast('Heading trim ' + diff.toFixed(1) + '° applied (AHRS_TRIM_Z=' + trimRad.toFixed(3) + ')');
+
+        // Read the current declination from _paramMap if we have it, else
+        // assume Geelong default (~11.8° E ~ 0.206 rad).
+        var curDec = 0.206;
+        var pm = _paramMap['COMPASS_DEC'];
+        if (pm && typeof pm.value === 'number') curDec = pm.value;
+
+        var newDec = curDec + diff * Math.PI / 180;
+        // COMPASS_DEC is wrapped to (-π, π] in ArduPilot. Wrap manually
+        // to keep us in range.
+        while (newDec >  Math.PI) newDec -= 2 * Math.PI;
+        while (newDec < -Math.PI) newDec += 2 * Math.PI;
+
+        tsSetParam('COMPASS_AUTODEC', 0);  // stop FC auto-resetting it
+        tsSetParam('COMPASS_DEC',     newDec);
+        toast('Heading shifted ' + diff.toFixed(1) + '° (COMPASS_DEC=' +
+              (newDec * 180 / Math.PI).toFixed(1) + '°, AUTODEC off)');
     }
     window.applyHeadingTrim = applyHeadingTrim;
 
