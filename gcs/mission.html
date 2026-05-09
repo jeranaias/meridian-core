@@ -2139,6 +2139,13 @@
         } else if (id === 24 && p.length >= 30) { // GPS_RAW_INT
             state.gps_fix = dv.getUint8(28);
             state.sats = dv.getUint8(29);
+            // Raw GPS-derived ground speed at offset 24 (uint16 cm/s).
+            // This is the receiver's own velocity solution, NOT the
+            // EKF-fused velocity that GLOBAL_POSITION_INT and VFR_HUD
+            // carry. With the compass broken and EKF unhappy, the
+            // EKF-derived speed is unreliable; raw GPS isn't.
+            var rawVel = dv.getUint16(24, true) / 100;
+            if (rawVel < 100) state.spd = rawVel;  // sanity gate, junk = >100 m/s
         } else if (id === 74 && p.length >= 20) { // VFR_HUD
             state.spd = dv.getFloat32(4, true); // groundspeed
             state.thr = dv.getInt16(12, true); // throttle %
