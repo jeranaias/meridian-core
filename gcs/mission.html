@@ -672,7 +672,7 @@
     <!-- Status Bar -->
     <div id="status-bar">
         <span class="brand-hex" aria-hidden="true"></span>
-        <span class="status-brand" title="GCS build">MERIDIAN <span style="font-size:9px;opacity:0.6;font-weight:400">v30</span></span>
+        <span class="status-brand" title="GCS build">MERIDIAN <span style="font-size:9px;opacity:0.6;font-weight:400">v31</span></span>
         <span class="conn-dot" id="conn-dot"></span>
         <div class="status-item" id="si-gps"><span class="status-val">--</span><span class="status-label">GPS</span></div>
         <div class="status-item" id="si-spd"><span class="status-val">--</span><span class="status-label">Speed</span></div>
@@ -2303,11 +2303,23 @@
             // voltages[10] @ 10, current_battery @ 30, then bytes
             state.batt_mah = dv.getInt32(0, true);
             state.batt_hj = dv.getInt32(4, true);
-            state.batt_temp = dv.getInt16(8, true) / 100.0;
+            // temperature: INT16_MAX (32767, /100 = 327.67) is the MAVLink
+            // "no sensor" sentinel. Filter to null when no real reading.
+            // Real LiPo pack temps live in roughly -20..+80 deg C; anything
+            // outside that band is a sensor fault, not data we want to show.
+            var rawTemp = dv.getInt16(8, true) / 100.0;
+            state.batt_temp = (rawTemp > -50 && rawTemp < 100) ? rawTemp : null;
+            // cells: ArduPilot fills cells[0] with whole-pack voltage when
+            // there's no balance-wire connection -- gives values like 21V
+            // that are obviously not a single-cell reading. Reject any
+            // value outside a sane LiPo per-cell range (2.5..4.5 V).
             state.cells = [];
             for (var c = 0; c < 10; c++) {
                 var mv = dv.getUint16(10 + c * 2, true);
-                if (mv && mv !== 0xFFFF) state.cells.push(mv / 1000.0);
+                if (mv && mv !== 0xFFFF) {
+                    var cv = mv / 1000.0;
+                    if (cv >= 2.5 && cv <= 4.5) state.cells.push(cv);
+                }
             }
             state.batt_curr_a = dv.getInt16(30, true) / 100.0; // centiAmps -> A
             // Remaining bytes: u8 id, u8 fn, u8 type, i8 remaining, i32 time_rem, u8 chg_state
@@ -3583,7 +3595,8 @@
                 '<div class="hp-row"><span>Current draw</span><strong>' + (state.batt_curr_a ? state.batt_curr_a.toFixed(1) + ' A' : '—') + '</strong></div>' +
                 (state.batt_mah > 0 ? '<div class="hp-row"><span>Consumed</span><strong>' + state.batt_mah + ' mAh / ' + (state.batt_hj * 0.0001).toFixed(2) + ' kJ</strong></div>' : '') +
                 (timeRemMin !== null ? '<div class="hp-row"><span>Time remaining</span><strong>~' + timeRemMin + ' min</strong></div>' : '') +
-                (state.batt_temp ? '<div class="hp-row"><span>Pack temp</span><strong>' + state.batt_temp.toFixed(1) + ' °C</strong></div>' : '');
+                (state.batt_temp != null ? '<div class="hp-row"><span>Pack temp</span><strong>' + state.batt_temp.toFixed(1) + ' °C</strong></div>'
+                                          : '<div class="hp-row"><span>Pack temp</span><strong style="color:var(--dim)">— no sensor</strong></div>');
         }
 
         // EKF / navigation health
