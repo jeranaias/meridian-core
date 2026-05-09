@@ -2111,12 +2111,10 @@
         } else if (id === 33 && p.length >= 28) { // GLOBAL_POSITION_INT
             state.lat = dv.getInt32(4, true) / 1e7;
             state.lon = dv.getInt32(8, true) / 1e7;
-            // Velocity vector — wire fields vx, vy, vz at offsets 20, 22,
-            // 24 as int16 cm/s.
-            var vx = dv.getInt16(20, true) / 100;
-            var vy = dv.getInt16(22, true) / 100;
-            var gs = Math.sqrt(vx * vx + vy * vy);
-            if (gs > 0.05 || state.spd == null) state.spd = gs;
+            // GLOBAL_POSITION_INT velocity vectors are EKF-fused -- when
+            // EKF is unhappy (e.g. compass bad), they're junk. We don't
+            // touch state.spd here. Speed comes from GPS_RAW_INT.vel
+            // (raw chip output, no EKF) below.
             // Heading from GLOBAL_POSITION_INT only as a fallback when
             // GPS_RAW_INT hasn't given us a fresh raw COG yet. GPS_RAW_INT
             // arrives at ~2 Hz, GLOBAL_POSITION_INT at ~5 Hz, so most
@@ -2149,7 +2147,11 @@
                 state.hdg = rawCog_cd / 100;
             }
         } else if (id === 74 && p.length >= 20) { // VFR_HUD
-            state.spd = dv.getFloat32(4, true); // groundspeed
+            // Do NOT overwrite state.spd here. VFR_HUD groundspeed is
+            // EKF-fused and unreliable while compass/EKF are still
+            // converging. We get speed from GPS_RAW_INT.vel above. Same
+            // for state.hdg which now comes from GPS_RAW_INT.cog.
+            // Throttle is straightforward and useful regardless:
             state.thr = dv.getInt16(12, true); // throttle %
         } else if (id === 30 && p.length >= 28) { // ATTITUDE
             state.roll = dv.getFloat32(4, true);
