@@ -672,7 +672,7 @@
     <!-- Status Bar -->
     <div id="status-bar">
         <span class="brand-hex" aria-hidden="true"></span>
-        <span class="status-brand" title="GCS build">MERIDIAN <span style="font-size:9px;opacity:0.6;font-weight:400">v25</span></span>
+        <span class="status-brand" title="GCS build">MERIDIAN <span style="font-size:9px;opacity:0.6;font-weight:400">v27</span></span>
         <span class="conn-dot" id="conn-dot"></span>
         <div class="status-item" id="si-gps"><span class="status-val">--</span><span class="status-label">GPS</span></div>
         <div class="status-item" id="si-spd"><span class="status-val">--</span><span class="status-label">Speed</span></div>
@@ -896,7 +896,11 @@
         <button onclick="openParamsPanel()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Parameter Editor</button>
         <button onclick="rebootFc()" style="width:100%;padding:8px;border:1px solid var(--warning);border-radius:4px;background:var(--bg);color:var(--warning);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">↻ Reboot Flight Controller</button>
         <button onclick="rebootFcToBl()" style="width:100%;padding:8px;border:1px solid var(--emergency);border-radius:4px;background:var(--bg);color:var(--emergency);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">↻↻ Reboot to Bootloader (DFU)</button>
-        <button onclick="startDemoTour()" style="width:100%;padding:8px;border:1px solid var(--safe);border-radius:4px;background:var(--bg);color:var(--safe);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:12px">Start Demo Tour</button>
+        <button onclick="startDemoTour()" style="width:100%;padding:8px;border:1px solid var(--safe);border-radius:4px;background:var(--bg);color:var(--safe);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Start Demo Tour</button>
+
+        <a href="replay.html" target="_blank"
+           style="display:block;width:100%;padding:10px;border:1px solid var(--primary);border-radius:4px;background:var(--primary-dim,rgba(0,229,255,0.08));color:var(--primary);font-weight:700;cursor:pointer;font-size:13px;margin-bottom:12px;text-decoration:none;text-align:center;letter-spacing:0.08em;text-transform:uppercase"
+           title="Post-flight analysis: track on chart, time-series, KPIs, KML/CSV/summary exports">↻ Open Replay Dashboard</a>
 
         <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px">
             <label style="display:block;margin-bottom:4px;font-size:13px;color:var(--dim)">Rotor Camera URL</label>
