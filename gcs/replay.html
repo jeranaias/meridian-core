@@ -323,12 +323,16 @@
   <h1>MERIDIAN <small>REPLAY · POST-FLIGHT ANALYSIS</small></h1>
   <span class="meta" id="meta">— drop a <b>.jsonl</b> flight log to begin</span>
   <div class="controls">
-    <label class="file-btn btn primary">
+    <button class="btn" id="theme-dark" onclick="setMapTheme('dark')" title="ECDIS-night-mode chart">DARK</button>
+    <button class="btn" id="theme-light" onclick="setMapTheme('light')" title="Daylight paper-chart">LIGHT</button>
+    <span style="width:1px;height:20px;background:var(--border-bright);margin:0 4px"></span>
+    <button class="btn primary" id="load-latest" title="Load the newest .jsonl from this folder">↻ LATEST</button>
+    <label class="file-btn btn">
       OPEN .JSONL
       <input type="file" id="file-input" accept=".jsonl,.json">
     </label>
-    <button class="btn" id="export-kml">EXPORT KML</button>
-    <button class="btn" id="export-csv">EXPORT CSV</button>
+    <button class="btn" id="export-kml">KML</button>
+    <button class="btn" id="export-csv">CSV</button>
     <button class="btn" id="export-summary">SUMMARY</button>
   </div>
 </header>
@@ -416,21 +420,47 @@ var playTimer = null;
 // ════════════════════════════════════════════════════════════
 //  MAP — CartoDB Dark Matter base + OpenSeaMap overlay
 // ════════════════════════════════════════════════════════════
+var mapTheme = 'dark';
 function initMap() {
   map = L.map('map', { zoomControl: true, attributionControl: false }).setView([0, 0], 2);
+  // Dark base under everything, high-zoom fallback past Esri's z=13 cap
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19,
-    subdomains: 'abcd',
-    crossOrigin: true,
+    maxZoom: 19, subdomains: 'abcd', opacity: 0.55,
   }).addTo(map);
-  // OpenSeaMap seamarks: buoys, lights, depth contours -- maritime cred
+  // Esri World Ocean Base -- real nautical chart cartography
+  L.tileLayer(
+    'https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 13, opacity: 0.98 }
+  ).addTo(map);
+  L.tileLayer(
+    'https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 13, opacity: 0.95 }
+  ).addTo(map);
   L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
-    maxZoom: 18, opacity: 0.85, errorTileUrl: '',
+    maxZoom: 18, opacity: 0.95, errorTileUrl: '',
   }).addTo(map);
   L.control.attribution({
     position: 'bottomright',
-    prefix: '<span style="color:var(--dim);font-size:9px">© CartoDB · OpenSeaMap</span>',
+    prefix: '<span style="color:var(--dim);font-size:9px">Esri · GEBCO · NOAA NGDC · OpenSeaMap</span>',
   }).addTo(map);
+  applyMapTheme();
+}
+function applyMapTheme() {
+  var pane = document.querySelector('.leaflet-tile-pane');
+  if (!pane) return;
+  pane.style.filter = (mapTheme === 'dark')
+    ? 'brightness(0.55) contrast(1.05) hue-rotate(-15deg) saturate(0.9)'
+    : '';
+}
+function setMapTheme(t) {
+  mapTheme = t;
+  applyMapTheme();
+  ['dark', 'light'].forEach(function (k) {
+    var b = document.getElementById('theme-' + k);
+    if (!b) return;
+    b.style.background = (k === t) ? 'var(--primary-dim)' : 'var(--bg)';
+    b.style.color = (k === t) ? 'var(--primary)' : 'var(--text-bright)';
+  });
 }
 initMap();
 
@@ -998,6 +1028,43 @@ document.getElementById('file-input').addEventListener('change', function (e) {
   var rd = new FileReader();
   rd.onload = function () { render(parseLog(rd.result)); };
   rd.readAsText(f);
+});
+
+// "↻ LATEST" — fetch the most recent .jsonl from /flightlogs/ on the
+// HTTP server. Convenience for "Tristan just got back, show me the run"
+// without pawing around the file system. Server-side: just `python -m
+// http.server` from D:/projects/meridian/, so /flightlogs-backup/
+// directory listing is HTML; we parse the file links to find the
+// newest. If the listing isn't enabled, we fall back to a hard-coded
+// pattern guess (today's date).
+document.getElementById('load-latest').addEventListener('click', function () {
+  fetch('/flightlogs-backup/')
+    .then(function (r) { return r.text(); })
+    .then(function (html) {
+      // Pull href="*.jsonl" from a default Python http.server listing
+      var matches = html.match(/href="([^"]+\.jsonl)"/g) || [];
+      var files = matches.map(function (m) { return m.slice(6, -1); });
+      if (!files.length) {
+        alert('No .jsonl files found in /flightlogs-backup/. ' +
+              'Make sure the HTTP server is running from D:/projects/meridian.');
+        return;
+      }
+      // Newest by lexical sort (recorder filenames are timestamped)
+      files.sort();
+      var latest = files[files.length - 1];
+      return fetch('/flightlogs-backup/' + latest)
+        .then(function (r) { return r.text(); })
+        .then(function (text) {
+          render(parseLog(text));
+          document.getElementById('meta').innerHTML =
+            'Loaded <b>' + latest + '</b> · ' +
+            (text.length / 1024 / 1024).toFixed(2) + ' MB';
+        });
+    })
+    .catch(function (e) {
+      alert('Could not list /flightlogs-backup/. Drop the .jsonl manually using OPEN .JSONL.');
+      console.error(e);
+    });
 });
 
 document.getElementById('export-kml').addEventListener('click', function () {

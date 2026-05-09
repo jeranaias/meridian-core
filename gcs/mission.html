@@ -672,7 +672,7 @@
     <!-- Status Bar -->
     <div id="status-bar">
         <span class="brand-hex" aria-hidden="true"></span>
-        <span class="status-brand" title="GCS build">MERIDIAN <span style="font-size:9px;opacity:0.6;font-weight:400">v23</span></span>
+        <span class="status-brand" title="GCS build">MERIDIAN <span style="font-size:9px;opacity:0.6;font-weight:400">v24</span></span>
         <span class="conn-dot" id="conn-dot"></span>
         <div class="status-item" id="si-gps"><span class="status-val">--</span><span class="status-label">GPS</span></div>
         <div class="status-item" id="si-spd"><span class="status-val">--</span><span class="status-label">Speed</span></div>
@@ -854,10 +854,10 @@
     <!-- Settings Overlay -->
     <div id="settings-overlay" style="display:none;position:fixed;top:60px;right:8px;z-index:3000;background:var(--bg-raised);border:1px solid var(--border);border-radius:8px;padding:16px;width:300px;max-height:calc(100vh - 80px);overflow-y:auto;box-shadow:0 4px 24px rgba(0,0,0,0.5);-webkit-overflow-scrolling:touch">
         <div style="font-weight:600;margin-bottom:12px;color:var(--primary)">Settings</div>
-        <label style="display:block;margin-bottom:8px;font-size:13px;color:var(--dim)">Theme</label>
+        <label style="display:block;margin-bottom:8px;font-size:13px;color:var(--dim)">Chart Mode (real nautical cartography)</label>
         <div style="display:flex;gap:4px;margin-bottom:12px">
-            <button class="theme-btn active" id="theme-dark" onclick="setTheme('dark')" style="flex:1;padding:8px;border:1px solid var(--primary);border-radius:4px;background:var(--bg);color:var(--text);cursor:pointer;font-size:13px">Dark</button>
-            <button class="theme-btn" id="theme-light" onclick="setTheme('light')" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--dim);cursor:pointer;font-size:13px">Light</button>
+            <button class="theme-btn active" id="theme-dark" onclick="setTheme('dark')" style="flex:1;padding:8px;border:1px solid var(--primary);border-radius:4px;background:var(--bg);color:var(--text);cursor:pointer;font-size:12px" title="ECDIS night-mode: dimmed Esri Ocean for low-light bridge use">Dark Nautical</button>
+            <button class="theme-btn" id="theme-light" onclick="setTheme('light')" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--dim);cursor:pointer;font-size:12px" title="Daylight paper-chart Esri Ocean Base">Light Nautical</button>
         </div>
         <label style="display:block;margin-bottom:8px;font-size:13px;color:var(--dim)">Protocol</label>
         <div style="display:flex;gap:4px;margin-bottom:12px">
@@ -1264,28 +1264,62 @@
     // ── Map ──
     var map = L.map('map', { center: [-33.97, 151.20], zoom: 16, zoomControl: false, attributionControl: false });
     var tileLayer = null;
+    // Layer refs so we can rebuild on theme swap. We use ONE tile set
+    // (Esri Ocean Base + Reference + OpenSeaMap seamarks) with a CSS
+    // filter applied to the tile pane to switch day/night look. That's
+    // exactly how real ECDIS displays do it -- same chart symbology,
+    // different palette. Saves bandwidth (one tile set cached) and
+    // keeps the chart features identical between modes.
+    var tileLayer = null, esriOceanLabels = null, seamarksLayer = null;
+    var darkBase = null;
+
     function setTiles(theme) {
-        // Always use the dark_all tiles -- they're already in the service
-        // worker cache from any previous session, so the map works offline
-        // (= boat with no internet through the laptop) immediately. For
-        // bright-sunlight readability, apply a CSS invert+rotate filter to
-        // the tile pane in light mode -- looks like a photo-negative
-        // satellite shot (high contrast) without downloading a different
-        // tile set on a sketchy WiFi connection.
-        if (!tileLayer) {
-            tileLayer = L.tileLayer(
-                'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-                { subdomains: 'abcd', maxZoom: 19 }
-            ).addTo(map);
-        }
+        if (tileLayer) { map.removeLayer(tileLayer); tileLayer = null; }
+        if (esriOceanLabels) { map.removeLayer(esriOceanLabels); esriOceanLabels = null; }
+        if (seamarksLayer) { map.removeLayer(seamarksLayer); seamarksLayer = null; }
+        if (darkBase) { map.removeLayer(darkBase); darkBase = null; }
+
+        // Dark base underneath -- shows through at zoom > 13 where Esri
+        // Ocean is unavailable, so high-zoom close-ins still render.
+        darkBase = L.tileLayer(
+            'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+            { subdomains: 'abcd', maxZoom: 19, opacity: 0.55 }
+        ).addTo(map);
+
+        // Esri World Ocean Base -- real nautical chart cartography
+        // (GEBCO + NOAA NGDC + Garmin hydrography). Depth contours,
+        // shoals, channels, navigation aids labelled. Free, no API
+        // key. Capped at zoom 13. Note TMS-style {z}/{y}/{x}.
+        tileLayer = L.tileLayer(
+            'https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
+            { maxZoom: 13, opacity: 0.98 }
+        ).addTo(map);
+        esriOceanLabels = L.tileLayer(
+            'https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}',
+            { maxZoom: 13, opacity: 0.95 }
+        ).addTo(map);
+
+        // OpenSeaMap seamarks (buoys, lights, depth labels)
+        seamarksLayer = L.tileLayer(
+            'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
+            { maxZoom: 18, opacity: 0.95, errorTileUrl: '' }
+        ).addTo(map);
+
+        // Day/night palette swap via CSS filter on the tile pane.
+        //   light: raw Esri (paper chart, sunlight readable)
+        //   dark:  ECDIS-night-mode style (dimmed + inverted for low-light)
         var pane = document.querySelector('.leaflet-tile-pane');
         if (pane) {
-            pane.style.filter = (theme === 'light')
-                ? 'invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.92) saturate(0.85)'
-                : '';
+            if (theme === 'dark') {
+                // Slight darken + cool shift; chart features stay legible
+                // but the whole pane reads as "operating at night"
+                pane.style.filter = 'brightness(0.55) contrast(1.05) hue-rotate(-15deg) saturate(0.9)';
+            } else {
+                pane.style.filter = '';  // light mode = real chart colors
+            }
         }
     }
-    setTiles('dark');
+    setTiles('dark');  // default to dark nautical (ECDIS-night-mode)
 
     var vehicleMarker = L.marker([0, 0], {
         icon: L.divIcon({
@@ -4448,10 +4482,13 @@
 
     function setTheme(theme) {
         document.documentElement.className = theme === 'light' ? 'light' : '';
-        document.getElementById('theme-dark').style.borderColor = theme === 'dark' ? 'var(--primary)' : 'var(--border)';
-        document.getElementById('theme-dark').style.color = theme === 'dark' ? 'var(--text)' : 'var(--dim)';
-        document.getElementById('theme-light').style.borderColor = theme === 'light' ? 'var(--primary)' : 'var(--border)';
-        document.getElementById('theme-light').style.color = theme === 'light' ? 'var(--text)' : 'var(--dim)';
+        ['dark', 'light'].forEach(function (t) {
+            var btn = document.getElementById('theme-' + t);
+            if (!btn) return;
+            var active = (theme === t);
+            btn.style.borderColor = active ? 'var(--primary)' : 'var(--border)';
+            btn.style.color = active ? 'var(--text)' : 'var(--dim)';
+        });
         setTiles(theme);
         localStorage.setItem('meridian_mission_theme', theme);
     }
