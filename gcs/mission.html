@@ -2111,15 +2111,27 @@
         } else if (id === 33 && p.length >= 28) { // GLOBAL_POSITION_INT
             state.lat = dv.getInt32(4, true) / 1e7;
             state.lon = dv.getInt32(8, true) / 1e7;
-            state.hdg = dv.getUint16(26, true) / 100;
-            // Velocity vector — falls back to compute groundspeed if VFR_HUD
-            // isn't being broadcast (or broadcasts 0 because the air-data
-            // path is broken on a Rover with no airspeed sensor).
-            // Wire fields: vx, vy, vz at offsets 20, 22, 24 as int16 cm/s.
+            // Velocity vector — wire fields vx, vy, vz at offsets 20, 22,
+            // 24 as int16 cm/s.
             var vx = dv.getInt16(20, true) / 100;
             var vy = dv.getInt16(22, true) / 100;
             var gs = Math.sqrt(vx * vx + vy * vy);
             if (gs > 0.05 || state.spd == null) state.spd = gs;
+            // Heading source. ArduPilot's heading_deg field (offset 26) is
+            // EKF/AHRS-computed yaw -- compass-derived in our setup, which
+            // is broken until COMPASS_LEARN converges. When the boat is
+            // moving fast enough to give us a clean GPS course-of-motion
+            // (>0.5 m/s for ground vehicles), prefer that as the displayed
+            // heading. atan2(vx, vy) in NED frame gives bearing clockwise
+            // from true north, which is the marine convention. Standstill:
+            // fall back to whatever AHRS gives (probably wrong but the
+            // best we have when there's no motion vector to derive from).
+            var ahrsHdg = dv.getUint16(26, true) / 100;
+            if (gs > 0.5) {
+                state.hdg = (Math.atan2(vy, vx) * 180 / Math.PI + 360) % 360;
+            } else {
+                state.hdg = ahrsHdg;
+            }
             updateVehicle();
         } else if (id === 1 && p.length >= 31) { // SYS_STATUS
             state.volt = dv.getUint16(14, true) / 1000;
