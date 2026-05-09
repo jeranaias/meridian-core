@@ -841,6 +841,28 @@
         <button onclick="openTuner()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Tune PIDs</button>
         <button onclick="openBench()" style="width:100%;padding:8px;border:1px solid var(--warning);border-radius:4px;background:var(--bg);color:var(--warning);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Bench Test</button>
         <button onclick="openMagCal()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Compass Calibration</button>
+
+        <!-- Stationary heading correction. ArduPilot's compass on a USV
+             without a clean rotation cal drifts by tens of degrees as the
+             environment changes. Two software-only paths from the dock:
+             (1) Tell the GCS what the actual bow direction is and apply
+                 AHRS_TRIM_Z to compensate.
+             (2) Switch yaw source to GPS course-of-motion (GSF) -- works
+                 once the boat is moving >2 m/s, no compass needed. -->
+        <div style="border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:8px;background:rgba(0,0,0,0.18)">
+            <div style="font-size:12px;color:var(--dim);margin-bottom:6px;font-weight:600;letter-spacing:0.05em">HEADING CORRECTION</div>
+            <div style="font:600 12px DM Mono,monospace;color:var(--text);margin-bottom:6px">
+                Currently displayed: <span id="hc-current-hdg">—</span>°
+            </div>
+            <label style="display:block;margin-bottom:4px;font-size:11px;color:var(--dim)">Actual bow direction (°)</label>
+            <input type="number" id="hc-actual-input" min="0" max="359" step="1" placeholder="e.g. 220" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-size:13px;margin-bottom:6px;font-family:DM Mono,monospace">
+            <button onclick="applyHeadingTrim()" style="width:100%;padding:6px;border:1px solid var(--primary);border-radius:4px;background:var(--bg);color:var(--primary);font-weight:600;cursor:pointer;font-size:12px;margin-bottom:6px">Apply Trim (AHRS_TRIM_Z)</button>
+            <button onclick="setGpsYaw()" style="width:100%;padding:6px;border:1px solid var(--warning);border-radius:4px;background:var(--bg);color:var(--warning);font-weight:600;cursor:pointer;font-size:12px;margin-bottom:6px">GPS-Course Yaw (no compass)</button>
+            <div style="font-size:10px;color:var(--dim);line-height:1.3">
+                Trim shifts AHRS yaw output. GPS-Course mode ignores the compass once boat is moving (>2 m/s).
+            </div>
+        </div>
+
         <button onclick="runAccelCal()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Accel Calibration (level + 6-axis)</button>
         <button onclick="openParamsPanel()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">Parameter Editor</button>
         <button onclick="rebootFc()" style="width:100%;padding:8px;border:1px solid var(--warning);border-radius:4px;background:var(--bg);color:var(--warning);font-weight:600;cursor:pointer;font-size:13px;margin-bottom:8px">↻ Reboot Flight Controller</button>
@@ -2507,6 +2529,66 @@
 
     // High-level routine: reset a HERE4's internal GPS_TYPE -> 1, save,
     // restart. Same sequence as tools/here4-fix.py but in-tablet.
+    // Stationary heading-correction helpers, accessible from the
+    // Settings overlay's HEADING CORRECTION section.
+    function applyHeadingTrim() {
+        if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+        var actual = parseFloat(document.getElementById('hc-actual-input').value);
+        if (!isFinite(actual)) { toast('Enter the actual bow direction in degrees'); return; }
+        actual = ((actual % 360) + 360) % 360;
+        // state.yaw is set from ATTITUDE.yaw (radians). Convert to deg.
+        var displayed = (state.yaw * 180 / Math.PI + 360) % 360;
+        // Choose the shortest signed angular difference so we don't ever
+        // trim by 359° instead of -1°.
+        var diff = actual - displayed;
+        if (diff >  180) diff -= 360;
+        if (diff < -180) diff += 360;
+        var trimRad = diff * Math.PI / 180;
+        // ArduPilot AHRS_TRIM_Z range is ±π. We're well inside.
+        tsSetParam('AHRS_TRIM_Z', trimRad);
+        toast('Heading trim ' + diff.toFixed(1) + '° applied (AHRS_TRIM_Z=' + trimRad.toFixed(3) + ')');
+    }
+    window.applyHeadingTrim = applyHeadingTrim;
+
+    function setGpsYaw() {
+        if (!ws || ws.readyState !== 1) { toast('Not connected'); return; }
+        if (!confirm('Switch yaw source to GPS course-of-motion (GSF)?\n\n' +
+                     'This will:\n' +
+                     '  - Re-enable EKF3 (DCM-only does not support GSF)\n' +
+                     '  - Set EKF yaw source = GPS\n' +
+                     '  - Enable in-flight compass learning (EKF teaches the ' +
+                     'mag from GPS course while moving)\n' +
+                     '  - Clear AHRS_TRIM_Z\n\n' +
+                     'Heading at the dock will be unreliable until the boat ' +
+                     'moves >2 m/s. Once moving, GPS course is dead-accurate ' +
+                     'and compass drift stops mattering. The compass will ' +
+                     'auto-improve over the next ~10 min of motion.')) return;
+        // GSF lives inside EKF3 -- DCM-only doesn't have it. Re-enable
+        // EKF3 as primary AHRS so GSF actually engages.
+        tsSetParam('AHRS_EKF_TYPE',    3);   // EKF3 primary
+        tsSetParam('EK3_ENABLE',       1);
+        tsSetParam('EK3_SRC1_YAW',     6);   // GSF (GPS Synthetic Yaw)
+        tsSetParam('EK3_SRC1_POSXY',   3);   // pos from GPS
+        tsSetParam('EK3_SRC1_VELXY',   3);
+        tsSetParam('EK3_SRC1_POSZ',    1);   // alt from baro
+        tsSetParam('COMPASS_LEARN',    3);   // EKF-aided in-flight learning
+        tsSetParam('COMPASS_AUTODEC',  1);
+        tsSetParam('AHRS_TRIM_Z',      0);   // clear any earlier static trim
+        toast('GPS-yaw mode armed. Drive forward 30s to lock heading + start mag-learn.');
+    }
+    window.setGpsYaw = setGpsYaw;
+
+    // Tick the "Currently displayed" readout in the Heading Correction
+    // panel so the operator sees the live yaw while filling in the
+    // actual-bow value.
+    setInterval(function () {
+        var el = document.getElementById('hc-current-hdg');
+        if (el && state.yaw != null) {
+            var deg = (state.yaw * 180 / Math.PI + 360) % 360;
+            el.textContent = deg.toFixed(1);
+        }
+    }, 500);
+
     async function tsResetHere4(nodeId, busIndex) {
         if (!confirm('Reset HERE4 #' + nodeId + ' to plain DroneCAN GPS?\n\n' +
                      'Sets the periph\'s internal GPS_TYPE = 1 (auto), saves to ' +
