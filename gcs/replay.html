@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Meridian Replay — Post-flight Analysis</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Barlow:wght@400;500;600&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.iife.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --bg-raised: #131820;
+    --bg-panel: #0e131a;
+    --primary: #00e5ff;
+    --primary-dim: rgba(0,229,255,0.15);
+    --warn: #ffa726;
+    --bad: #ff1744;
+    --safe: #69f0ae;
+    --text: #c4ccd8;
+    --text-bright: #e6edf3;
+    --dim: #8b95a7;
+    --border: #1e2530;
+    --border-bright: #2a3242;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--text);
+    font-family: 'Barlow', system-ui, -apple-system, sans-serif;
+    font-size: 13px; line-height: 1.45;
+    height: 100vh; overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Header ─────────────────────────────────────────────── */
+  header {
+    height: 48px; padding: 0 16px;
+    display: flex; align-items: center; gap: 16px;
+    border-bottom: 1px solid var(--primary);
+    background: var(--bg-raised);
+    position: relative;
+  }
+  header::after {
+    content: ''; position: absolute; bottom: -1px; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--primary), transparent);
+    opacity: 0.5;
+  }
+  header h1 {
+    font: 700 15px 'Rajdhani', sans-serif;
+    letter-spacing: 0.12em; margin: 0;
+    color: var(--primary);
+  }
+  header h1 small {
+    font: 500 10px 'Rajdhani', sans-serif;
+    color: var(--dim); margin-left: 8px; letter-spacing: 0.06em;
+  }
+  header .meta {
+    color: var(--text); font-size: 12px;
+    font-family: 'DM Mono', monospace;
+  }
+  header .meta b { color: var(--primary); font-weight: 500; }
+  header .controls { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .btn, .file-btn {
+    background: var(--bg); border: 1px solid var(--border-bright);
+    color: var(--text-bright); padding: 6px 12px;
+    font: 600 11px 'Rajdhani', sans-serif;
+    letter-spacing: 0.08em; cursor: pointer;
+    border-radius: 4px; text-transform: uppercase;
+    height: 30px; display: inline-flex; align-items: center; gap: 6px;
+    transition: all 0.12s;
+  }
+  .btn.primary { border-color: var(--primary); color: var(--primary); }
+  .btn:hover { background: rgba(255,255,255,0.04); border-color: var(--primary); color: var(--primary); }
+  .btn.primary:hover { background: var(--primary-dim); }
+  .file-btn input { display: none; }
+
+  /* ── Main grid: map left, right-rail with KPIs + charts ─── */
+  main {
+    display: grid;
+    grid-template-columns: 1fr 480px;
+    grid-template-rows: 1fr 90px;
+    height: calc(100vh - 48px);
+    gap: 1px;
+    background: var(--border);
+  }
+
+  .panel {
+    background: var(--bg-panel);
+    overflow: hidden;
+    position: relative;
+    display: flex; flex-direction: column;
+  }
+  .panel-header {
+    padding: 6px 12px 6px 14px;
+    background: var(--bg-raised);
+    border-bottom: 1px solid var(--border);
+    font: 600 10px 'Rajdhani', sans-serif;
+    letter-spacing: 0.12em;
+    color: var(--dim);
+    display: flex; gap: 8px; align-items: center;
+    height: 28px; flex-shrink: 0;
+  }
+  .panel-header .title { color: var(--text-bright); }
+  .panel-header .legend {
+    margin-left: auto; font-size: 10px; color: var(--dim);
+    letter-spacing: 0.04em;
+  }
+  .panel-body { flex: 1; min-height: 0; position: relative; overflow: auto; }
+
+  /* ── Map ────────────────────────────────────────────────── */
+  #map-panel { grid-column: 1; grid-row: 1; }
+  #map { width: 100%; height: 100%; background: #050709; }
+  .leaflet-container { background: #050709; font-family: 'DM Mono', monospace; }
+  .leaflet-control-zoom { border: 1px solid var(--border-bright) !important; }
+  .leaflet-control-zoom a {
+    background: var(--bg-raised) !important; color: var(--text-bright) !important;
+    border: none !important; border-bottom: 1px solid var(--border) !important;
+  }
+  .leaflet-control-zoom a:hover { background: rgba(0,229,255,0.1) !important; }
+  .leaflet-tooltip {
+    background: var(--bg-raised) !important; color: var(--text-bright) !important;
+    border: 1px solid var(--primary) !important; font: 500 11px 'DM Mono', monospace !important;
+    border-radius: 3px !important; padding: 4px 8px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+  }
+  .leaflet-tooltip:before { display: none; }
+
+  /* Vehicle marker (chevron pointing along COG) */
+  .veh-icon {
+    width: 0; height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-bottom: 16px solid var(--primary);
+    filter: drop-shadow(0 0 6px var(--primary));
+    transform-origin: 50% 70%;
+  }
+  .start-icon, .end-icon {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid #000;
+  }
+  .start-icon { background: var(--safe); box-shadow: 0 0 8px var(--safe); }
+  .end-icon { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+
+  /* ── Right rail ─────────────────────────────────────────── */
+  #right-rail { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: 1px; background: var(--border); overflow: hidden; }
+
+  /* KPI cards: 2x2 grid */
+  #kpi-grid {
+    background: var(--bg-panel);
+    padding: 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .kpi {
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    height: 78px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    position: relative; overflow: hidden;
+  }
+  .kpi::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 2px; background: var(--primary); opacity: 0.6;
+  }
+  .kpi.warn::before { background: var(--warn); }
+  .kpi.safe::before { background: var(--safe); }
+  .kpi-label {
+    font: 600 9px 'Rajdhani', sans-serif;
+    letter-spacing: 0.12em;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+  .kpi-value {
+    font: 600 24px 'DM Mono', monospace;
+    color: var(--text-bright); line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi-value .unit { font-size: 12px; color: var(--dim); margin-left: 4px; font-weight: 500; }
+  .kpi-value .sub  { font-size: 11px; color: var(--dim); margin-left: 6px; }
+
+  /* Charts area */
+  #charts-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg-panel); overflow: hidden; }
+  #charts-stack { flex: 1; min-height: 0; overflow-y: auto; padding: 0; display: flex; flex-direction: column; }
+  .chart-row {
+    height: 130px; flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .chart-row:last-child { border-bottom: none; }
+  .chart-row .chart-label {
+    position: absolute; top: 6px; left: 10px; z-index: 5;
+    font: 600 9px 'Rajdhani', sans-serif;
+    letter-spacing: 0.12em; color: var(--dim);
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+  .chart-row .chart-value {
+    position: absolute; top: 6px; right: 10px; z-index: 5;
+    font: 600 11px 'DM Mono', monospace;
+    color: var(--text-bright);
+    pointer-events: none;
+  }
+
+  /* uPlot dark theme overrides */
+  .uplot { background: transparent; }
+  .uplot .u-over { background: transparent; }
+  .uplot .u-axis { color: var(--dim); }
+
+  /* ── Bottom bar: scrubber + event timeline ──────────────── */
+  #bottom-bar {
+    grid-column: 1 / span 2; grid-row: 2;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--primary);
+    padding: 8px 14px 10px;
+    display: flex; flex-direction: column; gap: 6px;
+    position: relative;
+  }
+  #event-timeline {
+    height: 22px; position: relative;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  #event-timeline .ev-tick {
+    position: absolute; top: 0; bottom: 0; width: 2px;
+    pointer-events: auto; cursor: pointer;
+  }
+  #event-timeline .ev-tick.arm    { background: var(--safe); }
+  #event-timeline .ev-tick.disarm { background: var(--bad); }
+  #event-timeline .ev-tick.mode   { background: var(--warn); }
+  #event-timeline .ev-tick.text   { background: var(--primary); opacity: 0.6; width: 1px; }
+  #event-timeline:hover .ev-tick { box-shadow: 0 0 4px currentColor; }
+  #scrub-row {
+    display: flex; align-items: center; gap: 12px;
+    font: 500 11px 'DM Mono', monospace;
+    color: var(--text);
+  }
+  #scrub-row .play {
+    width: 32px; height: 28px;
+    background: var(--bg); border: 1px solid var(--primary);
+    color: var(--primary); border-radius: 4px;
+    cursor: pointer; font-size: 13px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #scrub-row .play:hover { background: var(--primary-dim); }
+  #scrub {
+    flex: 1; accent-color: var(--primary);
+    background: transparent; height: 24px;
+  }
+  #scrub-time {
+    color: var(--text-bright); font-weight: 600; min-width: 90px;
+    font-variant-numeric: tabular-nums;
+  }
+  #scrub-info { color: var(--dim); font-size: 11px; min-width: 220px; text-align: right; }
+
+  /* ── Empty state ────────────────────────────────────────── */
+  .empty {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100%; padding: 40px;
+    text-align: center;
+  }
+  .empty-icon {
+    font-size: 48px; opacity: 0.3; margin-bottom: 16px;
+  }
+  .empty h2 {
+    font: 700 14px 'Rajdhani', sans-serif;
+    color: var(--text-bright);
+    letter-spacing: 0.08em;
+    margin: 0 0 8px;
+    text-transform: uppercase;
+  }
+  .empty p {
+    color: var(--dim); font-size: 12px;
+    margin: 0; line-height: 1.6;
+  }
+  .empty .file-btn {
+    margin-top: 18px; border-color: var(--primary); color: var(--primary);
+    padding: 8px 18px; height: auto;
+  }
+
+  /* ── Status text panel ──────────────────────────────────── */
+  #stats-overlay {
+    position: absolute; top: 36px; left: 8px;
+    background: rgba(14,19,26,0.92);
+    border: 1px solid var(--border-bright);
+    border-radius: 4px;
+    padding: 10px 12px;
+    font: 500 11px 'DM Mono', monospace;
+    color: var(--text); max-width: 240px;
+    backdrop-filter: blur(6px);
+    z-index: 1000;
+    display: none;
+  }
+  #stats-overlay h3 {
+    margin: 0 0 6px; font: 700 10px 'Rajdhani', sans-serif;
+    color: var(--primary); letter-spacing: 0.1em;
+  }
+  #stats-overlay table { width: 100%; }
+  #stats-overlay td:first-child { color: var(--dim); padding-right: 10px; }
+  #stats-overlay td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  #stats-overlay hr { border: none; border-top: 1px solid var(--border); margin: 6px 0; }
+
+  /* Scrollbar polish */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg-panel); }
+  ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>MERIDIAN <small>REPLAY · POST-FLIGHT ANALYSIS</small></h1>
+  <span class="meta" id="meta">— drop a <b>.jsonl</b> flight log to begin</span>
+  <div class="controls">
+    <label class="file-btn btn primary">
+      OPEN .JSONL
+      <input type="file" id="file-input" accept=".jsonl,.json">
+    </label>
+    <button class="btn" id="export-kml">EXPORT KML</button>
+    <button class="btn" id="export-csv">EXPORT CSV</button>
+    <button class="btn" id="export-summary">SUMMARY</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ── Map ────────────────────────────────────────────── -->
+  <div class="panel" id="map-panel">
+    <div class="panel-header">
+      <span class="title">TRACK</span>
+      <span class="legend">
+        <span style="color:var(--safe)">●</span> start
+        <span style="color:var(--warn);margin-left:6px">◆</span> end
+        <span style="color:var(--warn);margin-left:6px">●</span> mode
+        <span style="color:var(--bad);margin-left:6px">●</span> disarm
+      </span>
+    </div>
+    <div class="panel-body">
+      <div id="map"></div>
+      <div id="stats-overlay"></div>
+    </div>
+  </div>
+
+  <!-- ── Right rail: KPIs + charts ──────────────────────── -->
+  <div id="right-rail">
+    <div id="kpi-grid">
+      <div class="kpi"><div class="kpi-label">DURATION</div><div class="kpi-value" id="kpi-dur">--</div></div>
+      <div class="kpi"><div class="kpi-label">DISTANCE</div><div class="kpi-value" id="kpi-dist">--</div></div>
+      <div class="kpi safe"><div class="kpi-label">PEAK SPEED</div><div class="kpi-value" id="kpi-spd">--</div></div>
+      <div class="kpi warn"><div class="kpi-label">VOLTAGE Δ</div><div class="kpi-value" id="kpi-volt">--</div></div>
+    </div>
+
+    <div id="charts-panel">
+      <div class="panel-header">
+        <span class="title">TELEMETRY</span>
+        <span class="legend">▒ armed · ░ disarmed</span>
+      </div>
+      <div id="charts-stack">
+        <div class="chart-row" id="chart-spd-row">
+          <div class="chart-label">SPEED · M/S · KN</div>
+          <div class="chart-value" id="chart-spd-val">—</div>
+          <div id="chart-spd"></div>
+        </div>
+        <div class="chart-row" id="chart-volt-row">
+          <div class="chart-label">BATTERY · V</div>
+          <div class="chart-value" id="chart-volt-val">—</div>
+          <div id="chart-volt"></div>
+        </div>
+        <div class="chart-row" id="chart-hdg-row">
+          <div class="chart-label">HEADING · COG · °</div>
+          <div class="chart-value" id="chart-hdg-val">—</div>
+          <div id="chart-hdg"></div>
+        </div>
+        <div class="chart-row" id="chart-thr-row">
+          <div class="chart-label">THROTTLE · %</div>
+          <div class="chart-value" id="chart-thr-val">—</div>
+          <div id="chart-thr"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Bottom bar ─────────────────────────────────────── -->
+  <div id="bottom-bar">
+    <div id="event-timeline"></div>
+    <div id="scrub-row">
+      <button class="play" id="play-btn">▶</button>
+      <input type="range" id="scrub" min="0" max="100" value="0" step="0.01">
+      <span id="scrub-time">--:--:--</span>
+      <span id="scrub-info">—</span>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════════
+var run = null;
+var map, trackLine, trackGlow, vehicleMarker, mapMarkers = [];
+var charts = { spd: null, volt: null, hdg: null, thr: null };
+var playTimer = null;
+
+// ════════════════════════════════════════════════════════════
+//  MAP — CartoDB Dark Matter base + OpenSeaMap overlay
+// ════════════════════════════════════════════════════════════
+function initMap() {
+  map = L.map('map', { zoomControl: true, attributionControl: false }).setView([0, 0], 2);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    subdomains: 'abcd',
+    crossOrigin: true,
+  }).addTo(map);
+  // OpenSeaMap seamarks: buoys, lights, depth contours -- maritime cred
+  L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+    maxZoom: 18, opacity: 0.85, errorTileUrl: '',
+  }).addTo(map);
+  L.control.attribution({
+    position: 'bottomright',
+    prefix: '<span style="color:var(--dim);font-size:9px">© CartoDB · OpenSeaMap</span>',
+  }).addTo(map);
+}
+initMap();
+
+// ════════════════════════════════════════════════════════════
+//  PARSER
+// ════════════════════════════════════════════════════════════
+function parseLog(text) {
+  var lines = text.split(/\r?\n/);
+  var r = {
+    gps: [],         // GPS_RAW_INT
+    track: [],       // GLOBAL_POSITION_INT (highest-rate position)
+    attitude: [],
+    vfr: [],
+    sys: [],
+    battery: [],
+    statusText: [],
+    armed: [],       // [{t, armed}]
+    modes: [],       // [{t, mode}]
+    radio: [],
+    t0: null, t1: null,
+  };
+  var lastArmed = null, lastMode = null;
+  for (var i = 0; i < lines.length; i++) {
+    var ln = lines[i].trim();
+    if (!ln) continue;
+    var e;
+    try { e = JSON.parse(ln); } catch (_) { continue; }
+    var t = (typeof e.t === 'number') ? e.t : e._t;
+    if (typeof t !== 'number') continue;
+    e.t = t;
+    if (r.t0 === null) r.t0 = t;
+    r.t1 = t;
+    var n = e.name || '';
+    switch (n) {
+      case 'GPS_RAW_INT':           r.gps.push(e); break;
+      case 'GLOBAL_POSITION_INT':   r.track.push(e); break;
+      case 'ATTITUDE':              r.attitude.push(e); break;
+      case 'VFR_HUD':               r.vfr.push(e); break;
+      case 'SYS_STATUS':            r.sys.push(e); break;
+      case 'BATTERY_STATUS':        r.battery.push(e); break;
+      case 'RADIO_STATUS':          r.radio.push(e); break;
+      case 'STATUSTEXT':
+        if (e.severity != null && e.severity <= 5) r.statusText.push(e);
+        break;
+      case 'HEARTBEAT':
+        if (e.armed != null && e.armed !== lastArmed) {
+          r.armed.push({ t: t, armed: e.armed });
+          lastArmed = e.armed;
+        }
+        if (e.mode != null && e.mode !== lastMode) {
+          r.modes.push({ t: t, mode: e.mode });
+          lastMode = e.mode;
+        }
+        break;
+    }
+  }
+  return r;
+}
+
+// ════════════════════════════════════════════════════════════
+//  RENDER
+// ════════════════════════════════════════════════════════════
+function render(r) {
+  run = r;
+
+  // ── Clear previous run ──
+  if (trackLine) map.removeLayer(trackLine);
+  if (trackGlow) map.removeLayer(trackGlow);
+  if (vehicleMarker) map.removeLayer(vehicleMarker);
+  mapMarkers.forEach(function (m) { map.removeLayer(m); });
+  mapMarkers = [];
+  destroyCharts();
+
+  // ── Build track ──
+  var pts = r.track
+    .filter(function (e) { return e.lat && e.lon && Math.abs(e.lat) > 0.0001; })
+    .map(function (e) { return [e.lat, e.lon]; });
+
+  if (pts.length > 1) {
+    // Glow underlay
+    trackGlow = L.polyline(pts, {
+      color: '#00e5ff', weight: 9, opacity: 0.18, lineCap: 'round',
+    }).addTo(map);
+    trackLine = L.polyline(pts, {
+      color: '#00e5ff', weight: 2.5, opacity: 0.95, lineCap: 'round',
+    }).addTo(map);
+    map.fitBounds(trackLine.getBounds(), { padding: [40, 40] });
+
+    // Start / end markers
+    mapMarkers.push(L.marker(pts[0], {
+      icon: L.divIcon({ className: '', html: '<div class="start-icon"></div>', iconSize: [12, 12], iconAnchor: [6, 6] }),
+    }).addTo(map).bindTooltip('Start · ' + isoTime(r.t0)));
+    mapMarkers.push(L.marker(pts[pts.length - 1], {
+      icon: L.divIcon({ className: '', html: '<div class="end-icon"></div>', iconSize: [12, 12], iconAnchor: [6, 6] }),
+    }).addTo(map).bindTooltip('End · ' + isoTime(r.t1)));
+
+    // Vehicle marker (chevron)
+    vehicleMarker = L.marker(pts[0], {
+      icon: L.divIcon({ className: '', html: '<div class="veh-icon" id="veh-icon"></div>', iconSize: [18, 18], iconAnchor: [9, 12] }),
+    }).addTo(map);
+
+    // Mode-change & disarm dots
+    function nearestPosAt(t) {
+      if (!r.track.length) return null;
+      var lo = 0, hi = r.track.length - 1;
+      while (lo < hi) {
+        var mid = (lo + hi) >> 1;
+        if (r.track[mid].t < t) lo = mid + 1; else hi = mid;
+      }
+      return r.track[lo];
+    }
+    r.modes.forEach(function (m) {
+      var p = nearestPosAt(m.t);
+      if (!p || !p.lat) return;
+      mapMarkers.push(L.circleMarker([p.lat, p.lon], {
+        radius: 4, color: '#ffa726', fillColor: '#ffa726',
+        fillOpacity: 0.9, weight: 1.5,
+      }).addTo(map).bindTooltip('mode · ' + (typeof m.mode === 'string' ? m.mode : 'm' + m.mode)
+                                + ' · ' + isoTime(m.t)));
+    });
+    r.armed.forEach(function (a) {
+      if (a.armed) return;
+      var p = nearestPosAt(a.t);
+      if (!p || !p.lat) return;
+      mapMarkers.push(L.circleMarker([p.lat, p.lon], {
+        radius: 5, color: '#ff1744', fillColor: '#ff1744',
+        fillOpacity: 1, weight: 2,
+      }).addTo(map).bindTooltip('disarm · ' + isoTime(a.t)));
+    });
+  }
+
+  // ── KPIs ──
+  drawKpis(r);
+
+  // ── Charts ──
+  drawCharts(r);
+
+  // ── Event timeline ──
+  drawEventTimeline(r);
+
+  // ── Stats overlay ──
+  drawStatsOverlay(r);
+  document.getElementById('stats-overlay').style.display = 'block';
+
+  // ── Header meta ──
+  document.getElementById('meta').innerHTML =
+    '<b>' + new Date(r.t0 * 1000).toLocaleString() + '</b> · ' +
+    'duration <b>' + fmtDur(r.t1 - r.t0) + '</b> · ' +
+    pts.length.toLocaleString() + ' track points · ' +
+    r.gps.length.toLocaleString() + ' GPS samples';
+
+  // ── Scrubber ──
+  document.getElementById('scrub').value = 0;
+  updateScrub(0);
+}
+
+// ════════════════════════════════════════════════════════════
+//  KPI CARDS
+// ════════════════════════════════════════════════════════════
+function drawKpis(r) {
+  if (!r) return;
+  document.getElementById('kpi-dur').innerHTML =
+    fmtDur(r.t1 - r.t0);
+
+  var d = totalDistance(r.track);
+  document.getElementById('kpi-dist').innerHTML =
+    (d / 1000).toFixed(2) + '<span class="unit">km</span>' +
+    '<span class="sub">' + (d / 1852).toFixed(2) + ' nmi</span>';
+
+  var maxV = 0;
+  r.gps.forEach(function (g) { if (g.vel_ms > maxV) maxV = g.vel_ms; });
+  document.getElementById('kpi-spd').innerHTML =
+    (maxV * 1.94384).toFixed(1) + '<span class="unit">kn</span>' +
+    '<span class="sub">' + maxV.toFixed(1) + ' m/s</span>';
+
+  if (r.sys.length) {
+    var minV = Infinity, maxVv = -Infinity;
+    r.sys.forEach(function (s) {
+      if (s.voltage_v == null || s.voltage_v < 1) return;
+      if (s.voltage_v < minV) minV = s.voltage_v;
+      if (s.voltage_v > maxVv) maxVv = s.voltage_v;
+    });
+    if (isFinite(minV)) {
+      document.getElementById('kpi-volt').innerHTML =
+        '−' + (maxVv - minV).toFixed(2) + '<span class="unit">V</span>' +
+        '<span class="sub">' + minV.toFixed(1) + ' → ' + maxVv.toFixed(1) + 'V</span>';
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  CHARTS — uPlot, synchronized cursors across all four
+// ════════════════════════════════════════════════════════════
+function destroyCharts() {
+  for (var k in charts) {
+    if (charts[k]) { try { charts[k].destroy(); } catch (_) {} charts[k] = null; }
+  }
+}
+
+function drawCharts(r) {
+  var cursorOpts = {
+    sync: { key: 'meridian', setSeries: true },
+    drag: { x: false, y: false },
+    points: { size: 6, fill: function () { return '#0a0e14'; } },
+    lock: false,
+  };
+  // Armed/disarmed shading via draw hook
+  var armedRanges = computeArmedRanges(r);
+  function drawShading(u) {
+    var ctx = u.ctx;
+    var top = u.bbox.top, bottom = u.bbox.top + u.bbox.height;
+    armedRanges.forEach(function (rng) {
+      var x0 = u.valToPos(rng.t0, 'x', true);
+      var x1 = u.valToPos(rng.t1, 'x', true);
+      ctx.fillStyle = rng.armed ? 'rgba(105,240,174,0.06)' : 'rgba(255,167,38,0.04)';
+      ctx.fillRect(x0, top, x1 - x0, bottom - top);
+    });
+  }
+
+  function makeOpts(seriesList) {
+    return {
+      width: 480 - 1, height: 130 - 1,
+      cursor: cursorOpts,
+      legend: { show: false },
+      scales: { x: { time: true } },
+      axes: [
+        {
+          stroke: '#8b95a7',
+          grid: { stroke: 'rgba(30,37,48,0.6)', width: 0.5 },
+          ticks: { stroke: 'rgba(30,37,48,0.6)' },
+          font: '500 10px DM Mono, monospace',
+        },
+        {
+          stroke: '#8b95a7',
+          grid: { stroke: 'rgba(30,37,48,0.6)', width: 0.5 },
+          ticks: { stroke: 'rgba(30,37,48,0.6)' },
+          font: '500 10px DM Mono, monospace',
+          size: 38,
+        },
+      ],
+      series: seriesList,
+      hooks: {
+        drawClear: [drawShading],
+        setCursor: [function (u) {
+          var idx = u.cursor.idx;
+          if (idx == null) return;
+          var x = u.data[0][idx];
+          if (x != null) onCursorTime(x);
+        }],
+      },
+    };
+  }
+
+  // Each chart shares time axis. Build aligned series per metric.
+  var spdData = buildSeries(r.gps, 'vel_ms', r.t0, r.t1);
+  var voltData = buildSeries(r.sys, 'voltage_v', r.t0, r.t1);
+  var hdgData = buildSeries(r.track, 'heading_deg', r.t0, r.t1);
+  var cogData = buildSeries(r.gps, 'cog_deg', r.t0, r.t1);
+  var thrData = buildSeries(r.vfr, 'throttle_pct', r.t0, r.t1);
+
+  charts.spd = new uPlot(makeOpts([
+    {},
+    { stroke: '#00e5ff', width: 1.5, fill: 'rgba(0,229,255,0.08)' },
+  ]), [spdData[0], spdData[1]], document.getElementById('chart-spd'));
+
+  charts.volt = new uPlot(makeOpts([
+    {},
+    { stroke: '#69f0ae', width: 1.5, fill: 'rgba(105,240,174,0.06)' },
+  ]), [voltData[0], voltData[1]], document.getElementById('chart-volt'));
+
+  // Heading + COG on same chart (two series)
+  var hdgMerged = mergeSeries([hdgData, cogData]);
+  charts.hdg = new uPlot(makeOpts([
+    {},
+    { stroke: '#ffa726', width: 1.4, label: 'HDG', spanGaps: false },
+    { stroke: '#00e5ff', width: 1.4, label: 'COG', spanGaps: false, dash: [4, 3] },
+  ]), hdgMerged, document.getElementById('chart-hdg'));
+
+  charts.thr = new uPlot(makeOpts([
+    {},
+    { stroke: '#ff80ff', width: 1.5, fill: 'rgba(255,128,255,0.06)' },
+  ]), [thrData[0], thrData[1]], document.getElementById('chart-thr'));
+
+  // Re-fit on resize
+  fitChartsToContainer();
+}
+
+function buildSeries(samples, field, t0, t1) {
+  var xs = [], ys = [];
+  for (var i = 0; i < samples.length; i++) {
+    var s = samples[i];
+    var v = s[field];
+    if (v == null || !isFinite(v)) continue;
+    xs.push(s.t);
+    ys.push(v);
+  }
+  if (!xs.length) { return [[t0, t1], [null, null]]; }
+  return [xs, ys];
+}
+
+function mergeSeries(serieses) {
+  // serieses: array of [xs, ys] tuples. We need a single x-axis with all
+  // series aligned; simplest is to interleave timestamps and fill nulls.
+  var all = [];
+  for (var i = 0; i < serieses.length; i++) {
+    var xs = serieses[i][0];
+    for (var j = 0; j < xs.length; j++) all.push(xs[j]);
+  }
+  all.sort(function (a, b) { return a - b; });
+  // Dedupe close-in-time samples within ~50ms
+  var ts = [];
+  for (var i = 0; i < all.length; i++) {
+    if (i === 0 || all[i] - all[i - 1] > 0.05) ts.push(all[i]);
+  }
+  var out = [ts];
+  for (var i = 0; i < serieses.length; i++) {
+    var xs = serieses[i][0], ys = serieses[i][1];
+    var col = new Array(ts.length).fill(null);
+    var k = 0;
+    for (var j = 0; j < ts.length && k < xs.length; j++) {
+      // walk k forward to nearest xs <= ts[j] within tolerance
+      while (k + 1 < xs.length && Math.abs(xs[k + 1] - ts[j]) < Math.abs(xs[k] - ts[j])) k++;
+      if (Math.abs(xs[k] - ts[j]) < 1.0) col[j] = ys[k];
+    }
+    out.push(col);
+  }
+  return out;
+}
+
+function computeArmedRanges(r) {
+  var ranges = [];
+  if (!r.armed.length) return ranges;
+  var current = { t0: r.t0, t1: r.t1, armed: false };
+  for (var i = 0; i < r.armed.length; i++) {
+    var a = r.armed[i];
+    if (a.armed !== current.armed) {
+      current.t1 = a.t;
+      ranges.push({ t0: current.t0, t1: current.t1, armed: current.armed });
+      current = { t0: a.t, t1: r.t1, armed: a.armed };
+    }
+  }
+  ranges.push(current);
+  return ranges;
+}
+
+function fitChartsToContainer() {
+  // Match each uPlot canvas to its parent .chart-row interior
+  ['spd', 'volt', 'hdg', 'thr'].forEach(function (k) {
+    var c = charts[k];
+    if (!c) return;
+    var parent = document.getElementById('chart-' + k).parentElement;
+    var w = parent.clientWidth;
+    var h = parent.clientHeight - 22;  // leave room for label
+    c.setSize({ width: w, height: h });
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  EVENT TIMELINE STRIP (above scrubber)
+// ════════════════════════════════════════════════════════════
+function drawEventTimeline(r) {
+  var el = document.getElementById('event-timeline');
+  el.innerHTML = '';
+  if (!r || !r.t0) return;
+  var dur = r.t1 - r.t0;
+
+  function tick(t, klass, label) {
+    if (t < r.t0 || t > r.t1) return;
+    var pct = (t - r.t0) / dur * 100;
+    var d = document.createElement('div');
+    d.className = 'ev-tick ' + klass;
+    d.style.left = pct + '%';
+    d.title = label + '  ·  ' + isoTime(t);
+    d.addEventListener('click', function () {
+      document.getElementById('scrub').value = pct;
+      updateScrub(pct);
+    });
+    el.appendChild(d);
+  }
+  r.armed.forEach(function (a) {
+    tick(a.t, a.armed ? 'arm' : 'disarm', a.armed ? 'ARM' : 'DISARM');
+  });
+  r.modes.forEach(function (m) {
+    tick(m.t, 'mode', 'mode → ' + (typeof m.mode === 'string' ? m.mode : 'm' + m.mode));
+  });
+  r.statusText.forEach(function (s) {
+    tick(s.t, 'text', '[sev' + s.severity + '] ' + s.text);
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+//  STATS OVERLAY (top-left of map)
+// ════════════════════════════════════════════════════════════
+function drawStatsOverlay(r) {
+  var el = document.getElementById('stats-overlay');
+  if (!r) { el.innerHTML = ''; return; }
+  var html = '';
+  // Mode summary
+  html += '<h3>RUN</h3><table>';
+  html += '<tr><td>Started</td><td>' + isoTime(r.t0) + '</td></tr>';
+  html += '<tr><td>Modes</td><td>' + r.modes.length + '</td></tr>';
+  html += '<tr><td>Arm cycles</td><td>' + r.armed.filter(function (a) { return a.armed; }).length + '</td></tr>';
+  // GPS
+  if (r.gps.length) {
+    var sats = r.gps.map(function (g) { return g.satellites; }).filter(function (s) { return s != null; });
+    var avgSats = sats.length ? sats.reduce(function (a, b) { return a + b; }, 0) / sats.length : 0;
+    var fix3d = r.gps.filter(function (g) { return g.fix_type >= 3; }).length;
+    html += '<tr><td>GPS sats avg</td><td>' + avgSats.toFixed(1) + '</td></tr>';
+    html += '<tr><td>3D fix</td><td>' + (fix3d * 100 / r.gps.length).toFixed(1) + '%</td></tr>';
+  }
+  html += '</table>';
+  // Warnings
+  if (r.statusText.length) {
+    html += '<hr><h3>WARNINGS · ' + r.statusText.length + '</h3>';
+    var seen = {};
+    r.statusText.forEach(function (s) { seen[s.text] = (seen[s.text] || 0) + 1; });
+    var keys = Object.keys(seen).sort(function (a, b) { return seen[b] - seen[a]; });
+    keys.slice(0, 6).forEach(function (k) {
+      html += '<div style="font-size:10px;color:var(--dim);margin-bottom:2px;line-height:1.3">'
+            + '<span style="color:var(--warn)">' + seen[k] + '×</span> ' + k + '</div>';
+    });
+  }
+  el.innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════════
+//  CURSOR / SCRUB sync (chart hover ↔ map ↔ scrubber)
+// ════════════════════════════════════════════════════════════
+function onCursorTime(t) {
+  // Set vehicle marker + side info to time t
+  if (!run || !run.track.length) return;
+  var pct = (t - run.t0) / (run.t1 - run.t0) * 100;
+  pct = Math.max(0, Math.min(100, pct));
+  document.getElementById('scrub').value = pct;
+  updateScrub(pct, /*fromCursor=*/true);
+}
+
+function updateScrub(pct, fromCursor) {
+  if (!run || !run.track.length) return;
+  var t = run.t0 + (pct / 100) * (run.t1 - run.t0);
+  document.getElementById('scrub-time').textContent = isoTime(t);
+
+  function nearest(arr) {
+    if (!arr || !arr.length) return null;
+    var lo = 0, hi = arr.length - 1;
+    while (lo < hi) {
+      var mid = (lo + hi) >> 1;
+      if (arr[mid].t < t) lo = mid + 1; else hi = mid;
+    }
+    return arr[lo];
+  }
+  var p = nearest(run.track);
+  var g = nearest(run.gps);
+  var s = nearest(run.sys);
+  var v = nearest(run.vfr);
+
+  if (p && p.lat && vehicleMarker) {
+    vehicleMarker.setLatLng([p.lat, p.lon]);
+    var icon = vehicleMarker.getElement();
+    if (icon) {
+      var inner = icon.querySelector('.veh-icon');
+      var rot = (g && g.cog_deg != null) ? g.cog_deg : (p.heading_deg || 0);
+      if (inner) inner.style.transform = 'rotate(' + rot + 'deg)';
+    }
+  }
+
+  // Per-chart "value" labels
+  if (g) {
+    var spdKn = g.vel_ms != null ? g.vel_ms * 1.94384 : null;
+    document.getElementById('chart-spd-val').textContent =
+      spdKn != null ? (g.vel_ms.toFixed(2) + ' m/s · ' + spdKn.toFixed(1) + ' kn') : '—';
+    document.getElementById('chart-hdg-val').textContent =
+      (p && p.heading_deg != null ? Math.round(p.heading_deg) + '°' : '—') +
+      ' · ' + (g.cog_deg != null ? Math.round(g.cog_deg) + '° COG' : '—');
+  }
+  if (s) {
+    document.getElementById('chart-volt-val').textContent =
+      s.voltage_v != null ? s.voltage_v.toFixed(2) + ' V' : '—';
+  }
+  if (v) {
+    document.getElementById('chart-thr-val').textContent =
+      v.throttle_pct != null ? v.throttle_pct + ' %' : '—';
+  }
+
+  // Bottom info line
+  var bits = [];
+  if (g && g.vel_ms != null) bits.push((g.vel_ms * 1.94384).toFixed(1) + ' kn');
+  if (g && g.cog_deg != null) bits.push(Math.round(g.cog_deg) + '°');
+  if (s && s.voltage_v) bits.push(s.voltage_v.toFixed(1) + ' V');
+  if (v && v.throttle_pct != null) bits.push('thr ' + v.throttle_pct + '%');
+  document.getElementById('scrub-info').textContent = bits.join('  ·  ') || '—';
+
+  // If the operator manually scrubs, drive each chart's cursor to match.
+  if (!fromCursor) {
+    for (var k in charts) {
+      var c = charts[k];
+      if (!c) continue;
+      var idx = nearestIdx(c.data[0], t);
+      try { c.setCursor({ left: c.valToPos(t, 'x'), top: 0 }, true); } catch (_) {}
+    }
+  }
+}
+
+function nearestIdx(xs, t) {
+  if (!xs || !xs.length) return 0;
+  var lo = 0, hi = xs.length - 1;
+  while (lo < hi) { var m = (lo + hi) >> 1; if (xs[m] < t) lo = m + 1; else hi = m; }
+  return lo;
+}
+
+document.getElementById('scrub').addEventListener('input', function (e) {
+  if (playTimer) { clearInterval(playTimer); playTimer = null; document.getElementById('play-btn').textContent = '▶'; }
+  updateScrub(parseFloat(e.target.value));
+});
+
+document.getElementById('play-btn').addEventListener('click', function () {
+  var btn = this;
+  if (playTimer) { clearInterval(playTimer); playTimer = null; btn.textContent = '▶'; return; }
+  btn.textContent = '⏸';
+  var slider = document.getElementById('scrub');
+  playTimer = setInterval(function () {
+    var v = parseFloat(slider.value) + 0.5;
+    if (v > 100) v = 0;
+    slider.value = v;
+    updateScrub(v);
+  }, 100);
+});
+
+// ════════════════════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════════════════════
+function isoTime(t) { return new Date(t * 1000).toISOString().slice(11, 19); }
+
+function fmtDur(s) {
+  var m = Math.floor(s / 60);
+  var sec = Math.round(s - m * 60);
+  var h = Math.floor(m / 60);
+  m = m - h * 60;
+  if (h) return h + 'h ' + (m < 10 ? '0' : '') + m + 'm ' + (sec < 10 ? '0' : '') + sec + 's';
+  return m + 'm ' + (sec < 10 ? '0' : '') + sec + 's';
+}
+
+function totalDistance(track) {
+  var d = 0;
+  for (var i = 1; i < track.length; i++) {
+    var a = track[i - 1], b = track[i];
+    if (!a.lat || !b.lat) continue;
+    var dLat = (b.lat - a.lat) * Math.PI / 180;
+    var dLon = (b.lon - a.lon) * Math.PI / 180;
+    var lat = a.lat * Math.PI / 180;
+    var x = Math.sin(dLat / 2);
+    var y = Math.sin(dLon / 2);
+    var ha = x * x + Math.cos(lat) * Math.cos(lat) * y * y;
+    d += 6371000 * 2 * Math.atan2(Math.sqrt(ha), Math.sqrt(1 - ha));
+  }
+  return d;
+}
+
+// ════════════════════════════════════════════════════════════
+//  FILE I/O
+// ════════════════════════════════════════════════════════════
+document.getElementById('file-input').addEventListener('change', function (e) {
+  var f = e.target.files[0];
+  if (!f) return;
+  var rd = new FileReader();
+  rd.onload = function () { render(parseLog(rd.result)); };
+  rd.readAsText(f);
+});
+
+document.getElementById('export-kml').addEventListener('click', function () {
+  if (!run || !run.track.length) { alert('No track loaded'); return; }
+  var coords = run.track
+    .filter(function (e) { return e.lat && e.lon && Math.abs(e.lat) > 0.0001; })
+    .map(function (e) {
+      return e.lon.toFixed(7) + ',' + e.lat.toFixed(7) + ',' + (e.alt_m || 0);
+    }).join(' ');
+  var kml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<kml xmlns="http://www.opengis.net/kml/2.2">\n' +
+    '  <Document>\n' +
+    '    <name>Meridian flight ' + new Date(run.t0 * 1000).toISOString() + '</name>\n' +
+    '    <Style id="track"><LineStyle><color>ffffe500</color><width>3</width></LineStyle></Style>\n' +
+    '    <Placemark>\n' +
+    '      <name>Track</name>\n' +
+    '      <styleUrl>#track</styleUrl>\n' +
+    '      <LineString><tessellate>1</tessellate><coordinates>' + coords + '</coordinates></LineString>\n' +
+    '    </Placemark>\n' +
+    '  </Document>\n</kml>\n';
+  download('meridian-' + isoFile(run.t0) + '.kml', kml, 'application/vnd.google-earth.kml+xml');
+});
+
+document.getElementById('export-csv').addEventListener('click', function () {
+  if (!run || !run.track.length) { alert('No track loaded'); return; }
+  var rows = [['t_iso', 'lat', 'lon', 'alt_m', 'hdg_deg',
+               'gps_speed_ms', 'gps_speed_kn', 'gps_cog_deg', 'gps_sats',
+               'voltage_v', 'current_a', 'throttle_pct'].join(',')];
+  function nearest(arr, t) {
+    if (!arr || !arr.length) return null;
+    var lo = 0, hi = arr.length - 1;
+    while (lo < hi) { var m = (lo + hi) >> 1; if (arr[m].t < t) lo = m + 1; else hi = m; }
+    return arr[lo];
+  }
+  run.track.forEach(function (p) {
+    if (!p.lat) return;
+    var g = nearest(run.gps, p.t) || {};
+    var s = nearest(run.sys, p.t) || {};
+    var v = nearest(run.vfr, p.t) || {};
+    rows.push([
+      new Date(p.t * 1000).toISOString(),
+      p.lat, p.lon, p.alt_m || '',
+      p.heading_deg || '',
+      g.vel_ms || '', (g.vel_ms != null ? (g.vel_ms * 1.94384).toFixed(2) : ''),
+      g.cog_deg || '', g.satellites || '',
+      s.voltage_v || '', s.current_a || '',
+      v.throttle_pct || '',
+    ].join(','));
+  });
+  download('meridian-' + isoFile(run.t0) + '.csv', rows.join('\n'), 'text/csv');
+});
+
+document.getElementById('export-summary').addEventListener('click', function () {
+  if (!run) { alert('No log loaded'); return; }
+  var s = generateSummary(run);
+  download('meridian-summary-' + isoFile(run.t0) + '.txt', s, 'text/plain');
+});
+
+function generateSummary(r) {
+  var maxV = 0; r.gps.forEach(function (g) { if (g.vel_ms > maxV) maxV = g.vel_ms; });
+  var sumV = 0, nV = 0; r.gps.forEach(function (g) { if (g.vel_ms != null) { sumV += g.vel_ms; nV++; } });
+  var avgV = nV ? sumV / nV : 0;
+  var minVolt = Infinity, maxVolt = -Infinity;
+  r.sys.forEach(function (s) {
+    if (s.voltage_v != null && s.voltage_v > 1) {
+      if (s.voltage_v < minVolt) minVolt = s.voltage_v;
+      if (s.voltage_v > maxVolt) maxVolt = s.voltage_v;
+    }
+  });
+  var d = totalDistance(r.track);
+  return [
+    'MERIDIAN FLIGHT SUMMARY',
+    '═══════════════════════════════════════',
+    'Started:       ' + new Date(r.t0 * 1000).toISOString(),
+    'Ended:         ' + new Date(r.t1 * 1000).toISOString(),
+    'Duration:      ' + fmtDur(r.t1 - r.t0),
+    '',
+    'Distance:      ' + (d / 1000).toFixed(2) + ' km · ' + (d / 1852).toFixed(2) + ' nmi',
+    'Avg speed:     ' + avgV.toFixed(2) + ' m/s · ' + (avgV * 1.94384).toFixed(1) + ' kn',
+    'Max speed:     ' + maxV.toFixed(2) + ' m/s · ' + (maxV * 1.94384).toFixed(1) + ' kn',
+    '',
+    'Battery:       ' + (isFinite(minVolt) ? minVolt.toFixed(2) + ' V → ' + maxVolt.toFixed(2) + ' V (Δ ' + (maxVolt - minVolt).toFixed(2) + ' V)' : 'no data'),
+    'Mode changes:  ' + r.modes.length,
+    'Arm cycles:    ' + r.armed.filter(function (a) { return a.armed; }).length,
+    'Warnings:      ' + r.statusText.length,
+    '',
+    'Track points:  ' + r.track.length,
+    'GPS samples:   ' + r.gps.length,
+    'Attitude:      ' + r.attitude.length,
+  ].join('\n');
+}
+
+function isoFile(t) { return new Date(t * 1000).toISOString().replace(/[:.]/g, '-').slice(0, 19); }
+function download(name, data, mime) {
+  var blob = new Blob([data], { type: mime });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+}
+
+window.addEventListener('resize', fitChartsToContainer);
+</script>
+</body>
+</html>
