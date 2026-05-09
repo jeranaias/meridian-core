@@ -229,6 +229,62 @@ def _decode_command_ack(p: bytes) -> Optional[dict]:
     return {"command": cmd, "result": result}
 
 
+def _decode_radio_status(p: bytes) -> Optional[dict]:
+    """RADIO_STATUS (109): RFD900/SiK link health.
+    Wire order v2 (size desc): u16 rxerrors, u16 fixed, u8 rssi, u8 remrssi,
+    u8 txbuf, u8 noise, u8 remnoise.
+
+    rssi/remrssi/noise/remnoise are dimensionless in the radio's units;
+    SiK convention is dB = (raw / 1.9) - 127, so a value of 215 ~ -14 dB
+    (very strong) and 70 ~ -90 dB (almost gone). We store both raw and
+    dB-converted for analysis convenience."""
+    if len(p) < 4: return None
+    padded = p + b"\x00" * max(0, 9 - len(p))
+    rxerrors, fixed = struct.unpack_from("<HH", padded, 0)
+    rssi      = padded[4]
+    remrssi   = padded[5]
+    txbuf     = padded[6]
+    noise     = padded[7]
+    remnoise  = padded[8]
+    def db(v: int) -> float: return round(v / 1.9 - 127.0, 1)
+    return {
+        "rssi_raw": rssi,         "rssi_db": db(rssi),
+        "remrssi_raw": remrssi,   "remrssi_db": db(remrssi),
+        "noise_raw": noise,       "noise_db": db(noise),
+        "remnoise_raw": remnoise, "remnoise_db": db(remnoise),
+        "snr_db": db(rssi) - db(noise) if noise else None,
+        "remsnr_db": db(remrssi) - db(remnoise) if remnoise else None,
+        "txbuf_pct": txbuf,
+        "rx_errors": rxerrors,
+        "fixed": fixed,
+    }
+
+
+def _decode_gps2_raw(p: bytes) -> Optional[dict]:
+    """GPS2_RAW (124). Same fields as GPS_RAW_INT but for the secondary
+    receiver. Wire order v2 (size desc): u64 time, i32 lat, i32 lon,
+    i32 alt, u32 dgps_age, u16 eph, u16 epv, u16 vel, u16 cog,
+    u8 fix_type, u8 sats_visible, u8 dgps_numch."""
+    if len(p) < 16: return None
+    padded = p + b"\x00" * max(0, 35 - len(p))
+    time_us = struct.unpack_from("<Q", padded, 0)[0]
+    lat_i, lon_i, alt_i, dgps_age = struct.unpack_from("<iiiI", padded, 8)
+    eph, epv, vel, cog = struct.unpack_from("<HHHH", padded, 24)
+    fix_type = padded[32]
+    sats     = padded[33]
+    return {
+        "lat_deg": lat_i / 1e7, "lon_deg": lon_i / 1e7,
+        "alt_m": alt_i / 1000.0,
+        "fix_type": fix_type,
+        "sats_visible": sats,
+        "eph_m": eph / 100.0 if eph != 0xFFFF else None,
+        "epv_m": epv / 100.0 if epv != 0xFFFF else None,
+        "vel_ms": vel / 100.0,
+        "cog_deg": cog / 100.0,
+        "dgps_age_s": dgps_age / 1000.0 if dgps_age != 0xFFFFFFFF else None,
+    }
+
+
 def _decode_esc_telemetry(p: bytes, base: int) -> Optional[dict]:
     # ESC_TELEMETRY_n_TO_n+3 (ids 11030..11033). Wire order: u16×20 → u8×4
     if len(p) < 44: return None
@@ -266,6 +322,8 @@ DECODERS = {
     193:  ("EKF_STATUS_REPORT",    _decode_ekf_status_report,        2.0),
     241:  ("VIBRATION",            _decode_vibration,                2.0),
     253:  ("STATUSTEXT",           _decode_statustext,               None),  # always log
+    109:  ("RADIO_STATUS",         _decode_radio_status,             None),  # always log -- RFD900 RSSI/SNR per packet
+    124:  ("GPS2_RAW",             _decode_gps2_raw,                 1.0),
     11030: ("ESC_TELEMETRY_1_TO_4",  lambda p: _decode_esc_telemetry(p, 0),  1.0),
     11031: ("ESC_TELEMETRY_5_TO_8",  lambda p: _decode_esc_telemetry(p, 4),  1.0),
     11032: ("ESC_TELEMETRY_9_TO_12", lambda p: _decode_esc_telemetry(p, 8),  1.0),
@@ -294,6 +352,10 @@ class Recorder:
 
         self.last_heartbeat = None  # for arm-transition detection
         self.last_emit_t = {}       # per-msgid throttle
+        # Most-recent values of headline fields, used by the live status
+        # reporter so we can print "RSSI -65/-72 dB  GPS=12sats  VBAT=24.6V"
+        # in the periodic recorder log line.
+        self.last_summary = {}
 
         self.stats = {
             "frames": 0,
@@ -311,8 +373,14 @@ class Recorder:
         self.tlog_path = self.log_dir / f"{ts}.tlog"
         self.jsonl_path = self.log_dir / f"{ts}.jsonl"
         self.summary_path = self.log_dir / f"{ts}.summary.json"
-        self.tlog_f = open(self.tlog_path, "wb")
-        self.jsonl_f = open(self.jsonl_path, "w", encoding="utf-8")
+        # Unbuffered writes: tlog opened with buffering=0 so every byte
+        # hits disk on the same syscall, jsonl opened line-buffered so
+        # every newline flushes. Combined with explicit flush() in the
+        # write paths below, the files grow in real time -- nothing is
+        # held in Python's userspace buffer where it could be lost on
+        # SIGKILL or where Get-ChildItem would report stale size.
+        self.tlog_f = open(self.tlog_path, "wb", buffering=0)
+        self.jsonl_f = open(self.jsonl_path, "w", encoding="utf-8", buffering=1)
         self.run_started_at = time.time()
         self.tlog_bytes = 0
         self.jsonl_bytes = 0
@@ -382,12 +450,36 @@ class Recorder:
         evt.update(fields)
         line = json.dumps(evt, separators=(",", ":"), default=str) + "\n"
         self.jsonl_f.write(line)
-        # flush so the file is readable in near-real-time and data
-        # isn't lost if the process is killed
-        if self.stats["events"] % 20 == 0:
-            self.jsonl_f.flush()
+        # No throttled flush -- jsonl_f opened line-buffered (buffering=1)
+        # so every \n already flushes.
         self.jsonl_bytes += len(line.encode("utf-8"))
         self.stats["events"] += 1
+        # Mirror headline values into last_summary so the live status
+        # reporter can show recent state without re-decoding the .jsonl
+        # tail every 5 s.
+        ls = self.last_summary
+        if msgid == 109:    # RADIO_STATUS
+            ls["rssi_db"]    = fields.get("rssi_db")
+            ls["remrssi_db"] = fields.get("remrssi_db")
+            ls["snr_db"]     = fields.get("snr_db")
+        elif msgid == 24:   # GPS_RAW_INT
+            ls["gps_sats"]   = fields.get("satellites")
+            ls["gps_fix"]    = fields.get("fix_type")
+        elif msgid == 124:  # GPS2_RAW
+            ls["gps2_sats"]  = fields.get("sats_visible")
+            ls["gps2_fix"]   = fields.get("fix_type")
+        elif msgid == 1:    # SYS_STATUS
+            ls["batt_v"]     = fields.get("voltage_v")
+            ls["batt_a"]     = fields.get("current_a")
+            ls["batt_pct"]   = fields.get("battery_pct")
+        elif msgid == 147:  # BATTERY_STATUS
+            if fields.get("cells_v"):
+                ls["batt_v"] = sum(fields["cells_v"])
+            ls["batt_pct"]   = fields.get("battery_pct", ls.get("batt_pct"))
+            ls["batt_a"]     = fields.get("current_a", ls.get("batt_a"))
+        elif msgid == 0:    # HEARTBEAT
+            ls["mode"]       = fields.get("mode")
+            ls["armed"]      = fields.get("armed")
 
     def handle_frame(self, frame: bytes) -> None:
         try:
@@ -474,6 +566,45 @@ async def run(args):
         signal.signal(signal.SIGTERM, _request_stop)
     except Exception:
         pass  # Windows signal limitations
+
+    # Live status reporter -- prints a one-liner every 5 s with current
+    # frame/event counts, file sizes, and (where available) the most
+    # recent RSSI / GPS / battery reading. Goes to stdout which the
+    # Scheduled Task's Tee-Object captures into recorder.out.log so
+    # `Get-Content -Wait C:\Users\vangu\recorder.out.log` gives a live
+    # feed of recorder health.
+    async def status_reporter():
+        last_frames = 0
+        last_t = time.time()
+        while not stop.is_set():
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=5.0)
+                break  # stop signaled
+            except asyncio.TimeoutError:
+                pass
+            now = time.time()
+            dt = max(0.001, now - last_t)
+            df = recorder.stats["frames"] - last_frames
+            last_frames, last_t = recorder.stats["frames"], now
+            extras = []
+            ls = recorder.last_summary
+            if ls.get("rssi_db") is not None:
+                extras.append(f"RSSI={ls['rssi_db']:.0f}/{ls.get('remrssi_db', 0):.0f}dB")
+            if ls.get("gps_sats") is not None:
+                extras.append(f"GPS1={ls['gps_sats']}sats/{ls.get('gps_fix','?')}")
+            if ls.get("gps2_sats") is not None:
+                extras.append(f"GPS2={ls['gps2_sats']}sats")
+            if ls.get("batt_v") is not None:
+                extras.append(f"VBAT={ls['batt_v']:.1f}V")
+            if ls.get("mode") is not None:
+                extras.append(f"mode={ls['mode']}{'A' if ls.get('armed') else ''}")
+            tlog_kb = recorder.tlog_bytes // 1024
+            jsonl_kb = recorder.jsonl_bytes // 1024
+            print(f"[recorder] {recorder.stats['frames']} fr ({df/dt:.0f}/s)  "
+                  f"{recorder.stats['events']} evt  "
+                  f"tlog={tlog_kb}kB  jsonl={jsonl_kb}kB  "
+                  + "  ".join(extras), flush=True)
+    status_task = asyncio.create_task(status_reporter())
 
     backoff = 1.0
     try:

@@ -2058,6 +2058,14 @@
             state.lat = dv.getInt32(4, true) / 1e7;
             state.lon = dv.getInt32(8, true) / 1e7;
             state.hdg = dv.getUint16(26, true) / 100;
+            // Velocity vector — falls back to compute groundspeed if VFR_HUD
+            // isn't being broadcast (or broadcasts 0 because the air-data
+            // path is broken on a Rover with no airspeed sensor).
+            // Wire fields: vx, vy, vz at offsets 20, 22, 24 as int16 cm/s.
+            var vx = dv.getInt16(20, true) / 100;
+            var vy = dv.getInt16(22, true) / 100;
+            var gs = Math.sqrt(vx * vx + vy * vy);
+            if (gs > 0.05 || state.spd == null) state.spd = gs;
             updateVehicle();
         } else if (id === 1 && p.length >= 31) { // SYS_STATUS
             state.volt = dv.getUint16(14, true) / 1000;
@@ -2949,7 +2957,10 @@
 
     function updateStatus() {
         setText('si-gps', state.sats + 'S', state.gps_fix >= 3 ? 'ok' : 'warn');
-        setText('si-spd', state.spd.toFixed(1) + ' m/s');
+        // Show m/s + knots (1 m/s = 1.94384 kn). Knots is the marine
+        // convention; m/s gives the operator a quick sanity-check.
+        var kn = state.spd * 1.94384;
+        setText('si-spd', state.spd.toFixed(1) + ' m/s · ' + kn.toFixed(1) + ' kn');
         var battCls = state.batt > 30 ? 'ok'
                     : state.batt > 15 ? 'warn'
                     : state.batt >= 0 ? 'bad' : '';  // negative = no data, no class
