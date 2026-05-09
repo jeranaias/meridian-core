@@ -672,7 +672,7 @@
     <!-- Status Bar -->
     <div id="status-bar">
         <span class="brand-hex" aria-hidden="true"></span>
-        <span class="status-brand" title="GCS build">MERIDIAN <span style="font-size:9px;opacity:0.6;font-weight:400">v29</span></span>
+        <span class="status-brand" title="GCS build">MERIDIAN <span style="font-size:9px;opacity:0.6;font-weight:400">v30</span></span>
         <span class="conn-dot" id="conn-dot"></span>
         <div class="status-item" id="si-gps"><span class="status-val">--</span><span class="status-label">GPS</span></div>
         <div class="status-item" id="si-spd"><span class="status-val">--</span><span class="status-label">Speed</span></div>
@@ -3341,25 +3341,23 @@
 
     // Battery % from voltage. The FC's battery_remaining (state.batt) is
     // unreliable without a wired current sensor (stuck at 99). Compute %
-    // from voltage instead, locking the detected cell count on the FIRST
-    // good high-voltage sample so a deep-discharge sag doesn't get
-    // misclassified as a smaller pack at "100%".
+    // from voltage instead.
+    //
+    // Cell count is HARDCODED to 6S because that's the Vanguard USV's
+    // actual pack configuration. The earlier auto-detect was failing
+    // when the page loaded mid-run with voltage in the 17-22V range:
+    // a 6S pack at 20V was reclassifying as a 5S pack, and 5S full is
+    // 21V (4.2 * 5), so the curve immediately reported "100%" right
+    // when the operator was actually at low charge -- exactly the
+    // worst-possible UX during ops. Override here if a different
+    // pack ever gets fitted; auto-detect off the first voltage sample
+    // is too brittle in practice.
+    var BATT_CELLS = 6;
     function batteryPctFromVoltage() {
         var v = state.volt;
         if (!v || v < 5) return null;
-        // Lock cell count once detected at a high-voltage sample. 22V+
-        // unambiguously means 6S (a 4S full charge is 16.8V max). After
-        // lock, never reclassify -- low voltage on a known 6S means
-        // deep discharge, not a smaller pack.
-        if (state._cellCount == null) {
-            if (v > 22)      state._cellCount = 6;
-            else if (v > 16.9) state._cellCount = 5;  // rare on USVs
-            else if (v > 12.7) state._cellCount = 4;
-            else if (v > 8.5)  state._cellCount = 3;
-            else if (v > 5.5)  state._cellCount = 2;
-            else               state._cellCount = 1;
-        }
-        var per = v / state._cellCount;
+        state._cellCount = BATT_CELLS;  // exposed in health panel
+        var per = v / BATT_CELLS;
         var pct;
         if      (per >= 4.20) pct = 100;
         else if (per >= 3.80) pct = 50 + (per - 3.80) / 0.40 * 50;
