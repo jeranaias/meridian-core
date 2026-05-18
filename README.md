@@ -1,3 +1,7 @@
+> **Note:** This is the open-source predecessor of Meridian. Meridian is now developed commercially by **Thornveil LLC** ([thornveil.ai](https://thornveil.ai)). This repository remains as a community resource and historical reference. The productized Thornveil version contains substantial additional engineering not present here and is not publicly available.
+
+---
+
 <p align="center">
   <img src="assets/meridian-logo.svg" width="80" alt="Meridian">
 </p>
