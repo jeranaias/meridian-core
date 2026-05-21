@@ -1,4 +1,6 @@
-> **Note:** This is the open-source predecessor of Meridian. Meridian is now developed commercially by **Thornveil LLC** ([thornveil.ai](https://thornveil.ai)). This repository remains as a community resource and historical reference. The productized Thornveil version contains substantial additional engineering not present here and is not publicly available.
+# meridian-core
+
+> **Public OSS. Frozen snapshot — historical / community reference.** Open-source predecessor of [`thornveil-ai/meridian`](https://github.com/thornveil-ai/meridian). The productized Thornveil version contains substantial additional engineering not present here.
 
 ---
 
@@ -803,3 +805,7 @@ If you love the idea of a Rust-native autopilot, if you want to `cargo test` a s
 [MIT](gcs/LICENSE)
 
 Use it. Fork it. Fly with it.
+
+---
+
+A Thornveil system. See [other Thornveil systems](https://github.com/thornveil-ai).

@@ -1,0 +1,79 @@
+# Meridian — memory-safe Rust autopilot for STM32 H7/F4/F7
+# Proprietary, private (Thornveil hardening). Public OSS lives at jeranaias/meridian-core.
+# Vanguard (Australian USV builder) is the current active deployment partner.
+# Drop into thornveil-ai/meridian/.github/CODEOWNERS at migration time.
+
+# Default owner
+* @thornveil-ai/engineering
+
+# Firmware crates — firmware team owns at admin level
+/bin/meridian-stm32/                  @thornveil-ai/firmware
+/crates/meridian-ekf/                 @thornveil-ai/firmware
+/crates/meridian-control/             @thornveil-ai/firmware
+/crates/meridian-mixing/              @thornveil-ai/firmware
+/crates/meridian-nav/                 @thornveil-ai/firmware
+/crates/meridian-modes/               @thornveil-ai/firmware
+/crates/meridian-mavlink/             @thornveil-ai/firmware
+/crates/meridian-drivers/             @thornveil-ai/firmware
+/crates/meridian-rc/                  @thornveil-ai/firmware
+/crates/meridian-failsafe/            @thornveil-ai/firmware @thornveil-ai/security
+/crates/meridian-fence/               @thornveil-ai/firmware @thornveil-ai/security
+/crates/meridian-mission/             @thornveil-ai/firmware
+/crates/meridian-sitl/                @thornveil-ai/firmware
+/crates/meridian-autotune/            @thornveil-ai/firmware
+/crates/meridian-platform-stm32/      @thornveil-ai/firmware
+/crates/meridian-platform-sitl/       @thornveil-ai/firmware
+/crates/meridian-platform-linux/      @thornveil-ai/firmware
+/crates/meridian-can/                 @thornveil-ai/firmware
+/crates/meridian-dds/                 @thornveil-ai/firmware
+/boards/                              @thornveil-ai/firmware
+/vendor/                              @thornveil-ai/firmware
+
+# Payload crates
+/crates/meridian-mount/               @thornveil-ai/firmware
+/crates/meridian-camera/              @thornveil-ai/firmware
+/crates/meridian-precland/            @thornveil-ai/firmware
+/crates/meridian-gripper/             @thornveil-ai/firmware
+/crates/meridian-winch/               @thornveil-ai/firmware
+/crates/meridian-sprayer/             @thornveil-ai/firmware
+/crates/meridian-parachute/           @thornveil-ai/firmware @thornveil-ai/security
+/crates/meridian-landing-gear/        @thornveil-ai/firmware
+
+# Trade-secret Phase 10 crates — admin review required
+# Per THORNVEIL-CONFIDENTIAL.md
+/crates/meridian-attest/              @jeranaias
+/crates/meridian-vehicle-id/          @jeranaias
+/crates/meridian-secdef/              @jeranaias @thornveil-ai/security
+/crates/meridian-maintenance/         @jeranaias
+/crates/meridian-beacon/              @jeranaias
+/crates/meridian-bootloader-lib/      @jeranaias @thornveil-ai/security
+/crates/meridian-dock/                @jeranaias
+/crates/meridian-fleet/               @jeranaias
+/crates/meridian-continuous-cal/      @jeranaias
+/crates/meridian-maneuver-sim/        @jeranaias
+/crates/meridian-energy/              @jeranaias
+/crates/meridian-log/                 @jeranaias
+
+# Vanguard partner artifacts — firmware team only (partner-sensitive)
+/apps/vanguard-pwa/                   @thornveil-ai/firmware
+/docs/vanguard/                       @thornveil-ai/firmware
+/tools/tristan-gcs-bridge.py          @thornveil-ai/firmware
+/tools/usv-*.ps1                      @thornveil-ai/firmware
+/tools/register-resilient-bridge.ps1  @thornveil-ai/firmware
+/tools/install-flightlog-cleanup.ps1  @thornveil-ai/firmware
+/tools/install-desktop-flightlogs.ps1 @thornveil-ai/firmware
+
+# GCS (browser-based) — engineering
+/gcs/                                 @thornveil-ai/engineering
+/gcs/pid-tune.html                    @thornveil-ai/firmware
+
+# Tools — engineering
+/tools/                               @thornveil-ai/engineering
+
+# Workspace + release
+/Cargo.toml                           @jeranaias
+/Cargo.lock                           @thornveil-ai/firmware
+/THORNVEIL-CONFIDENTIAL.md            @jeranaias
+/STATUS.md                            @thornveil-ai/firmware
+/LICENSE                              @jeranaias
+/.github/workflows/                   @jeranaias
